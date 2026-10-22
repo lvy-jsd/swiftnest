@@ -17,7 +17,8 @@ export interface PerchConnection {
   cancel(taskId: string): void;
   onCapabilitiesChanged(fn: () => void): () => void;
   onClose(fn: () => void): () => void;
-  close(): void;
+  /** End the session; remote links tell the device why (e.g. code "REVOKED"). */
+  close(code?: string, message?: string): void;
 }
 
 export function memoryLink(perch: Perch): PerchConnection {

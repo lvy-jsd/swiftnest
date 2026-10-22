@@ -2,5 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist" },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../../plugins/cap-shell" }, { "path": "../../plugins/surface-mcp" }]
+  "references": [
+    { "path": "../core" },
+    { "path": "../protocol" },
+    { "path": "../../plugins/cap-shell" },
+    { "path": "../../plugins/cap-files" },
+    { "path": "../../plugins/link-lan" },
+    { "path": "../../plugins/surface-mcp" }
+  ]
 }

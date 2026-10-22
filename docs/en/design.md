@@ -321,8 +321,8 @@ Switch services one by one; no big-bang migration.
 
 | Milestone | Content | Acceptance |
 |---|---|---|
-| **M0 Skeleton** | Repository, core (minimal registry, permission proxy, audit, task state machine), protocol, SDK, plugin templates, simulated Nest/devices, cap-shell, MCP endpoint, playground, docs site skeleton (zh/en) | MCP client in simulated environment calls `sim__shell__run("echo ok")` successfully with audit record; template-generated plugin tests pass |
-| **M1 First Connection** | Standalone Nest + one LAN Perch; link-lan; cap-shell, cap-files; CLI pairing (code + fingerprint); **minimal security**: tool allowlist, default ask, timeout and cancel, audit, permission declarations, one-click disconnect | Claude Desktop connects to Nest, calls `laptop__shell__run("echo ok")`; `rm`-type commands are intercepted and require confirmation; audit is queryable; 30-second timeout can cancel |
+| **M0 Skeleton** ✅ | Repository, core (minimal registry, permission proxy, audit, task state machine), protocol, SDK, plugin templates, simulated Nest/devices, cap-shell, MCP endpoint, playground, docs site skeleton (zh/en) | MCP client in simulated environment calls `sim__shell__run("echo ok")` successfully with audit record; template-generated plugin tests pass |
+| **M1 First Connection** ✅ (see §17) | Standalone Nest + one LAN Perch; link-lan; cap-shell, cap-files; CLI pairing (code + fingerprint); **minimal security**: tool allowlist, default ask, timeout and cancel, audit, permission declarations, one-click disconnect | Claude Desktop connects to Nest, calls `laptop__shell__run("echo ok")`; `rm`-type commands are intercepted and require confirmation; audit is queryable; 30-second timeout can cancel |
 | **M1.5 DSH and Public Network** | dsh-plugin-swiftnest, link-relay (default off), approval entry, minimal web panel | Have Xiaoyan operate the laptop via DSH; laptop leaves LAN and reconnects via relay |
 | **M2 Full Security** | Three-layer permissions + parameter policies, signed approvals, local confirmation, key rotation and recovery, client identity, revocation, secret storage | Sensitive operations require phone/panel approval AND device-local confirmation; revocation takes effect immediately |
 | **M3 Networking** | link-headscale (Nest one-click deploy), automatic routing | Laptop on external network auto-connects via Headscale |
@@ -354,3 +354,26 @@ Switch services one by one; no big-bang migration.
 **Not adopted**:
 - "M1 Chinese only, add English before release": The initiator already decided on equal zh/en; switched to "local model first draft + human proofreading + CI sync check" to reduce cost (Xiaoyan translated this document v0.2 in 2 minutes).
 - "If the model can't see images, add OCR": Swift 1.5 can see images directly; kept "screenshots with text summaries" to save context.
+
+## 17. M1 implementation notes (2026-10-22)
+
+**What was built**
+
+| Part | Where | Notes |
+|---|---|---|
+| Encrypted session | `core/src/channel.ts` | Shared by every link. Two plaintext handshake messages (each with the Ed25519 identity key, an ephemeral X25519 key and a nonce) give the transcript hash `th`; HKDF-SHA-256 derives one AES-256-GCM key per direction; the first ciphertext each way is an identity signature over `role ‖ th`. Every frame then carries an 8-byte counter as its nonce, strictly increasing; a tampered, replayed or reordered frame closes the session. Node's built-in crypto only. |
+| Pairing | `core/src/pairing.ts`, `remote.ts` | One-time 6-digit code (5 minutes, single use, dropped after 5 wrong tries); the device sends `HMAC(code, th)`; each side confirms the other's fingerprint, and the first "no" ends it. Paired devices live in `devices.json` (mode 600, atomic writes). |
+| Remote devices | `core/src/remote.ts` | On the Nest a remote device is an ordinary `PerchConnection`, so tasks, policy, approvals and audit are unchanged; every message is validated against the protocol schema; running tasks fail with `DEVICE_OFFLINE` when the device drops. New `nest.revoke()`. |
+| LAN link | `plugins/link-lan` | Two dependencies, `ws` and `multicast-dns`. The Nest listens on 7711 and allows 16 unauthenticated handshakes at once; refusals reach the device as error codes (`NOT_PAIRED`…), which decide between "retrying cannot help" and "reconnect later"; reconnects back off exponentially (1 → 30 s); when mDNS finds nothing the last address that worked is dialled. |
+| Files capability | `plugins/cap-files` | list/read/stat/write/mkdir/move/delete; shared folders (home by default) + a real-path check (no symlink escapes) + an always-refused list of secret locations (Swiftnest's own keys included). |
+| Command line | `packages/cli` | `nest`, `perch`, `pair`, `devices`, `revoke`, `pending`, `approve`, `deny`, `audit`. The Nest opens a mode-600 Unix socket for the local owner, so it can run headless; approvals and pairing confirmations in a terminal share one prompt queue. Chinese and English. |
+
+**Acceptance** (`scripts/acceptance-m1.mjs`, separate processes and real sockets, all 14 checks pass): pairing code and fingerprint; a device refuses a Nest with the wrong fingerprint; online after both confirm; an MCP client sees `laptop__shell__run` and gets the `echo ok` output; `rm -rf` waits for approval, `swiftnest pending` shows the raw arguments and the risk, `swiftnest deny` refuses it; an approved 30-second command is cancelled while running and its process on the device is really gone; the audit log is complete; after revoke the device exits, deletes its pairing and cannot reconnect. Plus 61 unit and integration tests (the mDNS test skips itself on this machine because of the firewall).
+
+**Different from the plan**
+
+- Acceptance used the MCP SDK client over HTTP, not Claude Desktop itself; Claude Desktop reaches the HTTP endpoint through `mcp-remote` (the docs give the config). A direct `swiftnest mcp` stdio bridge moves to M1.5.
+- mDNS was not exercised on the development machine: NixOS's default firewall drops UDP 5353. The code has a test that skips itself where multicast cannot work; the docs explain `--nest` instead.
+- Pairing codes are not bound to a device model and timestamp: the proof is bound to the session's transcript hash, which is what prevents replay.
+
+**Left for M1.5 / M2**: policy reason strings are English only; approvals are not signed and there is no local confirmation on the device (M2); key rotation and recovery (M2); the `swiftnest mcp` stdio bridge; the web panel.

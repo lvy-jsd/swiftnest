@@ -4,13 +4,13 @@
 
 ---
 
-> ⚠️ This project is in its early stages (M0 skeleton). APIs are still changing — do not use in production.
+> ⚠️ This project is in its early stages (M1: one server and LAN devices). APIs are still changing — do not use in production.
 
 ## What It Is
 
 When your agent (Claude Desktop, Cursor, DSH, OpenClaw, …) wants to help you operate your computer, phone, or home server, Swiftnest handles the layer in between:
 
-- **Pairing**: A device joins by scanning a QR code or entering a 6-digit code; after that, only that device's key is accepted (M1).
+- **Pairing**: A device joins with a one-time 6-digit code and a fingerprint check on both sides; after that only its key is accepted, and the link is end-to-end encrypted.
 - **Capabilities**: Every feature on a device is a plugin; any existing MCP service can be turned into a capability directly.
 - **Security**: Read-only operations pass through automatically; mutations, executions, and deletions require your approval; every call is logged in an audit trail.
 - **Works with any agent**: Externally it's just a standard MCP endpoint, with tool names like `laptop__shell__run`.
@@ -55,6 +55,7 @@ The template includes a minimal capability and a test that runs against the simu
 ## Documentation
 
 - [Quick Start](docs/en/guide/quickstart.md)
+- [Two machines: a Nest and a device](docs/en/guide/two-machines.md)
 - [Core Concepts](docs/en/guide/concepts.md)
 - [Write Your First Plugin](docs/en/guide/write-a-plugin.md)
 - [Design Document](docs/en/design.md)
@@ -64,7 +65,7 @@ The template includes a minimal capability and a test that runs against the simu
 | Milestone | Status |
 |---|---|
 | M0 Skeleton: core, protocol, SDK, CLI capabilities, MCP endpoint, playground, plugin template | ✅ |
-| M1 First Connection: standalone server + one LAN device, pairing, minimal security | In progress |
+| M1 First Connection: standalone server + LAN devices, pairing, files capability, minimal security | ✅ |
 | M1.5 DSH plugin & public relay · M2 Full security · M3 Headscale mesh · M4–M6 | Planned |
 
 See the full roadmap in [Section 14 of the Design Document](docs/en/design.md#14-roadmap).

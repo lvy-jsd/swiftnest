@@ -10,6 +10,7 @@ import { SwiftnestFailure } from "./errors.js";
 import { fingerprintOf, generateIdentity, type Identity } from "./identity.js";
 import type { PerchConnection } from "./link.js";
 import { createLogger, type Logger } from "./log.js";
+import { MemoryDeviceStore, PairingManager, type DeviceStore } from "./pairing.js";
 import { PluginHost, type SwiftnestPlugin } from "./plugin.js";
 import { RulePolicy, type Policy } from "./policy.js";
 import { TaskManager } from "./tasks.js";
@@ -21,6 +22,9 @@ export interface NestOptions {
   logger?: Logger;
   approvalTimeoutMs?: number;
   maxConcurrentPerDevice?: number;
+  /** Paired devices (remote links only accept these). Defaults to an in-memory list. */
+  devices?: DeviceStore;
+  pairing?: PairingManager;
 }
 
 export interface ExposedTool {
@@ -44,6 +48,8 @@ export class Nest {
   readonly policy: Policy;
   readonly tasks: TaskManager;
   readonly logger: Logger;
+  readonly devicesStore: DeviceStore;
+  readonly pairing: PairingManager;
   private host: PluginHost;
   private conns = new Map<string, { conn: PerchConnection; off: (() => void)[] }>();
   private events = new EventEmitter();
@@ -53,6 +59,8 @@ export class Nest {
     this.audit = opts.audit ?? new MemoryAuditLog();
     this.policy = opts.policy ?? new RulePolicy();
     this.logger = opts.logger ?? createLogger("nest");
+    this.devicesStore = opts.devices ?? new MemoryDeviceStore();
+    this.pairing = opts.pairing ?? new PairingManager();
     this.host = new PluginHost("nest", this.logger);
     this.tasks = new TaskManager({
       connection: (d) => this.conns.get(d)?.conn,
@@ -94,6 +102,19 @@ export class Nest {
     this.conns.delete(device);
     this.logger.info(`device offline: ${device}`);
     this.changed();
+  }
+
+  /**
+   * Remove a paired device: it is disconnected now (told why) and can only come back by pairing again.
+   * Returns false when the device was neither paired nor online.
+   */
+  async revoke(device: string): Promise<boolean> {
+    const removed = await this.devicesStore.remove(device);
+    const entry = this.conns.get(device);
+    entry?.conn.close("REVOKED", "This device was revoked on the Nest.");
+    this.detach(device);
+    if (removed || entry) this.logger.info(`revoked ${device}`);
+    return removed || Boolean(entry);
   }
 
   devices(): DeviceInfo[] {

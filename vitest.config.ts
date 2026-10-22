@@ -12,6 +12,8 @@ export default defineConfig({
       "@swiftnest/sdk": src("./packages/sdk/src/index.ts"),
       "@swiftnest/cap-shell": src("./plugins/cap-shell/src/index.ts"),
       "@swiftnest/surface-mcp": src("./plugins/surface-mcp/src/index.ts"),
+      "@swiftnest/link-lan": src("./plugins/link-lan/src/index.ts"),
+      "@swiftnest/cap-files": src("./plugins/cap-files/src/index.ts"),
     },
   },
   test: {

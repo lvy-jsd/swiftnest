@@ -55,3 +55,18 @@ Every state change for every task is written to an append-only audit log: timest
 ## Errors
 
 All errors use a unified format: `code` (error code), `message` (what went wrong), `suggestion` (how to fix it), `retryable` (whether retrying is useful).
+
+## Links and pairing
+
+- Every link between a device and the Nest (the LAN today; relay and Headscale later) carries **the same encrypted session**: both sides prove their Ed25519 identity keys, ephemeral X25519 keys agree on session keys, and every message is AES-256-GCM encrypted with an increasing counter — a tampered, replayed or reordered message ends the connection at once. Whether the link itself is encrypted (plain `ws://`, say) does not matter for safety.
+- **Pairing**: the Nest gives a one-time 6-digit code (5 minutes, single use, dropped after 5 wrong tries). The device sends an HMAC bound to this session, never the code itself; then each side checks the other's fingerprint, and both must confirm. Afterwards the device remembers the Nest's key and the Nest the device's; a changed key on either side is refused.
+- **Revoking**: `swiftnest revoke <device>` disconnects it now and forgets it; the device is told why, stops reconnecting and deletes its saved pairing.
+
+## Capabilities on a device
+
+| Capability | Tools | Risk |
+|---|---|---|
+| Shell `shell` | `run` | read-only commands are reads; pipes, redirects and the like are exec; `rm`, `sudo`… are sensitive |
+| Files `files` | `list`, `read`, `stat` / `write`, `mkdir`, `move` / `delete` | read / write / sensitive; any path outside the shared folders is sensitive and refused |
+
+The files capability works only inside the shared folders (the home directory by default). Paths are resolved to their real location before the check, so a symlink cannot lead out; keys, credentials and browser data are always refused.

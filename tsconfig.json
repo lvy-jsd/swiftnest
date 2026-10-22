@@ -6,6 +6,8 @@
     { "path": "packages/sdk" },
     { "path": "plugins/cap-shell" },
     { "path": "plugins/surface-mcp" },
+    { "path": "plugins/link-lan" },
+    { "path": "plugins/cap-files" },
     { "path": "packages/cli" },
     { "path": "packages/create-swiftnest-plugin" },
     { "path": "templates/capability" }

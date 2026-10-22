@@ -1,16 +1,27 @@
 {
   "name": "swiftnest",
   "version": "0.0.1",
-  "description": "Swiftnest command line: playground, doctor, and (soon) init / pair / plugin management.",
+  "description": "Swiftnest command line: run the Nest and devices, pair, approve, revoke, audit; playground and doctor.",
   "license": "Apache-2.0",
   "type": "module",
-  "bin": { "swiftnest": "./dist/bin.js" },
-  "files": ["dist"],
-  "scripts": { "build": "tsc -b" },
-  "engines": { "node": ">=24" },
+  "bin": {
+    "swiftnest": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
+    "@swiftnest/cap-files": "workspace:*",
     "@swiftnest/cap-shell": "workspace:*",
     "@swiftnest/core": "workspace:*",
+    "@swiftnest/link-lan": "workspace:*",
+    "@swiftnest/protocol": "workspace:*",
     "@swiftnest/surface-mcp": "workspace:*"
   }
 }

@@ -192,6 +192,26 @@ export const ClassifyResult = z.object({
   risk: Risk,
   reason: z.string().optional(),
 });
+/** The Perch's capabilities changed (a plugin was added or removed). */
+export const CapabilitiesUpdate = z.object({ type: z.literal("capabilities"), capabilities: z.array(CapabilityManifest) });
+/** The Nest accepted the hello: the device is online. */
+export const Welcome = z.object({ type: z.literal("welcome") });
+/** Either side ends the session on purpose (revoked, shutting down, refused); `code` says why. */
+export const Bye = z.object({ type: z.literal("bye"), code: z.string(), message: z.string() });
+
+// Pairing runs inside the encrypted channel (design §7.2): the code proves the owner allowed it, the fingerprints both
+// people compare prove nobody sits in between.
+/** Perch → Nest: HMAC-SHA-256(code, "swiftnest/pair/v1" ‖ transcript hash), never the code itself. */
+export const PairRequest = z.object({ type: z.literal("pair"), proof: z.string() });
+/** Nest → Perch: the code was right (now compare fingerprints), pairing finished, or refused. */
+export const PairStatus = z.object({
+  type: z.literal("pair_status"),
+  status: z.enum(["code_ok", "paired", "rejected"]),
+  message: z.string().optional(),
+});
+/** Perch → Nest: the person at the device says the Nest fingerprint matches (or not). */
+export const PairConfirm = z.object({ type: z.literal("pair_confirm"), accept: z.boolean() });
+
 export const LinkMessage = z.discriminatedUnion("type", [
   PerchHello,
   InvokeRequest,
@@ -199,5 +219,11 @@ export const LinkMessage = z.discriminatedUnion("type", [
   CancelRequest,
   ClassifyRequest,
   ClassifyResult,
+  CapabilitiesUpdate,
+  Welcome,
+  Bye,
+  PairRequest,
+  PairStatus,
+  PairConfirm,
 ]);
 export type LinkMessage = z.infer<typeof LinkMessage>;

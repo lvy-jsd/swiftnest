@@ -1,22 +1,22 @@
 #!/usr/bin/env node
-/** swiftnest command line: playground, doctor, version. */
+/** swiftnest command line: nest, perch, pair and the other owner commands, playground, doctor, version. */
 import { access, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createServer } from "node:net";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 import shell from "@swiftnest/cap-shell";
-import { createLogger, JsonlAuditLog, memoryLink, Nest, Perch, RulePolicy } from "@swiftnest/core";
+import { createLogger, JsonlAuditLog, memoryLink, Nest, Perch, RulePolicy, SwiftnestFailure } from "@swiftnest/core";
 import { serveMcpHttp, serveMcpStdio } from "@swiftnest/surface-mcp";
+import { terminalApprovals } from "./approvals.js";
+import * as owner from "./commands.js";
+import { runNest, runPerch } from "./daemons.js";
 import { detectLang, t, type Lang } from "./i18n.js";
+import { stateDir } from "./paths.js";
+
+export { stateDir } from "./paths.js";
 
 const VERSION = "0.0.1";
-
-export function stateDir(): string {
-  return process.env.SWIFTNEST_HOME ?? join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"), "swiftnest");
-}
 
 async function playground(lang: Lang, o: { port: number; devices: string[]; stdio: boolean }) {
   const logger = createLogger("playground", o.stdio ? "warn" : "info");
@@ -46,39 +46,7 @@ async function playground(lang: Lang, o: { port: number; devices: string[]; stdi
   process.stdout.write(t(lang, "playgroundReady")(http.url, o.devices.join(", ")).replace("%AUDIT%", auditPath));
 
   // Approvals happen here, in the owner's terminal — never through the agent.
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  let terminalOpen = true;
-  rl.on("close", () => {
-    terminalOpen = false;
-  });
-  let queue = Promise.resolve();
-  nest.tasks.onChange((s) => {
-    if (s.state !== "pending_approval") return;
-    queue = queue.then(async () => {
-      const current = nest.tasks.get(s.id);
-      if (current?.state !== "pending_approval") return;
-      const prompt = t(lang, "approvalPrompt")(s.client.name ?? s.client.id, s.device, `${s.capability}.${s.tool}`, JSON.stringify(s.args), s.risk, s.reason ?? "");
-      if (!terminalOpen) {
-        // No terminal to ask in (running in the background or under a service manager): show it, leave it pending.
-        process.stdout.write(prompt + "\n" + t(lang, "noTerminal") + "\n");
-        return;
-      }
-      let answer = "";
-      try {
-        answer = await rl.question(prompt);
-      } catch {
-        process.stdout.write("\n" + t(lang, "noTerminal") + "\n");
-        return;
-      }
-      if (/^y(es)?$/i.test(answer.trim())) {
-        await nest.tasks.approve(s.id, "terminal");
-        process.stdout.write(t(lang, "approved") + "\n");
-      } else {
-        await nest.tasks.deny(s.id, "denied in terminal");
-        process.stdout.write(t(lang, "denied") + "\n");
-      }
-    });
-  });
+  terminalApprovals(nest, lang);
 }
 
 async function portFree(port: number) {
@@ -120,15 +88,52 @@ async function main(argv: string[]) {
       port: { type: "string", default: "7710" },
       devices: { type: "string", default: "sim" },
       stdio: { type: "boolean", default: false },
+      // nest
+      "lan-port": { type: "string", default: "7711" },
+      "lan-host": { type: "string", default: "0.0.0.0" },
+      "mcp-port": { type: "string", default: "7710" },
+      "no-mdns": { type: "boolean", default: false },
+      // perch
+      name: { type: "string" },
+      nest: { type: "string" },
+      pair: { type: "string" },
+      fingerprint: { type: "string" },
+      roots: { type: "string", default: "~" },
+      "read-only": { type: "string", default: "" },
+      // owner commands
+      confirm: { type: "string" },
+      reject: { type: "string" },
+      pending: { type: "boolean", default: false },
+      device: { type: "string" },
+      n: { type: "string", short: "n", default: "20" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   const lang = detectLang(values.lang);
-  const cmd = positionals[0] ?? (values.help ? "help" : "help");
+  const cmd = values.help ? "help" : (positionals[0] ?? "help");
+  const list = (v: string | undefined) => String(v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const port = Number(values.port);
   switch (cmd) {
+    case "nest":
+      return runNest(lang, { lanPort: Number(values["lan-port"]), lanHost: String(values["lan-host"]), mcpPort: Number(values["mcp-port"]), mdns: !values["no-mdns"] });
+    case "perch":
+      if (!values.name) return void process.stderr.write(t(lang, "needArg")("swiftnest perch --name <device> [--pair <code>]") + "\n");
+      return runPerch(lang, { name: values.name, nest: values.nest, pair: values.pair, fingerprint: values.fingerprint, roots: list(values.roots), readOnly: list(values["read-only"]) });
+    case "pair":
+      return owner.pair(lang, { confirm: values.confirm, reject: values.reject, pending: values.pending });
+    case "devices":
+      return owner.devices(lang);
+    case "revoke":
+      return owner.revoke(lang, positionals[1]);
+    case "pending":
+      return owner.pending(lang);
+    case "approve":
+    case "deny":
+      return owner.decide(lang, positionals[1], cmd === "approve");
+    case "audit":
+      return owner.audit(lang, Number(values.n), values.device);
     case "playground":
-      return playground(lang, { port, devices: String(values.devices).split(",").map((d) => d.trim()).filter(Boolean), stdio: Boolean(values.stdio) });
+      return playground(lang, { port, devices: list(values.devices), stdio: Boolean(values.stdio) });
     case "doctor":
       process.exitCode = await doctor(lang, port);
       return;
@@ -145,4 +150,11 @@ async function main(argv: string[]) {
   }
 }
 
-await main(process.argv.slice(2));
+try {
+  await main(process.argv.slice(2));
+} catch (e) {
+  // Every failure a person can hit says what went wrong and what to do next.
+  const err = SwiftnestFailure.from(e, "FAILED");
+  process.stderr.write(`✗ ${err.message}${err.suggestion ? `\n  → ${err.suggestion}` : ""}\n`);
+  process.exitCode = 1;
+}

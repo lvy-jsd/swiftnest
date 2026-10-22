@@ -1,0 +1,49 @@
+{
+  "name": "@swiftnest/link-lan",
+  "version": "0.0.1",
+  "description": "Swiftnest link: devices on the same network find the Nest with mDNS and connect over WebSocket, end-to-end encrypted.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "swiftnest-plugin"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "swiftnest": {
+    "apiVersion": 1,
+    "kind": "link",
+    "runsOn": "nest",
+    "platforms": [
+      "linux",
+      "darwin"
+    ],
+    "entry": "./dist/index.js",
+    "permissions": [
+      "network.lan"
+    ],
+    "displayName": {
+      "en": "Local network",
+      "zh": "\u5c40\u57df\u7f51"
+    }
+  },
+  "dependencies": {
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/protocol": "workspace:*",
+    "multicast-dns": "^7.2.5",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/multicast-dns": "^7.2.4",
+    "@types/ws": "^8.18.2"
+  }
+}

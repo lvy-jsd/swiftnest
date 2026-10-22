@@ -1,0 +1,47 @@
+{
+  "name": "@swiftnest/cap-files",
+  "version": "0.0.1",
+  "description": "Swiftnest capability: read, list, write, move and delete files inside allowed folders; secret folders are always refused.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "swiftnest-plugin"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "swiftnest": {
+    "apiVersion": 1,
+    "kind": "capability",
+    "runsOn": "perch",
+    "platforms": [
+      "linux",
+      "darwin"
+    ],
+    "entry": "./dist/index.js",
+    "permissions": [
+      "files.read",
+      "files.write"
+    ],
+    "displayName": {
+      "en": "Files",
+      "zh": "\u6587\u4ef6"
+    }
+  },
+  "dependencies": {
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@swiftnest/sdk": "workspace:*"
+  }
+}
