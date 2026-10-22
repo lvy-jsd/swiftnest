@@ -1,0 +1,11 @@
+{
+  "name": "@swiftnest/core",
+  "version": "0.0.1",
+  "description": "Swiftnest core: plugin host, identity, capability registry, permission proxy, audit, task state machine, Nest and Perch.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@swiftnest/protocol": "workspace:*", "zod": "^4.6.7" }
+}

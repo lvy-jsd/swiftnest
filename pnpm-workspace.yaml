@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+  - plugins/*
+  - templates/*
+
+# pnpm 12 requires an explicit decision for dependency build scripts.
+# esbuild (used by the docs site) installs its platform binary in a build script.
+allowBuilds:
+  esbuild: true

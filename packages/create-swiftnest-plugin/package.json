@@ -1,0 +1,15 @@
+{
+  "name": "create-swiftnest-plugin",
+  "version": "0.0.1",
+  "description": "Scaffold a Swiftnest plugin: npm create swiftnest-plugin@latest",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "create-swiftnest-plugin": "./dist/index.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "template"],
+  "scripts": {
+    "build": "tsc -b",
+    "prepack": "rm -rf template && cp -r ../../templates/capability template && rm -rf template/node_modules template/dist"
+  },
+  "engines": { "node": ">=24" }
+}

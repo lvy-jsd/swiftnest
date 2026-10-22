@@ -1,0 +1,22 @@
+{
+  "name": "swiftnest-plugin-hello",
+  "version": "0.0.1",
+  "description": "A minimal Swiftnest capability plugin.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "keywords": ["swiftnest-plugin"],
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b", "test": "vitest run" },
+  "swiftnest": {
+    "apiVersion": 1,
+    "kind": "capability",
+    "runsOn": "perch",
+    "entry": "./dist/index.js",
+    "permissions": [],
+    "displayName": { "en": "Hello", "zh": "打招呼" }
+  },
+  "dependencies": { "@swiftnest/sdk": "workspace:*" },
+  "devDependencies": { "typescript": "^7.0.2", "vitest": "^5.0.5" }
+}

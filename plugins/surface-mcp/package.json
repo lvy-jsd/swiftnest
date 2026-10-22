@@ -1,0 +1,44 @@
+{
+  "name": "@swiftnest/surface-mcp",
+  "version": "0.0.1",
+  "description": "Swiftnest surface: expose every device's tools to any MCP client over stdio or Streamable HTTP.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "swiftnest-plugin",
+    "mcp"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "swiftnest": {
+    "apiVersion": 1,
+    "kind": "surface",
+    "runsOn": "nest",
+    "entry": "./dist/index.js",
+    "permissions": [
+      "network.listen.local"
+    ],
+    "displayName": {
+      "en": "MCP endpoint",
+      "zh": "MCP 端点"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@swiftnest/cap-shell": "workspace:*"
+  }
+}

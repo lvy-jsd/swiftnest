@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/protocol" },
+    { "path": "packages/core" },
+    { "path": "packages/sdk" },
+    { "path": "plugins/cap-shell" },
+    { "path": "plugins/surface-mcp" },
+    { "path": "packages/cli" },
+    { "path": "packages/create-swiftnest-plugin" },
+    { "path": "templates/capability" }
+  ]
+}

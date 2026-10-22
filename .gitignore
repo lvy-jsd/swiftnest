@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+.swiftnest-dev/

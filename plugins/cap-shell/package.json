@@ -1,0 +1,46 @@
+{
+  "name": "@swiftnest/cap-shell",
+  "version": "0.0.1",
+  "description": "Swiftnest capability: run commands on the device, with argument-level risk classification.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "swiftnest-plugin"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "swiftnest": {
+    "apiVersion": 1,
+    "kind": "capability",
+    "runsOn": "perch",
+    "platforms": [
+      "linux",
+      "darwin"
+    ],
+    "entry": "./dist/index.js",
+    "permissions": [
+      "process.spawn"
+    ],
+    "displayName": {
+      "en": "Shell",
+      "zh": "命令行"
+    }
+  },
+  "dependencies": {
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@swiftnest/sdk": "workspace:*"
+  }
+}
