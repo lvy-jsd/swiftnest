@@ -49,6 +49,19 @@ pub enum Request {
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
+    /// A task delegated to the recipient's agent.
+    Task {
+        /// The sender's peer id (or agent name).
+        from: String,
+        /// The recipient's peer id (or agent name).
+        to: String,
+        /// A unique id for this task (chosen by the sender).
+        task_id: String,
+        /// The task to execute (a description, or a `shell:` / `echo:` command).
+        task: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
 }
 
 /// A response to a [`Request`].
@@ -61,6 +74,17 @@ pub enum Response {
         ok: bool,
         /// A short human-readable note (e.g. "delivered", "file saved").
         note: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// The result of a delegated task.
+    TaskResult {
+        /// The task id this result is for.
+        task_id: String,
+        /// Whether the task succeeded.
+        ok: bool,
+        /// The task result (output, or an error message).
+        result: String,
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
@@ -87,6 +111,8 @@ pub enum Command {
     SendMessage { to: String, text: String },
     /// Send a file to a peer (by peer id). The file is read from `path`.
     SendFile { to: String, path: String },
+    /// Delegate a task to a peer (by peer id). The task is executed on the remote node.
+    DelegateTask { to: String, task: String },
 }
 
 /// A response from the node to a [`Command`].
@@ -100,9 +126,12 @@ pub struct CmdResponse {
     /// Connected peers (for `status` / `list_peers`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers: Option<Vec<PeerInfo>>,
-    /// The outbound request id (for `send_message` / `send_file`).
+    /// The outbound request id (for `send_message` / `send_file` / `delegate_task`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<u64>,
+    /// The task id (for `delegate_task`), so the sender can correlate the result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
     /// An error message (when `ok` is false).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -116,6 +145,7 @@ impl CmdResponse {
             peer_id: None,
             peers: None,
             request_id: None,
+            task_id: None,
             error: None,
         }
     }
@@ -127,6 +157,7 @@ impl CmdResponse {
             peer_id: None,
             peers: None,
             request_id: None,
+            task_id: None,
             error: Some(msg.into()),
         }
     }

@@ -137,6 +137,19 @@ impl MeshNode {
         Ok(self.send_request(to, req))
     }
 
+    /// Delegate a task to a peer. Returns the outbound request id and the task id.
+    pub fn send_task(&mut self, to: &PeerId, task: &str) -> (u64, String) {
+        let task_id = format!("task-{}", now_ms());
+        let req = Request::Task {
+            from: self.local_peer_id.to_string(),
+            to: to.to_string(),
+            task_id: task_id.clone(),
+            task: task.to_string(),
+            ts: now_ms(),
+        };
+        (self.send_request(to, req), task_id)
+    }
+
     /// Send a request to a peer. Returns the outbound request id.
     fn send_request(&mut self, to: &PeerId, req: Request) -> u64 {
         let req_id = self.swarm.behaviour_mut().send_request(to, req);
@@ -187,15 +200,10 @@ impl MeshNode {
                 message: request_response::Message::Request { request, channel, .. },
                 ..
             } => {
-                let note = self.handle_inbound_request(request);
-                let ack = Response::Ack {
-                    ok: true,
-                    note,
-                    ts: now_ms(),
-                };
-                match self.swarm.behaviour_mut().send_response(channel, ack) {
-                    Ok(()) => println!("sent ack to {peer}"),
-                    Err(unsent) => println!("failed to send ack to {peer}: {unsent:?}"),
+                let resp = self.handle_inbound_request(request);
+                match self.swarm.behaviour_mut().send_response(channel, resp) {
+                    Ok(()) => println!("sent response to {peer}"),
+                    Err(unsent) => println!("failed to send response to {peer}: {unsent:?}"),
                 }
             }
             request_response::Event::Message {
@@ -203,8 +211,23 @@ impl MeshNode {
                 message: request_response::Message::Response { response, .. },
                 ..
             } => {
-                let Response::Ack { ok, note, .. } = response;
-                println!("received ack from {peer}: ok={} note=\"{}\"", ok, note);
+                match response {
+                    Response::Ack { ok, note, .. } => {
+                        println!("received ack from {peer}: ok={} note=\"{}\"", ok, note);
+                    }
+                    Response::TaskResult {
+                        task_id, ok, result, ..
+                    } => {
+                        println!(
+                            "received task result from {peer}: task={task_id} ok={} \"{}\"",
+                            ok,
+                            result
+                                .chars()
+                                .take(200)
+                                .collect::<String>()
+                        );
+                    }
+                }
             }
             request_response::Event::OutboundFailure { peer, error, .. } => {
                 println!("outbound request to {peer} failed: {error}");
@@ -218,12 +241,16 @@ impl MeshNode {
         }
     }
 
-    /// Process an inbound request (message or file). Returns a note for the ack.
-    fn handle_inbound_request(&self, request: Request) -> String {
+    /// Process an inbound request (message, file, or task). Returns the response to send back.
+    fn handle_inbound_request(&self, request: Request) -> Response {
         match request {
             Request::Message { text, from, .. } => {
                 println!("received message from {from}: \"{}\"", text);
-                "delivered".to_string()
+                Response::Ack {
+                    ok: true,
+                    note: "delivered".to_string(),
+                    ts: now_ms(),
+                }
             }
             Request::File { name, data_b64, from, .. } => {
                 match base64::engine::general_purpose::STANDARD.decode(&data_b64) {
@@ -237,20 +264,81 @@ impl MeshNode {
                                     data.len(),
                                     path.display()
                                 );
-                                format!("file saved to {}", path.display())
+                                Response::Ack {
+                                    ok: true,
+                                    note: format!("file saved to {}", path.display()),
+                                    ts: now_ms(),
+                                }
                             }
                             Err(e) => {
                                 println!("failed to write file {}: {e}", path.display());
-                                format!("failed to write file: {e}")
+                                Response::Ack {
+                                    ok: false,
+                                    note: format!("failed to write file: {e}"),
+                                    ts: now_ms(),
+                                }
                             }
                         }
                     }
                     Err(e) => {
                         println!("failed to decode file from {from}: {e}");
-                        format!("failed to decode file: {e}")
+                        Response::Ack {
+                            ok: false,
+                            note: format!("failed to decode file: {e}"),
+                            ts: now_ms(),
+                        }
                     }
                 }
             }
+            Request::Task {
+                task_id, task, from, ..
+            } => {
+                println!("received task {task_id} from {from}: \"{}\"", task);
+                let (ok, result) = self.execute_task(&task);
+                println!(
+                    "task {task_id} result: ok={} \"{}\"",
+                    ok,
+                    result
+                        .chars()
+                        .take(200)
+                        .collect::<String>()
+                );
+                Response::TaskResult {
+                    task_id,
+                    ok,
+                    result,
+                    ts: now_ms(),
+                }
+            }
+        }
+    }
+
+    /// Execute a delegated task. For the first cut the Rust core runs simple built-in tasks;
+    /// the TS layer will take over real task execution later.
+    ///
+    /// Supported task forms:
+    /// - `shell:<command>` — run a shell command, return its output.
+    /// - `echo:<text>` — return the text.
+    /// - anything else — acknowledge receipt (echo the task back).
+    fn execute_task(&self, task: &str) -> (bool, String) {
+        if let Some(cmd) = task.strip_prefix("shell:") {
+            match std::process::Command::new("sh").arg("-c").arg(cmd).output() {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout);
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    let result = if stderr.trim().is_empty() {
+                        stdout.to_string()
+                    } else {
+                        format!("{stdout}{stderr}")
+                    };
+                    (out.status.success(), result.trim().to_string())
+                }
+                Err(e) => (false, format!("failed to run shell: {e}")),
+            }
+        } else if let Some(text) = task.strip_prefix("echo:") {
+            (true, text.to_string())
+        } else {
+            (true, format!("task received: {task}"))
         }
     }
 
@@ -262,6 +350,7 @@ impl MeshNode {
                 peer_id: Some(self.local_peer_id.to_string()),
                 peers: Some(self.connected_peers()),
                 request_id: None,
+                task_id: None,
                 error: None,
             },
             Command::ListPeers => CmdResponse {
@@ -269,6 +358,7 @@ impl MeshNode {
                 peer_id: None,
                 peers: Some(self.connected_peers()),
                 request_id: None,
+                task_id: None,
                 error: None,
             },
             Command::SendMessage { to, text } => match to.parse::<PeerId>() {
@@ -279,6 +369,7 @@ impl MeshNode {
                         peer_id: None,
                         peers: None,
                         request_id: Some(req_id),
+                        task_id: None,
                         error: None,
                     }
                 }
@@ -291,10 +382,25 @@ impl MeshNode {
                         peer_id: None,
                         peers: None,
                         request_id: Some(req_id),
+                        task_id: None,
                         error: None,
                     },
                     Err(e) => CmdResponse::err(format!("failed to read file {path}: {e}")),
                 },
+                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
+            },
+            Command::DelegateTask { to, task } => match to.parse::<PeerId>() {
+                Ok(peer_id) => {
+                    let (req_id, task_id) = self.send_task(&peer_id, &task);
+                    CmdResponse {
+                        ok: true,
+                        peer_id: None,
+                        peers: None,
+                        request_id: Some(req_id),
+                        task_id: Some(task_id),
+                        error: None,
+                    }
+                }
                 Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
             },
         }
