@@ -1,9 +1,9 @@
 //! The Unix socket server: the TS <-> Rust interface.
 //!
 //! Accepts connections on a local Unix socket. Each connection speaks line-delimited JSON:
-//! the client sends one [`Command`] per line, and the node answers with one [`Response`] per
-//! line. Commands are forwarded to the mesh node over an mpsc channel; responses come back
-//! over a per-command oneshot channel.
+//! the client sends one [`Command`] per line, and the node answers with one [`CmdResponse`]
+//! per line. Commands are forwarded to the mesh node over an mpsc channel; responses come
+//! back over a per-command oneshot channel.
 
 use std::path::Path;
 
@@ -12,7 +12,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
 
 use crate::node::CommandEnvelope;
-use crate::{Command, Response};
+use crate::{CmdResponse, Command};
 
 /// Run the Unix socket server, forwarding commands to the node and writing responses back.
 /// Returns when the listener is closed.
@@ -60,15 +60,15 @@ async fn handle_connection(stream: UnixStream, cmd_tx: mpsc::Sender<CommandEnvel
                     .await
                     .is_err()
                 {
-                    Response::err("node is shutting down")
+                    CmdResponse::err("node is shutting down")
                 } else {
                     match reply_rx.await {
                         Ok(resp) => resp,
-                        Err(_) => Response::err("node stopped before responding"),
+                        Err(_) => CmdResponse::err("node stopped before responding"),
                     }
                 }
             }
-            Err(e) => Response::err(format!("invalid command: {e}")),
+            Err(e) => CmdResponse::err(format!("invalid command: {e}")),
         };
 
         let mut out = serde_json::to_string(&resp).unwrap_or_else(|_| r#"{"ok":false}"#.to_string());

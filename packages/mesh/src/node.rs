@@ -1,7 +1,7 @@
-//! The mesh node: a libp2p swarm that listens, dials, and exchanges messages.
+//! The mesh node: a libp2p swarm that listens, dials, and exchanges messages and files.
 //!
 //! The node runs its event loop in a background task. Commands arrive over an mpsc channel
-//! (from the Unix socket server) and are answered with a [`Response`] over a per-command
+//! (from the Unix socket server) and are answered with a [`CmdResponse`] over a per-command
 //! oneshot channel.
 
 use futures::StreamExt;
@@ -11,26 +11,29 @@ use libp2p::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{now_ms, Ack, Command, Message, PeerInfo, Response, PROTOCOL};
+use crate::{now_ms, base64, codec, CmdResponse, Command, PeerInfo, Request, Response, PROTOCOL};
+use base64::Engine;
 
-type RrBehaviour = request_response::json::Behaviour<Message, Ack>;
+type RrBehaviour = request_response::Behaviour<codec::JsonCodec<Request, Response>>;
 type MeshSwarm = Swarm<RrBehaviour>;
 
 /// A command paired with the channel its response is sent on.
 pub struct CommandEnvelope {
     pub cmd: Command,
-    pub reply: oneshot::Sender<Response>,
+    pub reply: oneshot::Sender<CmdResponse>,
 }
 
 /// A libp2p mesh node.
 pub struct MeshNode {
     swarm: MeshSwarm,
     local_peer_id: PeerId,
+    /// Directory where received files are written.
+    inbound_dir: std::path::PathBuf,
 }
 
 impl MeshNode {
     /// Build a node (not listening yet; call [`Self::listen`] to start listening).
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(inbound_dir: std::path::PathBuf) -> anyhow::Result<Self> {
         let identity_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(identity_key.public());
         let protocol = StreamProtocol::new(PROTOCOL);
@@ -44,7 +47,10 @@ impl MeshNode {
             )?
             .with_quic()
             .with_behaviour(|_| {
-                RrBehaviour::new(
+                // Use our own JSON codec with a 16 MB request size so file transfers (base64)
+                // fit in a single request.
+                request_response::Behaviour::with_codec(
+                    codec::JsonCodec::default(),
                     [(
                         protocol.clone(),
                         request_response::ProtocolSupport::Full,
@@ -58,6 +64,7 @@ impl MeshNode {
         Ok(Self {
             swarm,
             local_peer_id,
+            inbound_dir,
         })
     }
 
@@ -102,13 +109,37 @@ impl MeshNode {
 
     /// Send a text message to a peer. Returns the outbound request id.
     pub fn send_message(&mut self, to: &PeerId, text: &str) -> u64 {
-        let msg = Message {
+        let req = Request::Message {
             from: self.local_peer_id.to_string(),
             to: to.to_string(),
             text: text.to_string(),
             ts: now_ms(),
         };
-        let req_id = self.swarm.behaviour_mut().send_request(to, msg);
+        self.send_request(to, req)
+    }
+
+    /// Send a file to a peer. Reads the file from `path`, base64-encodes it, and sends it.
+    /// Returns the outbound request id.
+    pub fn send_file(&mut self, to: &PeerId, path: &str) -> anyhow::Result<u64> {
+        let data = std::fs::read(path)?;
+        let name = std::path::Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file")
+            .to_string();
+        let req = Request::File {
+            from: self.local_peer_id.to_string(),
+            to: to.to_string(),
+            name,
+            data_b64: base64::engine::general_purpose::STANDARD.encode(&data),
+            ts: now_ms(),
+        };
+        Ok(self.send_request(to, req))
+    }
+
+    /// Send a request to a peer. Returns the outbound request id.
+    fn send_request(&mut self, to: &PeerId, req: Request) -> u64 {
+        let req_id = self.swarm.behaviour_mut().send_request(to, req);
         req_id.to_string().parse().unwrap_or(0)
     }
 
@@ -148,21 +179,18 @@ impl MeshNode {
         }
     }
 
-    /// Handle a request-response event: acknowledge incoming messages.
-    fn handle_rr_event(&mut self, event: request_response::Event<Message, Ack>) {
+    /// Handle a request-response event: acknowledge incoming messages and files.
+    fn handle_rr_event(&mut self, event: request_response::Event<Request, Response>) {
         match event {
             request_response::Event::Message {
                 peer,
                 message: request_response::Message::Request { request, channel, .. },
                 ..
             } => {
-                println!(
-                    "received message from {peer}: \"{}\" (from {})",
-                    request.text, request.from
-                );
-                let ack = Ack {
+                let note = self.handle_inbound_request(request);
+                let ack = Response::Ack {
                     ok: true,
-                    note: "delivered".to_string(),
+                    note,
                     ts: now_ms(),
                 };
                 match self.swarm.behaviour_mut().send_response(channel, ack) {
@@ -175,10 +203,8 @@ impl MeshNode {
                 message: request_response::Message::Response { response, .. },
                 ..
             } => {
-                println!(
-                    "received ack from {peer}: ok={} note=\"{}\"",
-                    response.ok, response.note
-                );
+                let Response::Ack { ok, note, .. } = response;
+                println!("received ack from {peer}: ok={} note=\"{}\"", ok, note);
             }
             request_response::Event::OutboundFailure { peer, error, .. } => {
                 println!("outbound request to {peer} failed: {error}");
@@ -192,17 +218,53 @@ impl MeshNode {
         }
     }
 
+    /// Process an inbound request (message or file). Returns a note for the ack.
+    fn handle_inbound_request(&self, request: Request) -> String {
+        match request {
+            Request::Message { text, from, .. } => {
+                println!("received message from {from}: \"{}\"", text);
+                "delivered".to_string()
+            }
+            Request::File { name, data_b64, from, .. } => {
+                match base64::engine::general_purpose::STANDARD.decode(&data_b64) {
+                    Ok(data) => {
+                        let path = self.inbound_dir.join(&name);
+                        match std::fs::write(&path, &data) {
+                            Ok(()) => {
+                                println!(
+                                    "received file from {from}: {} ({} bytes) -> {}",
+                                    name,
+                                    data.len(),
+                                    path.display()
+                                );
+                                format!("file saved to {}", path.display())
+                            }
+                            Err(e) => {
+                                println!("failed to write file {}: {e}", path.display());
+                                format!("failed to write file: {e}")
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("failed to decode file from {from}: {e}");
+                        format!("failed to decode file: {e}")
+                    }
+                }
+            }
+        }
+    }
+
     /// Handle a command from the socket server.
-    fn handle_command(&mut self, cmd: Command) -> Response {
+    fn handle_command(&mut self, cmd: Command) -> CmdResponse {
         match cmd {
-            Command::Status => Response {
+            Command::Status => CmdResponse {
                 ok: true,
                 peer_id: Some(self.local_peer_id.to_string()),
                 peers: Some(self.connected_peers()),
                 request_id: None,
                 error: None,
             },
-            Command::ListPeers => Response {
+            Command::ListPeers => CmdResponse {
                 ok: true,
                 peer_id: None,
                 peers: Some(self.connected_peers()),
@@ -212,7 +274,7 @@ impl MeshNode {
             Command::SendMessage { to, text } => match to.parse::<PeerId>() {
                 Ok(peer_id) => {
                     let req_id = self.send_message(&peer_id, &text);
-                    Response {
+                    CmdResponse {
                         ok: true,
                         peer_id: None,
                         peers: None,
@@ -220,7 +282,20 @@ impl MeshNode {
                         error: None,
                     }
                 }
-                Err(e) => Response::err(format!("invalid peer id {to}: {e}")),
+                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
+            },
+            Command::SendFile { to, path } => match to.parse::<PeerId>() {
+                Ok(peer_id) => match self.send_file(&peer_id, &path) {
+                    Ok(req_id) => CmdResponse {
+                        ok: true,
+                        peer_id: None,
+                        peers: None,
+                        request_id: Some(req_id),
+                        error: None,
+                    },
+                    Err(e) => CmdResponse::err(format!("failed to read file {path}: {e}")),
+                },
+                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
             },
         }
     }

@@ -8,6 +8,7 @@
 //!   MESH_LISTEN_QUIC  (default 30000)  this node's QUIC listen port
 //!   MESH_DIAL_TCP     (default 30001)  the TCP port to dial when a peer is given
 //!   MESH_SOCKET       (default /tmp/swiftnest-mesh.sock)  the Unix socket path
+//!   MESH_INBOUND_DIR  (default /tmp/swiftnest-mesh-inbound)  where received files are written
 //!   MESH_RUN_SECS     (default 0)      run for this many seconds, then exit (0 = run forever)
 
 use std::path::PathBuf;
@@ -40,13 +41,18 @@ async fn main() -> anyhow::Result<()> {
     let dial_tcp = env_or("MESH_DIAL_TCP", 30001);
     let socket_path = std::env::var("MESH_SOCKET")
         .unwrap_or_else(|_| "/tmp/swiftnest-mesh.sock".to_string());
+    let inbound_dir = std::env::var("MESH_INBOUND_DIR")
+        .unwrap_or_else(|_| "/tmp/swiftnest-mesh-inbound".to_string());
     let run_secs: u64 = std::env::var("MESH_RUN_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
 
+    // Make sure the inbound directory exists so received files can be written.
+    std::fs::create_dir_all(&inbound_dir)?;
+
     // Build the node and start listening.
-    let mut node = MeshNode::new()?;
+    let mut node = MeshNode::new(PathBuf::from(inbound_dir))?;
     let local_peer_id = node.local_peer_id();
     println!("local peer id: {local_peer_id}");
     node.listen(listen_tcp, listen_quic)?;

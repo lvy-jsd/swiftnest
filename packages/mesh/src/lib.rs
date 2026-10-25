@@ -4,42 +4,66 @@
 //! (`main.rs`) runs a [`node::MeshNode`] and exposes it to the TypeScript core over a local
 //! Unix socket using line-delimited JSON (the same pattern as the dsh-tool-manager sidecar).
 //!
-//! Wire protocol (mesh): JSON over the libp2p request-response behaviour. A [`Message`] is a
-//! request; the recipient answers with an [`Ack`].
+//! Wire protocol (mesh): JSON over the libp2p request-response behaviour. A [`Request`] is a
+//! request (text message, file transfer, or task); the recipient answers with a [`Response`].
 //!
 //! Socket protocol (TS <-> Rust): one JSON object per line. Commands are [`Command`]; the node
-//! answers with a [`Response`].
+//! answers with a [`CmdResponse`].
 
+pub mod codec;
 pub mod node;
 pub mod socket;
+
+pub use base64;
 
 use serde::{Deserialize, Serialize};
 
 /// The mesh protocol name.
 pub const PROTOCOL: &str = "/swiftnest/mesh/1.0.0";
 
-/// A text message sent between mesh nodes.
+/// A request sent between mesh nodes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Message {
-    /// The sender's peer id (or agent name).
-    pub from: String,
-    /// The recipient's peer id (or agent name).
-    pub to: String,
-    /// The message body.
-    pub text: String,
-    /// Unix timestamp in milliseconds.
-    pub ts: u64,
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Request {
+    /// A text message.
+    Message {
+        /// The sender's peer id (or agent name).
+        from: String,
+        /// The recipient's peer id (or agent name).
+        to: String,
+        /// The message body.
+        text: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// A file transfer (base64-encoded for the first cut; chunked later).
+    File {
+        /// The sender's peer id (or agent name).
+        from: String,
+        /// The recipient's peer id (or agent name).
+        to: String,
+        /// The file name (the receiver writes to `inbound/<name>`).
+        name: String,
+        /// The file contents, base64-encoded.
+        data_b64: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
 }
 
-/// Acknowledgement for a received message.
+/// A response to a [`Request`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Ack {
-    /// Whether the message was accepted.
-    pub ok: bool,
-    /// A short human-readable note (e.g. "delivered").
-    pub note: String,
-    /// Unix timestamp in milliseconds.
-    pub ts: u64,
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Response {
+    /// Acknowledgement for a received request.
+    Ack {
+        /// Whether the request was accepted.
+        ok: bool,
+        /// A short human-readable note (e.g. "delivered", "file saved").
+        note: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
 }
 
 /// A peer known to the node.
@@ -61,11 +85,13 @@ pub enum Command {
     ListPeers,
     /// Send a text message to a peer (by peer id).
     SendMessage { to: String, text: String },
+    /// Send a file to a peer (by peer id). The file is read from `path`.
+    SendFile { to: String, path: String },
 }
 
 /// A response from the node to a [`Command`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Response {
+pub struct CmdResponse {
     /// Whether the command succeeded.
     pub ok: bool,
     /// The node's own peer id (for `status`).
@@ -74,7 +100,7 @@ pub struct Response {
     /// Connected peers (for `status` / `list_peers`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers: Option<Vec<PeerInfo>>,
-    /// The outbound request id (for `send_message`).
+    /// The outbound request id (for `send_message` / `send_file`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<u64>,
     /// An error message (when `ok` is false).
@@ -82,7 +108,7 @@ pub struct Response {
     pub error: Option<String>,
 }
 
-impl Response {
+impl CmdResponse {
     /// A successful response with no extra fields.
     pub fn ok() -> Self {
         Self {
