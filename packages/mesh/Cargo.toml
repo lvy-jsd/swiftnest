@@ -1,0 +1,45 @@
+[package]
+name = "swiftnest-mesh"
+version = "0.1.0"
+edition = "2021"
+description = "Swiftnest mesh core: a libp2p node that lets agents on different machines talk to each other (messaging, file transfer, task delegation) over QUIC/TCP/WebRTC, with NAT traversal and relay."
+license = "Apache-2.0"
+repository = "https://github.com/lvy-jsd/swiftnest"
+
+[[bin]]
+name = "swiftnest-mesh"
+path = "src/main.rs"
+
+[lib]
+name = "swiftnest_mesh"
+path = "src/lib.rs"
+
+[dependencies]
+libp2p = { version = "0.55", features = [
+    "tokio",
+    "tcp",
+    "quic",
+    "noise",
+    "yamux",
+    "ed25519",
+    "gossipsub",
+    "request-response",
+    "json",
+    "identify",
+    "autonat",
+    "relay",
+    "ping",
+] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+rand = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
