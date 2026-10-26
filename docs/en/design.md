@@ -312,7 +312,7 @@ swiftnest/
 | agent-mcp.nix browser / email / search MCP | Inference host Perch's cap-browser / cap-email / cap-search | M4 |
 | swift-auto + dsh-task-runner | surface-openai plugin | M4 |
 | DSH on dsh-box | Install dsh-plugin-swiftnest | M1.5 |
-| Gork's connector / MCP relay / mcp-niri / mcp-shell | Concepts and code rewritten into link-relay / cap-desktop-niri / cap-shell | M1–M5 |
+| The device's connector / MCP relay / mcp-niri / mcp-shell | Concepts and code rewritten into link-relay / cap-desktop-niri / cap-shell | M1–M5 |
 | swift-agent | Retired after functionality is covered | After M4 |
 
 Switch services one by one; no big-bang migration.

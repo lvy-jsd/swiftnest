@@ -1,23 +1,32 @@
-<p align="center"><b>Swiftnest（燕巢）</b></p>
-<p align="center">把你的设备变成任何智能体都能安全调用的能力。</p>
-<p align="center"><a href="README.md">English</a> · 简体中文</p>
+<p align="center">
+  <b>Swiftnest（燕巢）</b><br>
+  把你的设备变成任何智能体都能安全调用的能力。
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="许可证：Apache-2.0"></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg" alt="Node.js：>=24"></a>
+  <img src="https://img.shields.io/badge/status-early%20stage%20(M1)-orange.svg" alt="状态：早期（M1）">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> · 简体中文
+</p>
 
 ---
-
-> ⚠️ 项目处于早期（M1：一台服务器 + 局域网设备），接口还会变化，请勿用于生产环境。
 
 ## 它是什么
 
 你的智能体（Claude Desktop、Cursor、DSH、OpenClaw……）想帮你操作电脑、手机、家里的服务器时，Swiftnest 负责中间那一层：
 
-- **配对**：设备输入 6 位一次性码加入，两边核对指纹后，之后只认这台设备的密钥；链路端到端加密。
-- **能力**：每台设备上的功能都是插件，任何现成的 MCP 服务都能直接变成能力。
-- **安全**：只读操作直接放行；改动、执行、删除需要你批准；每次调用都记审计日志。
-- **任何智能体都能用**：对外就是一个标准的 MCP 端点，工具名形如 `laptop__shell__run`。
+- **配对** — 设备输入 6 位一次性码加入，两边核对指纹后，之后只认这台设备的密钥；链路端到端加密。
+- **能力** — 每台设备上的功能都是插件，任何现成的 MCP 服务都能直接变成能力。
+- **安全** — 只读操作直接放行；改动、执行、删除需要你批准；每次调用都记审计日志。
+- **任何智能体** — 对外就是一个标准的 MCP 端点，工具名形如 `laptop__shell__run`。
 
 它不是个人助手：对话、记忆、人格交给你喜欢的智能体，Swiftnest 只管设备。
 
-## 三个词就够了
+## 概念
 
 | 叫法 | 是什么 |
 |---|---|
@@ -25,12 +34,12 @@
 | **设备（栖点 / Perch）** | 每台被控设备上跑的程序 |
 | **插件** | 一切功能：设备能力、连接方式、交互入口、权限策略…… |
 
-## 五分钟试一试
+## 快速开始
 
 需要 Node.js 24 或更新。
 
 ```bash
-git clone <本仓库> swiftnest && cd swiftnest
+git clone https://github.com/lvy-jsd/swiftnest.git swiftnest && cd swiftnest
 pnpm install && pnpm build
 node packages/cli/dist/bin.js playground
 ```
@@ -59,16 +68,6 @@ cd my-plugin && npm install && npm test
 - [核心概念](docs/zh/guide/concepts.md)
 - [写第一个插件](docs/zh/guide/write-a-plugin.md)
 - [设计方案](docs/zh/design.md)
-
-## 路线图
-
-| 里程碑 | 状态 |
-|---|---|
-| M0 骨架：核心、协议、SDK、命令行能力、MCP 端点、练习场、插件模板 | ✅ |
-| M1 第一次连上：独立服务器 + 局域网设备、配对、文件能力、最小安全 | ✅ |
-| M1.5 DSH 插件与公网中继 · M2 完整安全 · M3 Headscale 组网 · M4–M6 | 计划中 |
-
-完整路线见[设计方案第 14 节](docs/zh/design.md#14-路线图)。
 
 ## 参与贡献
 

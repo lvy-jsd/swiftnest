@@ -309,7 +309,7 @@ swiftnest/
 | agent-mcp.nix 的浏览器 / 邮箱 / 搜索 MCP | 推理机栖点的 cap-browser / cap-email / cap-search | M4 |
 | swift-auto + dsh-task-runner | surface-openai 插件 | M4 |
 | dsh-box 上的 DSH | 装 dsh-plugin-swiftnest | M1.5 |
-| Gork 的 connector / MCP 中继 / mcp-niri / mcp-shell | 思路和代码改写进 link-relay / cap-desktop-niri / cap-shell | M1–M5 |
+| 设备的 connector / MCP 中继 / mcp-niri / mcp-shell | 思路和代码改写进 link-relay / cap-desktop-niri / cap-shell | M1–M5 |
 | swift-agent | 功能被覆盖后下线 | M4 之后 |
 
 逐个服务切换，不做一次性大迁移。
