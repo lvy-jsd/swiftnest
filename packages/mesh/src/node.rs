@@ -4,28 +4,74 @@
 //! (from the Unix socket server) and are answered with a [`CmdResponse`] over a per-command
 //! oneshot channel.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use futures::StreamExt;
 use libp2p::{
-    identity, multiaddr::Protocol, relay, request_response, swarm::StreamProtocol, Multiaddr,
-    PeerId, Swarm, SwarmBuilder,
+    autonat, dcutr, identify, identity, multiaddr::Protocol, relay, request_response,
+    swarm::StreamProtocol, Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
 use libp2p::swarm::NetworkBehaviour;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{now_ms, base64, codec, CmdResponse, Command, PeerInfo, Request, Response, PROTOCOL};
+use crate::{
+    now_ms, transfer_id, base64, codec, CmdResponse, Command, PeerInfo, Request, Response,
+    TransferInfo, PROTOCOL,
+};
 use base64::Engine;
 
+/// The raw byte size of each file chunk (1 MiB). Base64-encoded it is ~1.33 MiB, well under the
+/// 16 MiB codec limit.
+const CHUNK_SIZE: u64 = 1024 * 1024;
+
+/// A file transfer being received. The partial file lives at `path` (in the `.partial` dir).
+struct InboundTransfer {
+    name: String,
+    size: u64,
+    sha256: String,
+    next_seq: u64,
+    path: PathBuf,
+}
+
+/// The state of a file transfer being sent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SendState {
+    WaitingStartAck,
+    WaitingChunkAck,
+    WaitingEndAck,
+    Done,
+}
+
+/// A file transfer being sent.
+struct OutboundTransfer {
+    path: PathBuf,
+    name: String,
+    size: u64,
+    /// The file's sha256, kept so a transfer can be resumed after a restart even if the
+    /// receiver's partial file is gone (the transfer id is derived from it).
+    #[allow(dead_code)]
+    sha256: String,
+    next_seq: u64,
+    state: SendState,
+}
+
 /// The mesh swarm behaviour: request-response (messages, files, tasks) + relay (so nodes can
-/// reach each other through a relay when a direct connection is not possible).
+/// reach each other through a relay when a direct connection is not possible) + autonat (NAT
+/// status detection) + identify (peer info exchange) + dcutr (direct-connection upgrade through
+/// relay, for NAT hole punching).
 #[derive(NetworkBehaviour)]
 pub struct MeshBehaviour {
     rr: request_response::Behaviour<codec::JsonCodec<Request, Response>>,
     relay: relay::Behaviour,
+    autonat: autonat::Behaviour,
+    identify: identify::Behaviour,
+    dcutr: dcutr::Behaviour,
 }
 
 impl MeshBehaviour {
     /// Build the behaviour for a node with the given identity.
-    pub fn new(local_peer_id: PeerId) -> Self {
+    pub fn new(local_peer_id: PeerId, local_public_key: libp2p::identity::PublicKey) -> Self {
         let protocol = StreamProtocol::new(PROTOCOL);
         Self {
             rr: request_response::Behaviour::with_codec(
@@ -37,6 +83,12 @@ impl MeshBehaviour {
                 request_response::Config::default(),
             ),
             relay: relay::Behaviour::new(local_peer_id, relay::Config::default()),
+            autonat: autonat::Behaviour::new(local_peer_id, autonat::Config::default()),
+            identify: identify::Behaviour::new(identify::Config::new(
+                "swiftnest/0.1.0".to_string(),
+                local_public_key,
+            )),
+            dcutr: dcutr::Behaviour::new(local_peer_id),
         }
     }
 }
@@ -54,12 +106,18 @@ pub struct MeshNode {
     swarm: MeshSwarm,
     local_peer_id: PeerId,
     /// Directory where received files are written.
-    inbound_dir: std::path::PathBuf,
+    inbound_dir: PathBuf,
+    /// In-progress file transfers being received, keyed by transfer id.
+    inbound: HashMap<String, InboundTransfer>,
+    /// In-progress file transfers being sent, keyed by transfer id.
+    outbound: HashMap<String, OutboundTransfer>,
+    /// The peer address we are trying to reach. Re-dialed periodically if the connection drops.
+    dial_target: Option<Multiaddr>,
 }
 
 impl MeshNode {
     /// Build a node (not listening yet; call [`Self::listen`] to start listening).
-    pub fn new(inbound_dir: std::path::PathBuf) -> anyhow::Result<Self> {
+    pub fn new(inbound_dir: PathBuf) -> anyhow::Result<Self> {
         let identity_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(identity_key.public());
 
@@ -71,14 +129,24 @@ impl MeshNode {
                 libp2p::yamux::Config::default,
             )?
             .with_quic()
-            .with_behaviour(|kp| MeshBehaviour::new(PeerId::from(kp.public())))?
+            .with_behaviour(|kp| {
+                let pid = PeerId::from(kp.public());
+                MeshBehaviour::new(pid, kp.public())
+            })?
             .with_swarm_config(|cfg| cfg)
             .build();
+
+        // Partial files live in a subdirectory so they don't collide with finalized files.
+        let partial_dir = inbound_dir.join(".partial");
+        std::fs::create_dir_all(&partial_dir)?;
 
         Ok(Self {
             swarm,
             local_peer_id,
             inbound_dir,
+            inbound: HashMap::new(),
+            outbound: HashMap::new(),
+            dial_target: None,
         })
     }
 
@@ -101,7 +169,9 @@ impl MeshNode {
         if let Some(peer_id) = peer_id_from_addr(&addr) {
             self.swarm.add_peer_address(peer_id, addr.clone());
         }
-        self.swarm.dial(addr)?;
+        self.swarm.dial(addr.clone())?;
+        // Remember the target so the event loop can re-dial if the connection drops.
+        self.dial_target = Some(addr);
         Ok(())
     }
 
@@ -132,23 +202,144 @@ impl MeshNode {
         self.send_request(to, req)
     }
 
-    /// Send a file to a peer. Reads the file from `path`, base64-encodes it, and sends it.
-    /// Returns the outbound request id.
+    /// Start (or resume) a chunked file transfer to a peer. Reads the file from `path`, computes its
+    /// sha256, and sends a `FileStart`. The event loop then drives the chunked send (see
+    /// [`Self::send_next_chunk`]). Returns the outbound request id.
     pub fn send_file(&mut self, to: &PeerId, path: &str) -> anyhow::Result<u64> {
-        let data = std::fs::read(path)?;
-        let name = std::path::Path::new(path)
+        let file_path = PathBuf::from(path);
+        let data = std::fs::read(&file_path)?;
+        let name = file_path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("file")
             .to_string();
-        let req = Request::File {
+        let size = data.len() as u64;
+        let file_sha256 = sha256_hex(&data);
+        let tid = transfer_id(&name, size, &file_sha256);
+
+        // If a transfer for this file is already in progress, resume it (re-send FileStart to get
+        // the receiver's latest next_seq). If it's done, start fresh is a no-op.
+        if let Some(t) = self.outbound.get_mut(&tid) {
+            if t.state == SendState::Done {
+                // Already sent; nothing to do. Return a dummy id.
+                return Ok(0);
+            }
+            t.state = SendState::WaitingStartAck;
+        } else {
+            self.outbound.insert(
+                tid.clone(),
+                OutboundTransfer {
+                    path: file_path,
+                    name: name.clone(),
+                    size,
+                    sha256: file_sha256.clone(),
+                    next_seq: 0,
+                    state: SendState::WaitingStartAck,
+                },
+            );
+        }
+
+        let req = Request::FileStart {
             from: self.local_peer_id.to_string(),
             to: to.to_string(),
-            name,
-            data_b64: base64::engine::general_purpose::STANDARD.encode(&data),
+            transfer_id: tid.clone(),
+            name: name.clone(),
+            size,
+            sha256: file_sha256.clone(),
+            chunk_size: CHUNK_SIZE,
             ts: now_ms(),
         };
         Ok(self.send_request(to, req))
+    }
+
+    /// Send the next chunk of an outbound transfer (or the `FileEnd` if all chunks are sent).
+    /// Called from the event loop when a `FileStartAck` / `FileChunkAck` arrives.
+    fn send_next_chunk(&mut self, to: &PeerId, tid: &str) {
+        // Decide what to send and copy out the fields we need, so the mutable borrow of the
+        // transfer ends before we call `send_request` (which also borrows `self`).
+        let (req, next_state, log) = {
+            let Some(t) = self.outbound.get_mut(tid) else {
+                return;
+            };
+            if t.next_seq * CHUNK_SIZE >= t.size {
+                // All chunks sent; send FileEnd.
+                let req = Request::FileEnd {
+                    from: self.local_peer_id.to_string(),
+                    to: to.to_string(),
+                    transfer_id: tid.to_string(),
+                    ts: now_ms(),
+                };
+                (
+                    req,
+                    SendState::WaitingEndAck,
+                    format!("file {tid}: all {} bytes sent, waiting for end ack", t.size),
+                )
+            } else {
+                // Read and send the next chunk.
+                let offset = t.next_seq * CHUNK_SIZE;
+                let len = std::cmp::min(CHUNK_SIZE, t.size - offset) as usize;
+                let seq = t.next_seq;
+                let path = t.path.clone();
+                match read_chunk(&path, offset as u64, len) {
+                    Ok(data) => {
+                        let req = Request::FileChunk {
+                            from: self.local_peer_id.to_string(),
+                            to: to.to_string(),
+                            transfer_id: tid.to_string(),
+                            seq,
+                            data_b64: base64::engine::general_purpose::STANDARD.encode(&data),
+                            ts: now_ms(),
+                        };
+                        (
+                            req,
+                            SendState::WaitingChunkAck,
+                            format!("file {tid}: sending chunk {seq} ({} bytes)", data.len()),
+                        )
+                    }
+                    Err(e) => {
+                        println!("file {tid}: failed to read chunk {seq}: {e}");
+                        return;
+                    }
+                }
+            }
+        };
+        let req_id = self.send_request(to, req);
+        println!("{log} (req {req_id})");
+        if let Some(t) = self.outbound.get_mut(tid) {
+            t.state = next_state;
+        }
+    }
+
+    /// List in-progress file transfers (sending and receiving).
+    pub fn list_transfers(&self) -> Vec<TransferInfo> {
+        let mut out = Vec::new();
+        for (tid, t) in &self.outbound {
+            if t.state != SendState::Done {
+                out.push(TransferInfo {
+                    transfer_id: tid.clone(),
+                    name: t.name.clone(),
+                    size: t.size,
+                    done: t.next_seq.saturating_sub(1) * CHUNK_SIZE
+                        + if t.next_seq > 0 && t.next_seq * CHUNK_SIZE <= t.size {
+                            std::cmp::min(CHUNK_SIZE, t.size - (t.next_seq - 1) * CHUNK_SIZE)
+                        } else {
+                            0
+                        },
+                    direction: "sending".to_string(),
+                });
+            }
+        }
+        for (tid, t) in &self.inbound {
+            let done = std::fs::metadata(&t.path).map(|m| m.len()).unwrap_or(0);
+            out.push(TransferInfo {
+                transfer_id: tid.clone(),
+                name: t.name.clone(),
+                size: t.size,
+                done,
+                direction: "receiving".to_string(),
+            });
+        }
+        out
     }
 
     /// Delegate a task to a peer. Returns the outbound request id and the task id.
@@ -173,8 +364,21 @@ impl MeshNode {
     /// Run the event loop, processing swarm events and commands until the command channel
     /// is closed.
     pub async fn run(&mut self, mut cmd_rx: mpsc::Receiver<CommandEnvelope>) {
+        // Periodically re-dial the target peer if the connection is not up.
+        let mut redial = tokio::time::interval(std::time::Duration::from_secs(5));
+        redial.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tokio::select! {
+                _ = redial.tick() => {
+                    if let Some(addr) = self.dial_target.clone() {
+                        if let Some(peer_id) = peer_id_from_addr(&addr) {
+                            if !self.swarm.is_connected(&peer_id) {
+                                println!("re-dialing {addr}");
+                                let _ = self.swarm.dial(addr.clone());
+                            }
+                        }
+                    }
+                }
                 event = self.swarm.next() => {
                     match event {
                         Some(libp2p::swarm::SwarmEvent::ConnectionEstablished { peer_id, .. }) => {
@@ -191,6 +395,15 @@ impl MeshNode {
                                 MeshBehaviourEvent::Rr(rr_event) => self.handle_rr_event(rr_event),
                                 MeshBehaviourEvent::Relay(relay_event) => {
                                     self.handle_relay_event(relay_event)
+                                }
+                                MeshBehaviourEvent::Autonat(autonat_event) => {
+                                    self.handle_autonat_event(autonat_event)
+                                }
+                                MeshBehaviourEvent::Identify(_) => {
+                                    // identify events are not needed for the first cut
+                                }
+                                MeshBehaviourEvent::Dcutr(dcutr_event) => {
+                                    self.handle_dcutr_event(dcutr_event)
                                 }
                             }
                         }
@@ -246,6 +459,58 @@ impl MeshNode {
                                 .collect::<String>()
                         );
                     }
+                    Response::FileStartAck {
+                        transfer_id,
+                        next_seq,
+                        ok,
+                        note,
+                        ..
+                    } => {
+                        println!(
+                            "file {transfer_id}: start ack from {peer} ok={} next_seq={next_seq} \"{}\"",
+                            ok, note
+                        );
+                        if ok {
+                            if let Some(t) = self.outbound.get_mut(&transfer_id) {
+                                if t.state == SendState::WaitingStartAck {
+                                    t.next_seq = next_seq;
+                                    self.send_next_chunk(&peer, &transfer_id);
+                                }
+                            }
+                        } else {
+                            if let Some(t) = self.outbound.get_mut(&transfer_id) {
+                                t.state = SendState::Done;
+                            }
+                        }
+                    }
+                    Response::FileChunkAck {
+                        transfer_id, seq, ok, ..
+                    } => {
+                        if ok {
+                            if let Some(t) = self.outbound.get_mut(&transfer_id) {
+                                if t.state == SendState::WaitingChunkAck && seq >= t.next_seq {
+                                    t.next_seq = seq + 1;
+                                    self.send_next_chunk(&peer, &transfer_id);
+                                }
+                            }
+                        } else {
+                            println!("file {transfer_id}: chunk {seq} rejected by {peer}");
+                            if let Some(t) = self.outbound.get_mut(&transfer_id) {
+                                t.state = SendState::Done;
+                            }
+                        }
+                    }
+                    Response::FileEndAck {
+                        transfer_id, ok, note, ..
+                    } => {
+                        println!(
+                            "file {transfer_id}: end ack from {peer} ok={} \"{}\"",
+                            ok, note
+                        );
+                        if let Some(t) = self.outbound.get_mut(&transfer_id) {
+                            t.state = SendState::Done;
+                        }
+                    }
                 }
             }
             request_response::Event::OutboundFailure { peer, error, .. } => {
@@ -283,8 +548,41 @@ impl MeshNode {
         }
     }
 
+    /// Handle an autonat event: log NAT status changes so we can see whether this node is
+    /// reachable directly or needs a relay.
+    fn handle_autonat_event(&mut self, event: autonat::Event) {
+        match event {
+            autonat::Event::StatusChanged { old, new } => {
+                println!("autonat: NAT status changed {old:?} -> {new:?}");
+                if let Some(addr) = self.swarm.behaviour().autonat.public_address() {
+                    println!("autonat: public address {addr}");
+                }
+            }
+            other => tracing::debug!("autonat event: {other:?}"),
+        }
+    }
+
+    /// Handle a dcutr event: log when a direct connection is established through a relay
+    /// (NAT hole punching succeeded).
+    fn handle_dcutr_event(&mut self, event: dcutr::Event) {
+        match event.result {
+            Ok(_) => {
+                println!(
+                    "dcutr: direct connection established with {}",
+                    event.remote_peer_id
+                )
+            }
+            Err(e) => {
+                println!(
+                    "dcutr: hole-punch failed with {}: {e}",
+                    event.remote_peer_id
+                )
+            }
+        }
+    }
+
     /// Process an inbound request (message, file, or task). Returns the response to send back.
-    fn handle_inbound_request(&self, request: Request) -> Response {
+    fn handle_inbound_request(&mut self, request: Request) -> Response {
         match request {
             Request::Message { text, from, .. } => {
                 println!("received message from {from}: \"{}\"", text);
@@ -294,39 +592,216 @@ impl MeshNode {
                     ts: now_ms(),
                 }
             }
-            Request::File { name, data_b64, from, .. } => {
+            Request::FileStart {
+                transfer_id,
+                name,
+                size,
+                sha256,
+                chunk_size,
+                from: _,
+                ..
+            } => {
+                let partial_dir = self.inbound_dir.join(".partial");
+                let _ = std::fs::create_dir_all(&partial_dir);
+                let partial_path = partial_dir.join(&transfer_id);
+
+                // If we already have this transfer, resume it (keep the existing next_seq).
+                if let Some(t) = self.inbound.get_mut(&transfer_id) {
+                    println!(
+                        "file {transfer_id}: resuming receive of {name} ({} bytes), next_seq={}",
+                        size, t.next_seq
+                    );
+                    Response::FileStartAck {
+                        ok: true,
+                        transfer_id,
+                        next_seq: t.next_seq,
+                        note: "resumed".to_string(),
+                        ts: now_ms(),
+                    }
+                } else {
+                    // Fresh transfer: create the partial file.
+                    match std::fs::File::create(&partial_path) {
+                        Ok(_) => {
+                            println!(
+                                "file {transfer_id}: starting receive of {name} ({} bytes, chunk {})",
+                                size, chunk_size
+                            );
+                            self.inbound.insert(
+                                transfer_id.clone(),
+                                InboundTransfer {
+                                    name,
+                                    size,
+                                    sha256,
+                                    next_seq: 0,
+                                    path: partial_path,
+                                },
+                            );
+                            Response::FileStartAck {
+                                ok: true,
+                                transfer_id,
+                                next_seq: 0,
+                                note: "started".to_string(),
+                                ts: now_ms(),
+                            }
+                        }
+                        Err(e) => {
+                            println!("file {transfer_id}: failed to create partial file: {e}");
+                            Response::FileStartAck {
+                                ok: false,
+                                transfer_id,
+                                next_seq: 0,
+                                note: format!("failed to create partial file: {e}"),
+                                ts: now_ms(),
+                            }
+                        }
+                    }
+                }
+            }
+            Request::FileChunk {
+                transfer_id,
+                seq,
+                data_b64,
+                from,
+                ..
+            } => {
+                let Some(t) = self.inbound.get_mut(&transfer_id) else {
+                    println!("file {transfer_id}: chunk {seq} for unknown transfer (from {from})");
+                    return Response::FileChunkAck {
+                        ok: false,
+                        transfer_id,
+                        seq,
+                        ts: now_ms(),
+                    };
+                };
                 match base64::engine::general_purpose::STANDARD.decode(&data_b64) {
                     Ok(data) => {
-                        let path = self.inbound_dir.join(&name);
-                        match std::fs::write(&path, &data) {
-                            Ok(()) => {
-                                println!(
-                                    "received file from {from}: {} ({} bytes) -> {}",
-                                    name,
-                                    data.len(),
-                                    path.display()
-                                );
-                                Response::Ack {
-                                    ok: true,
-                                    note: format!("file saved to {}", path.display()),
-                                    ts: now_ms(),
+                        if seq == t.next_seq {
+                            // Append the chunk.
+                            match append_chunk(&t.path, &data) {
+                                Ok(()) => {
+                                    t.next_seq += 1;
+                                    Response::FileChunkAck {
+                                        ok: true,
+                                        transfer_id,
+                                        seq,
+                                        ts: now_ms(),
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("file {transfer_id}: failed to append chunk {seq}: {e}");
+                                    Response::FileChunkAck {
+                                        ok: false,
+                                        transfer_id,
+                                        seq,
+                                        ts: now_ms(),
+                                    }
                                 }
                             }
-                            Err(e) => {
-                                println!("failed to write file {}: {e}", path.display());
-                                Response::Ack {
-                                    ok: false,
-                                    note: format!("failed to write file: {e}"),
-                                    ts: now_ms(),
-                                }
+                        } else if seq < t.next_seq {
+                            // Duplicate chunk (already received); ack idempotently.
+                            Response::FileChunkAck {
+                                ok: true,
+                                transfer_id,
+                                seq,
+                                ts: now_ms(),
+                            }
+                        } else {
+                            // Out of order; the sender should resend from next_seq.
+                            println!(
+                                "file {transfer_id}: out-of-order chunk {seq} (expected {})",
+                                t.next_seq
+                            );
+                            Response::FileChunkAck {
+                                ok: false,
+                                transfer_id,
+                                seq,
+                                ts: now_ms(),
                             }
                         }
                     }
                     Err(e) => {
-                        println!("failed to decode file from {from}: {e}");
-                        Response::Ack {
+                        println!("file {transfer_id}: failed to decode chunk {seq}: {e}");
+                        Response::FileChunkAck {
                             ok: false,
-                            note: format!("failed to decode file: {e}"),
+                            transfer_id,
+                            seq,
+                            ts: now_ms(),
+                        }
+                    }
+                }
+            }
+            Request::FileEnd { transfer_id, from, .. } => {
+                let Some(t) = self.inbound.get_mut(&transfer_id) else {
+                    println!("file {transfer_id}: end for unknown transfer (from {from})");
+                    return Response::FileEndAck {
+                        ok: false,
+                        transfer_id,
+                        note: "unknown transfer".to_string(),
+                        ts: now_ms(),
+                    };
+                };
+                let done = std::fs::metadata(&t.path).map(|m| m.len()).unwrap_or(0);
+                if done != t.size {
+                    println!(
+                        "file {transfer_id}: end but only {done}/{size} bytes received",
+                        size = t.size
+                    );
+                    return Response::FileEndAck {
+                        ok: false,
+                        transfer_id,
+                        note: format!("incomplete: {done}/{} bytes", t.size),
+                        ts: now_ms(),
+                    };
+                }
+                // Verify the hash.
+                let data = match std::fs::read(&t.path) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return Response::FileEndAck {
+                            ok: false,
+                            transfer_id,
+                            note: format!("failed to read partial file: {e}"),
+                            ts: now_ms(),
+                        }
+                    }
+                };
+                let actual = sha256_hex(&data);
+                if actual != t.sha256 {
+                    println!(
+                        "file {transfer_id}: hash mismatch (expected {}, got {actual})",
+                        t.sha256
+                    );
+                    return Response::FileEndAck {
+                        ok: false,
+                        transfer_id,
+                        note: "hash mismatch".to_string(),
+                        ts: now_ms(),
+                    };
+                }
+                // Finalize: move the partial file to the inbound dir.
+                let final_path = self.inbound_dir.join(&t.name);
+                match std::fs::rename(&t.path, &final_path) {
+                    Ok(()) => {
+                        println!(
+                            "file {transfer_id}: received {} ({} bytes) -> {}",
+                            t.name,
+                            t.size,
+                            final_path.display()
+                        );
+                        self.inbound.remove(&transfer_id);
+                        Response::FileEndAck {
+                            ok: true,
+                            transfer_id,
+                            note: format!("file saved to {}", final_path.display()),
+                            ts: now_ms(),
+                        }
+                    }
+                    Err(e) => {
+                        println!("file {transfer_id}: failed to finalize: {e}");
+                        Response::FileEndAck {
+                            ok: false,
+                            transfer_id,
+                            note: format!("failed to finalize: {e}"),
                             ts: now_ms(),
                         }
                     }
@@ -393,6 +868,7 @@ impl MeshNode {
                 peers: Some(self.connected_peers()),
                 request_id: None,
                 task_id: None,
+                transfers: None,
                 error: None,
             },
             Command::ListPeers => CmdResponse {
@@ -401,6 +877,16 @@ impl MeshNode {
                 peers: Some(self.connected_peers()),
                 request_id: None,
                 task_id: None,
+                transfers: None,
+                error: None,
+            },
+            Command::ListTransfers => CmdResponse {
+                ok: true,
+                peer_id: None,
+                peers: None,
+                request_id: None,
+                task_id: None,
+                transfers: Some(self.list_transfers()),
                 error: None,
             },
             Command::SendMessage { to, text } => match to.parse::<PeerId>() {
@@ -412,6 +898,7 @@ impl MeshNode {
                         peers: None,
                         request_id: Some(req_id),
                         task_id: None,
+                        transfers: None,
                         error: None,
                     }
                 }
@@ -425,6 +912,7 @@ impl MeshNode {
                         peers: None,
                         request_id: Some(req_id),
                         task_id: None,
+                        transfers: None,
                         error: None,
                     },
                     Err(e) => CmdResponse::err(format!("failed to read file {path}: {e}")),
@@ -440,6 +928,7 @@ impl MeshNode {
                         peers: None,
                         request_id: Some(req_id),
                         task_id: Some(task_id),
+                        transfers: None,
                         error: None,
                     }
                 }
@@ -447,6 +936,31 @@ impl MeshNode {
             },
         }
     }
+}
+
+/// Compute the hex sha256 of a byte slice.
+fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(data);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Read a chunk of `len` bytes from `path` at byte `offset`.
+fn read_chunk(path: &std::path::Path, offset: u64, len: usize) -> std::io::Result<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path)?;
+    file.seek(SeekFrom::Start(offset))?;
+    let mut buf = vec![0u8; len];
+    file.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
+/// Append `data` to the end of `path`.
+fn append_chunk(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+    file.write_all(data)?;
+    Ok(())
 }
 
 fn listen_addr(port: u16) -> Multiaddr {

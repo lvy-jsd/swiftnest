@@ -36,16 +36,50 @@ pub enum Request {
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
-    /// A file transfer (base64-encoded for the first cut; chunked later).
-    File {
+    /// Start a chunked file transfer. The receiver creates (or resumes) a partial file and
+    /// answers with the next chunk it expects, so the sender can resume after a drop.
+    FileStart {
         /// The sender's peer id (or agent name).
         from: String,
         /// The recipient's peer id (or agent name).
         to: String,
+        /// A deterministic id for this transfer (hex of sha256 over name|size|file_sha256),
+        /// so both sides can compute it and resume after a restart.
+        transfer_id: String,
         /// The file name (the receiver writes to `inbound/<name>`).
         name: String,
-        /// The file contents, base64-encoded.
+        /// The total file size in bytes.
+        size: u64,
+        /// The hex sha256 of the whole file (for verification on completion).
+        sha256: String,
+        /// The raw byte size of each chunk.
+        chunk_size: u64,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// A chunk of a file transfer.
+    FileChunk {
+        /// The sender's peer id (or agent name).
+        from: String,
+        /// The recipient's peer id (or agent name).
+        to: String,
+        /// The transfer this chunk belongs to.
+        transfer_id: String,
+        /// The zero-based chunk sequence number.
+        seq: u64,
+        /// The chunk contents, base64-encoded.
         data_b64: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// End a chunked file transfer. The receiver verifies the hash and finalizes the file.
+    FileEnd {
+        /// The sender's peer id (or agent name).
+        from: String,
+        /// The recipient's peer id (or agent name).
+        to: String,
+        /// The transfer this end belongs to.
+        transfer_id: String,
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
@@ -88,6 +122,42 @@ pub enum Response {
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
+    /// Acknowledgement of a `FileStart`. Carries the next chunk the receiver expects, so the
+    /// sender can resume a transfer that was interrupted.
+    FileStartAck {
+        /// Whether the transfer was accepted.
+        ok: bool,
+        /// The transfer this ack is for.
+        transfer_id: String,
+        /// The next chunk sequence the receiver expects (0 for a fresh transfer).
+        next_seq: u64,
+        /// A short human-readable note.
+        note: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// Acknowledgement of a `FileChunk`.
+    FileChunkAck {
+        /// Whether the chunk was accepted.
+        ok: bool,
+        /// The transfer this ack is for.
+        transfer_id: String,
+        /// The chunk sequence that was acknowledged.
+        seq: u64,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// Acknowledgement of a `FileEnd`. The receiver has verified the hash and finalized the file.
+    FileEndAck {
+        /// Whether the file was finalized successfully.
+        ok: bool,
+        /// The transfer this ack is for.
+        transfer_id: String,
+        /// A short human-readable note (e.g. "file saved to ..." or "hash mismatch").
+        note: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
 }
 
 /// A peer known to the node.
@@ -97,6 +167,21 @@ pub struct PeerInfo {
     pub peer_id: String,
     /// Whether the peer is currently connected.
     pub connected: bool,
+}
+
+/// An in-progress file transfer (sending or receiving).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferInfo {
+    /// The transfer id.
+    pub transfer_id: String,
+    /// The file name.
+    pub name: String,
+    /// The total file size in bytes.
+    pub size: u64,
+    /// The number of bytes received (receiving) or sent (sending) so far.
+    pub done: u64,
+    /// The direction: "sending" or "receiving".
+    pub direction: String,
 }
 
 /// A command sent from the TypeScript core over the Unix socket.
@@ -109,10 +194,13 @@ pub enum Command {
     ListPeers,
     /// Send a text message to a peer (by peer id).
     SendMessage { to: String, text: String },
-    /// Send a file to a peer (by peer id). The file is read from `path`.
+    /// Send a file to a peer (by peer id). The file is read from `path` and sent as a chunked,
+    /// resumable transfer. If a transfer for the same file is already in progress, it resumes.
     SendFile { to: String, path: String },
     /// Delegate a task to a peer (by peer id). The task is executed on the remote node.
     DelegateTask { to: String, task: String },
+    /// List in-progress file transfers (both sending and receiving).
+    ListTransfers,
 }
 
 /// A response from the node to a [`Command`].
@@ -132,6 +220,9 @@ pub struct CmdResponse {
     /// The task id (for `delegate_task`), so the sender can correlate the result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
+    /// In-progress file transfers (for `list_transfers`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transfers: Option<Vec<TransferInfo>>,
     /// An error message (when `ok` is false).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -146,6 +237,7 @@ impl CmdResponse {
             peers: None,
             request_id: None,
             task_id: None,
+            transfers: None,
             error: None,
         }
     }
@@ -158,6 +250,7 @@ impl CmdResponse {
             peers: None,
             request_id: None,
             task_id: None,
+            transfers: None,
             error: Some(msg.into()),
         }
     }
@@ -169,4 +262,18 @@ pub fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+/// Compute the deterministic transfer id for a file: hex of sha256 over `name|size|file_sha256`.
+/// Both sender and receiver can compute it, so a transfer can be resumed after a restart.
+pub fn transfer_id(name: &str, size: u64, file_sha256: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(name.as_bytes());
+    hasher.update(b"|");
+    hasher.update(size.to_string().as_bytes());
+    hasher.update(b"|");
+    hasher.update(file_sha256.as_bytes());
+    let digest = hasher.finalize();
+    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
