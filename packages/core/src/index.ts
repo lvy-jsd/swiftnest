@@ -7,6 +7,7 @@ export * from "./log.js";
 export * from "./nest.js";
 export * from "./pairing.js";
 export * from "./perch.js";
+export * from "./paths.js";
 export * from "./plugin.js";
 export * from "./policy.js";
 export * from "./remote.js";

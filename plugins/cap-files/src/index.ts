@@ -4,24 +4,16 @@
  * Every path is resolved to its real location (symlinks followed) before it is checked, so a link cannot lead out of
  * an allowed folder. Secret locations — SSH and GPG keys, cloud and package-registry credentials, password stores,
  * browser profiles and Swiftnest's own keys — are refused even inside an allowed folder, whatever the policy says.
+ * The same PathGuard is shared with cap-shell, so a read-only shell command cannot read what cap-files refuses.
  *
  * Risk: list/read/stat are reads; write/mkdir/move are writes; delete is sensitive. Paths outside the allowed folders
  * are classified sensitive and refused when run.
  */
-import { lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile, appendFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile, appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { definePlugin, SwiftnestFailure, type Capability } from "@swiftnest/core";
+import { dirname, join, relative } from "node:path";
+import { definePlugin, PathGuard, SwiftnestFailure, type Capability } from "@swiftnest/core";
 import type { Risk } from "@swiftnest/protocol";
-
-/** Relative to the home directory. A path equal to or under one of these is never touched. */
-export const SECRET_PATHS = [
-  ".ssh", ".gnupg", ".password-store", ".netrc", ".pgpass", ".git-credentials",
-  ".aws", ".azure", ".config/gcloud", ".kube", ".docker/config.json",
-  ".npmrc", ".pypirc", ".cargo/credentials", ".cargo/credentials.toml", ".config/gh",
-  ".local/share/keyrings", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/BraveSoftware",
-  ".local/state/swiftnest", ".config/swiftnest",
-];
 
 const MAX_READ = 512 * 1024;
 const MAX_LIST = 500;
@@ -33,57 +25,27 @@ export interface FilesOptions {
   deny?: string[];
 }
 
-function expand(p: string): string {
-  return p === "~" ? homedir() : p.startsWith("~/") ? join(homedir(), p.slice(2)) : p;
-}
-
-const within = (child: string, parent: string) => child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
-
-/** Real path of `p`, or of its nearest existing ancestor joined with the rest (for files about to be created). */
-async function realish(p: string): Promise<string> {
-  try {
-    return await realpath(p);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    const parent = dirname(p);
-    if (parent === p) return p;
-    return join(await realish(parent), basename(p));
-  }
-}
-
 export function filesCapability(opts: FilesOptions = {}): Capability {
-  const roots = (opts.roots?.length ? opts.roots : ["~"]).map((r) => resolve(expand(r)));
-  const secrets = [...SECRET_PATHS.map((s) => join(homedir(), s)), ...(opts.deny ?? []).map((d) => resolve(expand(d)))];
-  if (process.env.SWIFTNEST_HOME) secrets.push(resolve(process.env.SWIFTNEST_HOME));
-  let realRoots: Promise<string[]> | undefined;
-
-  /** Lexical check, used for risk classification before anything runs. */
-  function lexical(raw: unknown): { path: string; inside: boolean; secret: boolean } {
-    const given = typeof raw === "string" ? expand(raw) : "";
-    const path = isAbsolute(given) ? resolve(given) : resolve(roots[0]!, given);
-    return { path, inside: roots.some((r) => within(path, r)), secret: secrets.some((s) => within(path, s)) };
-  }
+  const guard = new PathGuard(opts);
+  const roots = guard.roots;
 
   /** The real check, right before acting. */
   async function allowed(raw: unknown, what: string): Promise<string> {
     if (typeof raw !== "string" || !raw) throw new SwiftnestFailure("BAD_ARGS", `${what} is required.`, `Pass a path, e.g. {"${what}": "~/notes.txt"}.`);
-    const { path } = lexical(raw);
-    const real = await realish(path);
-    realRoots ??= Promise.all(roots.map((r) => realish(r)));
-    const okRoot = (await realRoots).some((r) => within(real, r));
-    const realSecrets = await Promise.all(secrets.map((s) => realish(s)));
-    if (realSecrets.some((s) => within(real, s)) || secrets.some((s) => within(path, s))) {
+    const c = await guard.check(raw);
+    if (c.secret) {
       throw new SwiftnestFailure("PATH_REFUSED", `${raw} is a protected location (keys, credentials or browser data).`, "Swiftnest never reads or writes these, whatever the policy says.");
     }
-    if (!okRoot) {
+    if (!c.inside) {
       throw new SwiftnestFailure("PATH_NOT_ALLOWED", `${raw} is outside the folders this device shares (${roots.join(", ")}).`, "Ask the owner to add the folder to cap-files `roots` on this device.");
     }
-    return real;
+    return c.real;
   }
 
   const classifyPath = (base: Risk, ...paths: unknown[]): { risk: Risk; reason?: string } => {
     for (const p of paths) {
-      const l = lexical(p);
+      if (typeof p !== "string" || !p) continue;
+      const l = guard.lexical(p);
       if (l.secret) return { risk: "sensitive", reason: `${l.path} is a protected location and will be refused` };
       if (!l.inside) return { risk: "sensitive", reason: `${l.path} is outside the shared folders and will be refused` };
     }
@@ -216,7 +178,7 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
         }
         case "delete": {
           const p = await allowed(args.path, "path");
-          if ((await realRoots!).includes(p)) throw new SwiftnestFailure("PATH_REFUSED", "Refusing to delete a shared root folder itself.");
+          if ((await guard.realRoots()).includes(p)) throw new SwiftnestFailure("PATH_REFUSED", "Refusing to delete a shared root folder itself.");
           const info = await lstat(p);
           if (info.isDirectory() && !args.recursive) throw new SwiftnestFailure("IS_A_FOLDER", `${String(args.path)} is a folder.`, "Pass recursive: true to delete a folder and everything in it.");
           await rm(p, { recursive: Boolean(args.recursive) });
