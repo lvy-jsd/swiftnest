@@ -6,16 +6,42 @@
 
 use futures::StreamExt;
 use libp2p::{
-    identity, multiaddr::Protocol, request_response, swarm::StreamProtocol, Multiaddr, PeerId,
-    Swarm, SwarmBuilder,
+    identity, multiaddr::Protocol, relay, request_response, swarm::StreamProtocol, Multiaddr,
+    PeerId, Swarm, SwarmBuilder,
 };
+use libp2p::swarm::NetworkBehaviour;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{now_ms, base64, codec, CmdResponse, Command, PeerInfo, Request, Response, PROTOCOL};
 use base64::Engine;
 
-type RrBehaviour = request_response::Behaviour<codec::JsonCodec<Request, Response>>;
-type MeshSwarm = Swarm<RrBehaviour>;
+/// The mesh swarm behaviour: request-response (messages, files, tasks) + relay (so nodes can
+/// reach each other through a relay when a direct connection is not possible).
+#[derive(NetworkBehaviour)]
+pub struct MeshBehaviour {
+    rr: request_response::Behaviour<codec::JsonCodec<Request, Response>>,
+    relay: relay::Behaviour,
+}
+
+impl MeshBehaviour {
+    /// Build the behaviour for a node with the given identity.
+    pub fn new(local_peer_id: PeerId) -> Self {
+        let protocol = StreamProtocol::new(PROTOCOL);
+        Self {
+            rr: request_response::Behaviour::with_codec(
+                codec::JsonCodec::default(),
+                [(
+                    protocol,
+                    request_response::ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
+            relay: relay::Behaviour::new(local_peer_id, relay::Config::default()),
+        }
+    }
+}
+
+type MeshSwarm = Swarm<MeshBehaviour>;
 
 /// A command paired with the channel its response is sent on.
 pub struct CommandEnvelope {
@@ -36,7 +62,6 @@ impl MeshNode {
     pub fn new(inbound_dir: std::path::PathBuf) -> anyhow::Result<Self> {
         let identity_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(identity_key.public());
-        let protocol = StreamProtocol::new(PROTOCOL);
 
         let swarm = SwarmBuilder::with_existing_identity(identity_key)
             .with_tokio()
@@ -46,18 +71,7 @@ impl MeshNode {
                 libp2p::yamux::Config::default,
             )?
             .with_quic()
-            .with_behaviour(|_| {
-                // Use our own JSON codec with a 16 MB request size so file transfers (base64)
-                // fit in a single request.
-                request_response::Behaviour::with_codec(
-                    codec::JsonCodec::default(),
-                    [(
-                        protocol.clone(),
-                        request_response::ProtocolSupport::Full,
-                    )],
-                    request_response::Config::default(),
-                )
-            })?
+            .with_behaviour(|kp| MeshBehaviour::new(PeerId::from(kp.public())))?
             .with_swarm_config(|cfg| cfg)
             .build();
 
@@ -152,7 +166,7 @@ impl MeshNode {
 
     /// Send a request to a peer. Returns the outbound request id.
     fn send_request(&mut self, to: &PeerId, req: Request) -> u64 {
-        let req_id = self.swarm.behaviour_mut().send_request(to, req);
+        let req_id = self.swarm.behaviour_mut().rr.send_request(to, req);
         req_id.to_string().parse().unwrap_or(0)
     }
 
@@ -172,8 +186,13 @@ impl MeshNode {
                         Some(libp2p::swarm::SwarmEvent::IncomingConnection { local_addr, .. }) => {
                             println!("incoming connection from {local_addr}");
                         }
-                        Some(libp2p::swarm::SwarmEvent::Behaviour(rr_event)) => {
-                            self.handle_rr_event(rr_event);
+                        Some(libp2p::swarm::SwarmEvent::Behaviour(event)) => {
+                            match event {
+                                MeshBehaviourEvent::Rr(rr_event) => self.handle_rr_event(rr_event),
+                                MeshBehaviourEvent::Relay(relay_event) => {
+                                    self.handle_relay_event(relay_event)
+                                }
+                            }
                         }
                         Some(other) => tracing::debug!("{other:?}"),
                         None => break,
@@ -201,7 +220,7 @@ impl MeshNode {
                 ..
             } => {
                 let resp = self.handle_inbound_request(request);
-                match self.swarm.behaviour_mut().send_response(channel, resp) {
+                match self.swarm.behaviour_mut().rr.send_response(channel, resp) {
                     Ok(()) => println!("sent response to {peer}"),
                     Err(unsent) => println!("failed to send response to {peer}: {unsent:?}"),
                 }
@@ -238,6 +257,29 @@ impl MeshNode {
             request_response::Event::ResponseSent { peer, .. } => {
                 println!("response sent to {peer}");
             }
+        }
+    }
+
+    /// Handle a relay event: log reservation and circuit establishment so we can see when a
+    /// node is acting as a relay and when peers connect through it.
+    fn handle_relay_event(&mut self, event: relay::Event) {
+        match event {
+            relay::Event::ReservationReqAccepted { src_peer_id, .. } => {
+                println!("relay: reservation request accepted from {src_peer_id}");
+            }
+            relay::Event::ReservationReqDenied { src_peer_id } => {
+                println!("relay: reservation request denied from {src_peer_id}");
+            }
+            relay::Event::CircuitReqAccepted { src_peer_id, dst_peer_id } => {
+                println!("relay: circuit request accepted {src_peer_id} -> {dst_peer_id}");
+            }
+            relay::Event::CircuitReqDenied { src_peer_id, dst_peer_id } => {
+                println!("relay: circuit request denied {src_peer_id} -> {dst_peer_id}");
+            }
+            relay::Event::CircuitClosed { src_peer_id, dst_peer_id, .. } => {
+                println!("relay: circuit closed {src_peer_id} -> {dst_peer_id}");
+            }
+            other => tracing::debug!("relay event: {other:?}"),
         }
     }
 

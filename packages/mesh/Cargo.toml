@@ -29,6 +29,7 @@ libp2p = { version = "0.55", features = [
     "autonat",
     "relay",
     "ping",
+    "macros",
 ] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
