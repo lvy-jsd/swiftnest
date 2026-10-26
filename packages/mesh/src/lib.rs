@@ -13,6 +13,7 @@
 pub mod codec;
 pub mod node;
 pub mod socket;
+pub mod task_policy;
 
 pub use base64;
 
@@ -201,6 +202,10 @@ pub enum Command {
     DelegateTask { to: String, task: String },
     /// List in-progress file transfers (both sending and receiving).
     ListTransfers,
+    /// Dial a peer at the given multiaddr (e.g. `/ip4/127.0.0.1/tcp/30011/p2p/<peer-id>`).
+    /// The address is recorded in the address book and the node re-dials it if the
+    /// connection drops.
+    Dial { addr: String },
 }
 
 /// A response from the node to a [`Command`].

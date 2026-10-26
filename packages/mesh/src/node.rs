@@ -16,8 +16,9 @@ use libp2p::swarm::NetworkBehaviour;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    now_ms, transfer_id, base64, codec, CmdResponse, Command, PeerInfo, Request, Response,
-    TransferInfo, PROTOCOL,
+    now_ms, transfer_id, base64, codec,
+    task_policy::{CheckedTask, TaskPolicy},
+    CmdResponse, Command, PeerInfo, Request, Response, TransferInfo, PROTOCOL,
 };
 use base64::Engine;
 
@@ -119,11 +120,13 @@ pub struct MeshNode {
     outbound: HashMap<String, OutboundTransfer>,
     /// The peer address we are trying to reach. Re-dialed periodically if the connection drops.
     dial_target: Option<Multiaddr>,
+    /// The execution boundary for delegated tasks (see [`task_policy`]).
+    task_policy: TaskPolicy,
 }
 
 impl MeshNode {
     /// Build a node (not listening yet; call [`Self::listen`] to start listening).
-    pub fn new(inbound_dir: PathBuf) -> anyhow::Result<Self> {
+    pub fn new(inbound_dir: PathBuf, task_policy: TaskPolicy) -> anyhow::Result<Self> {
         let identity_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(identity_key.public());
 
@@ -157,6 +160,7 @@ impl MeshNode {
             inbound: HashMap::new(),
             outbound: HashMap::new(),
             dial_target: None,
+            task_policy,
         })
     }
 
@@ -860,7 +864,7 @@ impl MeshNode {
                 task_id, task, from, ..
             } => {
                 println!("received task {task_id} from {from}: \"{}\"", task);
-                let (ok, result) = self.execute_task(&task);
+                let (ok, result) = self.execute_task(&from, &task);
                 println!(
                     "task {task_id} result: ok={} \"{}\"",
                     ok,
@@ -879,32 +883,31 @@ impl MeshNode {
         }
     }
 
-    /// Execute a delegated task. For the first cut the Rust core runs simple built-in tasks;
-    /// the TS layer will take over real task execution later.
+    /// Execute a delegated task. The task policy decides what may run: read-only commands run
+    /// WITHOUT a shell, trusted peers may run anything through `sh -c`, and everything else is
+    /// refused with a reason. The TS policy layer (which can ask a person) takes over task
+    /// execution later; until then, the mesh only runs what is safe by default.
     ///
     /// Supported task forms:
-    /// - `shell:<command>` — run a shell command, return its output.
+    /// - `shell:<command>` — checked by the task policy (see [`task_policy`]).
     /// - `echo:<text>` — return the text.
     /// - anything else — acknowledge receipt (echo the task back).
-    fn execute_task(&self, task: &str) -> (bool, String) {
-        if let Some(cmd) = task.strip_prefix("shell:") {
-            match std::process::Command::new("sh").arg("-c").arg(cmd).output() {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    let result = if stderr.trim().is_empty() {
-                        stdout.to_string()
-                    } else {
-                        format!("{stdout}{stderr}")
-                    };
-                    (out.status.success(), result.trim().to_string())
+    fn execute_task(&self, from: &str, task: &str) -> (bool, String) {
+        let checked = match self.task_policy.check(from, task) {
+            Ok(c) => c,
+            Err(why) => return (false, format!("task not allowed: {why}")),
+        };
+        match checked {
+            CheckedTask::Echo(text) => (true, text),
+            CheckedTask::Ack(task) => (true, format!("task received: {task}")),
+            CheckedTask::Shell(cmd) => run_shell(&cmd),
+            CheckedTask::Direct { program, args } => {
+                // Defense in depth: the check used a lexical path check; before running, follow symlinks.
+                if let Err(why) = self.task_policy.verify_direct(&program, &args) {
+                    return (false, format!("task not allowed: {why}"));
                 }
-                Err(e) => (false, format!("failed to run shell: {e}")),
+                run_direct(&program, &args)
             }
-        } else if let Some(text) = task.strip_prefix("echo:") {
-            (true, text.to_string())
-        } else {
-            (true, format!("task received: {task}"))
         }
     }
 
@@ -983,8 +986,54 @@ impl MeshNode {
                 }
                 Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
             },
+            Command::Dial { addr } => match addr.parse::<Multiaddr>() {
+                Ok(multiaddr) => match self.dial(multiaddr) {
+                    Ok(()) => CmdResponse::ok(),
+                    Err(e) => CmdResponse::err(format!("failed to dial {addr}: {e}")),
+                },
+                Err(e) => CmdResponse::err(format!("invalid multiaddr {addr}: {e}")),
+            },
         }
     }
+}
+
+/// The maximum task output kept (same cap as the TypeScript cap-shell).
+const MAX_TASK_OUTPUT: usize = 64 * 1024;
+
+/// Run a command through `sh -c` (only for trusted peers).
+fn run_shell(cmd: &str) -> (bool, String) {
+    match std::process::Command::new("sh").arg("-c").arg(cmd).output() {
+        Ok(out) => task_output(out),
+        Err(e) => (false, format!("failed to run shell: {e}")),
+    }
+}
+
+/// Run a program directly with its arguments, WITHOUT a shell (no injection possible).
+fn run_direct(program: &str, args: &[String]) -> (bool, String) {
+    match std::process::Command::new(program).args(args).output() {
+        Ok(out) => task_output(out),
+        Err(e) => (false, format!("failed to run {program}: {e}")),
+    }
+}
+
+/// Combine stdout/stderr into the task result, capping the output.
+fn task_output(out: std::process::Output) -> (bool, String) {
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let mut result = if stderr.trim().is_empty() {
+        stdout.to_string()
+    } else {
+        format!("{stdout}{stderr}")
+    };
+    if result.len() > MAX_TASK_OUTPUT {
+        let mut end = MAX_TASK_OUTPUT;
+        while !result.is_char_boundary(end) {
+            end -= 1;
+        }
+        result.truncate(end);
+        result.push_str(" [output truncated]");
+    }
+    (out.status.success(), result.trim().to_string())
 }
 
 /// Compute the hex sha256 of a byte slice.

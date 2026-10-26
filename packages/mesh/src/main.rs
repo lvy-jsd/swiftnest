@@ -10,7 +10,12 @@
 //!   MESH_SOCKET       (default /tmp/swiftnest-mesh.sock)  the Unix socket path
 //!   MESH_INBOUND_DIR  (default /tmp/swiftnest-mesh-inbound)  where received files are written
 //!   MESH_RUN_SECS     (default 0)      run for this many seconds, then exit (0 = run forever)
+//!   MESH_TRUSTED_PEERS (default empty) comma-separated peer ids that may run any `shell:` task
+//!                        through `sh -c`; everyone else is limited to read-only commands
+//!   MESH_TASK_ROOTS   (default: the home directory) comma-separated folders shared for task paths
+//!   MESH_TASK_DENY    (default empty) comma-separated extra paths refused for task paths
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -19,6 +24,7 @@ use tokio::sync::mpsc;
 
 use swiftnest_mesh::node::{CommandEnvelope, MeshNode};
 use swiftnest_mesh::socket;
+use swiftnest_mesh::task_policy::{PathGuard, TaskPolicy};
 
 fn env_or(name: &str, default: u16) -> u16 {
     std::env::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
@@ -50,8 +56,29 @@ async fn main() -> anyhow::Result<()> {
     // Make sure the inbound directory exists so received files can be written.
     std::fs::create_dir_all(&inbound_dir)?;
 
+    // Build the task policy: the execution boundary for delegated tasks.
+    let trusted_peers: HashSet<PeerId> = std::env::var("MESH_TRUSTED_PEERS")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.trim().is_empty())
+        .filter_map(|s| s.trim().parse::<PeerId>().ok())
+        .collect();
+    let task_roots: Vec<PathBuf> = std::env::var("MESH_TASK_ROOTS")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| PathBuf::from(s.trim()))
+        .collect();
+    let task_deny: Vec<PathBuf> = std::env::var("MESH_TASK_DENY")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| PathBuf::from(s.trim()))
+        .collect();
+    let task_policy = TaskPolicy::new(PathGuard::new(task_roots, task_deny), trusted_peers);
+
     // Build the node and start listening.
-    let mut node = MeshNode::new(PathBuf::from(inbound_dir))?;
+    let mut node = MeshNode::new(PathBuf::from(inbound_dir), task_policy)?;
     let local_peer_id = node.local_peer_id();
     println!("local peer id: {local_peer_id}");
     node.listen(listen_tcp, listen_quic)?;
