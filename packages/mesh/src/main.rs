@@ -34,7 +34,6 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args: Vec<String> = std::env::args().collect();
-    let dial_peer = args.get(1).cloned();
 
     let listen_tcp = env_or("MESH_LISTEN_TCP", 30001);
     let listen_quic = env_or("MESH_LISTEN_QUIC", 30000);
@@ -57,13 +56,28 @@ async fn main() -> anyhow::Result<()> {
     println!("local peer id: {local_peer_id}");
     node.listen(listen_tcp, listen_quic)?;
 
-    // Dial a peer if given.
-    if let Some(peer) = dial_peer {
-        let peer_id: PeerId = peer.parse()?;
-        let mut addr = Multiaddr::empty();
-        addr.push(Protocol::Ip4([127, 0, 0, 1].into()));
-        addr.push(Protocol::Tcp(dial_tcp));
-        addr = addr.with_p2p(peer_id).expect("valid peer id");
+    // Optionally listen on a relayed address (/ip4/.../tcp/.../p2p/<relay>/p2p-circuit/p2p/<me>).
+    // Listening on a relayed address makes the relay client reserve a slot on that relay, so
+    // other peers can reach us through it.
+    if let Ok(relay_addr) = std::env::var("MESH_RELAY_LISTEN") {
+        let addr: Multiaddr = relay_addr.parse()?;
+        println!("listening on relayed addr {addr}");
+        node.listen_on(addr)?;
+    }
+
+    // Dial peers if given. Each argument is either a full multiaddr (contains '/') or a bare
+    // peer id (dialled over 127.0.0.1/tcp/MESH_DIAL_TCP). This lets a node dial a relay and,
+    // through it, a peer's relayed address (/ip4/.../tcp/.../p2p/<relay>/p2p/<peer>).
+    for target in args.iter().skip(1) {
+        let addr = if target.contains('/') {
+            target.parse::<Multiaddr>()?
+        } else {
+            let peer_id: PeerId = target.parse()?;
+            let mut a = Multiaddr::empty();
+            a.push(Protocol::Ip4([127, 0, 0, 1].into()));
+            a.push(Protocol::Tcp(dial_tcp));
+            a.with_p2p(peer_id).expect("valid peer id")
+        };
         println!("dialing {addr}");
         node.dial(addr)?;
     }

@@ -64,6 +64,7 @@ struct OutboundTransfer {
 pub struct MeshBehaviour {
     rr: request_response::Behaviour<codec::JsonCodec<Request, Response>>,
     relay: relay::Behaviour,
+    relay_client: relay::client::Behaviour,
     autonat: autonat::Behaviour,
     identify: identify::Behaviour,
     dcutr: dcutr::Behaviour,
@@ -71,7 +72,11 @@ pub struct MeshBehaviour {
 
 impl MeshBehaviour {
     /// Build the behaviour for a node with the given identity.
-    pub fn new(local_peer_id: PeerId, local_public_key: libp2p::identity::PublicKey) -> Self {
+    pub fn new(
+        local_peer_id: PeerId,
+        local_public_key: libp2p::identity::PublicKey,
+        relay_client: relay::client::Behaviour,
+    ) -> Self {
         let protocol = StreamProtocol::new(PROTOCOL);
         Self {
             rr: request_response::Behaviour::with_codec(
@@ -83,6 +88,7 @@ impl MeshBehaviour {
                 request_response::Config::default(),
             ),
             relay: relay::Behaviour::new(local_peer_id, relay::Config::default()),
+            relay_client,
             autonat: autonat::Behaviour::new(local_peer_id, autonat::Config::default()),
             identify: identify::Behaviour::new(identify::Config::new(
                 "swiftnest/0.1.0".to_string(),
@@ -129,9 +135,13 @@ impl MeshNode {
                 libp2p::yamux::Config::default,
             )?
             .with_quic()
-            .with_behaviour(|kp| {
+            .with_relay_client(
+                libp2p::noise::Config::new,
+                libp2p::yamux::Config::default,
+            )?
+            .with_behaviour(|kp, relay_client| {
                 let pid = PeerId::from(kp.public());
-                MeshBehaviour::new(pid, kp.public())
+                MeshBehaviour::new(pid, kp.public(), relay_client)
             })?
             .with_swarm_config(|cfg| cfg)
             .build();
@@ -158,6 +168,13 @@ impl MeshNode {
         let quic_addr = listen_addr(quic);
         self.swarm.listen_on(quic_addr.clone())?;
         println!("listening on {quic_addr}");
+        Ok(())
+    }
+
+    /// Listen on an additional multiaddr (e.g. a relayed address, which triggers a relay
+    /// reservation).
+    pub fn listen_on(&mut self, addr: Multiaddr) -> anyhow::Result<()> {
+        self.swarm.listen_on(addr.clone())?;
         Ok(())
     }
 
@@ -396,11 +413,23 @@ impl MeshNode {
                                 MeshBehaviourEvent::Relay(relay_event) => {
                                     self.handle_relay_event(relay_event)
                                 }
+                                MeshBehaviourEvent::RelayClient(client_event) => {
+                                    self.handle_relay_client_event(client_event)
+                                }
                                 MeshBehaviourEvent::Autonat(autonat_event) => {
                                     self.handle_autonat_event(autonat_event)
                                 }
-                                MeshBehaviourEvent::Identify(_) => {
-                                    // identify events are not needed for the first cut
+                                MeshBehaviourEvent::Identify(id_event) => {
+                                    // Log identify events to debug relay discovery.
+                                    match &id_event {
+                                        identify::Event::Received { peer_id, info, .. } => {
+                                            println!(
+                                                "identify: received from {peer_id} protocols={:?}",
+                                                info.protocols
+                                            )
+                                        }
+                                        other => tracing::debug!("identify event: {other:?}"),
+                                    }
                                 }
                                 MeshBehaviourEvent::Dcutr(dcutr_event) => {
                                     self.handle_dcutr_event(dcutr_event)
@@ -545,6 +574,26 @@ impl MeshNode {
                 println!("relay: circuit closed {src_peer_id} -> {dst_peer_id}");
             }
             other => tracing::debug!("relay event: {other:?}"),
+        }
+    }
+
+    /// Handle a relay client event: log when this node makes a reservation on a relay and when
+    /// it opens a circuit through a relay to reach another peer.
+    fn handle_relay_client_event(&mut self, event: relay::client::Event) {
+        match event {
+            relay::client::Event::ReservationReqAccepted {
+                relay_peer_id, renewal, ..
+            } => {
+                println!(
+                    "relay-client: reservation accepted on {relay_peer_id} (renewal={renewal})"
+                );
+            }
+            relay::client::Event::OutboundCircuitEstablished { relay_peer_id, .. } => {
+                println!("relay-client: outbound circuit established via {relay_peer_id}");
+            }
+            relay::client::Event::InboundCircuitEstablished { src_peer_id, .. } => {
+                println!("relay-client: inbound circuit established from {src_peer_id}");
+            }
         }
     }
 
