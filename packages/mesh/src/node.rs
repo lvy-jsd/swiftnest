@@ -5,20 +5,24 @@
 //! oneshot channel.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use futures::StreamExt;
 use libp2p::{
     autonat, dcutr, identify, identity, multiaddr::Protocol, relay, request_response,
     swarm::StreamProtocol, Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
+use libp2p::request_response::OutboundRequestId;
+use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     now_ms, transfer_id, base64, codec,
     task_policy::{CheckedTask, TaskPolicy},
-    CmdResponse, Command, PeerInfo, Request, Response, TransferInfo, PROTOCOL,
+    pairing::{write_private, PairCheck, PairingWindow, PeerBook},
+    CmdResponse, Command, MeshEvent, PeerInfo, Request, Response, TransferInfo, PROTOCOL,
 };
 use base64::Engine;
 
@@ -32,6 +36,8 @@ struct InboundTransfer {
     size: u64,
     sha256: String,
     next_seq: u64,
+    /// Bytes written to the partial file so far. Never allowed to pass `size`.
+    received: u64,
     path: PathBuf,
 }
 
@@ -42,6 +48,8 @@ enum SendState {
     WaitingChunkAck,
     WaitingEndAck,
     Done,
+    /// A request of this transfer could not be delivered; `send_file` again to resume.
+    Failed,
 }
 
 /// A file transfer being sent.
@@ -64,7 +72,8 @@ struct OutboundTransfer {
 #[derive(NetworkBehaviour)]
 pub struct MeshBehaviour {
     rr: request_response::Behaviour<codec::JsonCodec<Request, Response>>,
-    relay: relay::Behaviour,
+    /// Off unless the owner asks: a relay lets any peer spend this node's bandwidth.
+    relay: Toggle<relay::Behaviour>,
     relay_client: relay::client::Behaviour,
     autonat: autonat::Behaviour,
     identify: identify::Behaviour,
@@ -77,6 +86,7 @@ impl MeshBehaviour {
         local_peer_id: PeerId,
         local_public_key: libp2p::identity::PublicKey,
         relay_client: relay::client::Behaviour,
+        relay_server: bool,
     ) -> Self {
         let protocol = StreamProtocol::new(PROTOCOL);
         Self {
@@ -88,7 +98,9 @@ impl MeshBehaviour {
                 )],
                 request_response::Config::default(),
             ),
-            relay: relay::Behaviour::new(local_peer_id, relay::Config::default()),
+            relay: relay_server
+                .then(|| relay::Behaviour::new(local_peer_id, relay::Config::default()))
+                .into(),
             relay_client,
             autonat: autonat::Behaviour::new(local_peer_id, autonat::Config::default()),
             identify: identify::Behaviour::new(identify::Config::new(
@@ -122,12 +134,58 @@ pub struct MeshNode {
     dial_target: Option<Multiaddr>,
     /// The execution boundary for delegated tasks (see [`task_policy`]).
     task_policy: TaskPolicy,
+    /// Where [`MeshEvent`]s go; socket clients subscribe to it.
+    events: broadcast::Sender<MeshEvent>,
+    /// Outbound file requests in flight, so a delivery failure marks the right transfer.
+    file_requests: HashMap<OutboundRequestId, String>,
+    /// Outbound task requests in flight (request -> task id), so a refusal or a delivery failure
+    /// reaches the caller as that task's result instead of silence.
+    task_requests: HashMap<OutboundRequestId, String>,
+    /// Outbound pairing requests in flight.
+    pending_pairs: HashMap<OutboundRequestId, PeerId>,
+    /// The peers this node talks to. Everyone else is refused.
+    book: PeerBook,
+    /// An open invitation, if the owner started one.
+    window: Option<PairingWindow>,
+    /// This node's own label, sent when pairing.
+    name: String,
+}
+
+/// Everything a node needs besides its keys.
+pub struct NodeConfig {
+    /// Where received files go.
+    pub inbound_dir: PathBuf,
+    /// What delegated tasks may do.
+    pub task_policy: TaskPolicy,
+    /// Where the node keeps its identity key and paired peers. `None` keeps both in memory only
+    /// (tests): the peer id then changes on every start and nobody stays paired.
+    pub state_dir: Option<PathBuf>,
+    /// This node's label, sent to peers it pairs with.
+    pub name: String,
+    /// Act as a relay for other peers.
+    pub relay_server: bool,
+}
+
+impl NodeConfig {
+    pub fn new(inbound_dir: PathBuf, task_policy: TaskPolicy) -> Self {
+        Self { inbound_dir, task_policy, state_dir: None, name: "node".into(), relay_server: false }
+    }
 }
 
 impl MeshNode {
     /// Build a node (not listening yet; call [`Self::listen`] to start listening).
     pub fn new(inbound_dir: PathBuf, task_policy: TaskPolicy) -> anyhow::Result<Self> {
-        let identity_key = identity::Keypair::generate_ed25519();
+        Self::with_config(NodeConfig::new(inbound_dir, task_policy))
+    }
+
+    /// Build a node from a full configuration.
+    pub fn with_config(cfg: NodeConfig) -> anyhow::Result<Self> {
+        let NodeConfig { inbound_dir, task_policy, state_dir, name, relay_server } = cfg;
+        let identity_key = match &state_dir {
+            Some(dir) => load_or_create_identity(&dir.join("identity.key"))?,
+            None => identity::Keypair::generate_ed25519(),
+        };
+        let book = PeerBook::load(state_dir.as_ref().map(|d| d.join("peers.json")))?;
         let local_peer_id = PeerId::from(identity_key.public());
 
         let swarm = SwarmBuilder::with_existing_identity(identity_key)
@@ -144,7 +202,7 @@ impl MeshNode {
             )?
             .with_behaviour(|kp, relay_client| {
                 let pid = PeerId::from(kp.public());
-                MeshBehaviour::new(pid, kp.public(), relay_client)
+                MeshBehaviour::new(pid, kp.public(), relay_client, relay_server)
             })?
             .with_swarm_config(|cfg| cfg)
             .build();
@@ -161,6 +219,13 @@ impl MeshNode {
             outbound: HashMap::new(),
             dial_target: None,
             task_policy,
+            events: broadcast::channel(256).0,
+            file_requests: HashMap::new(),
+            task_requests: HashMap::new(),
+            pending_pairs: HashMap::new(),
+            book,
+            window: None,
+            name,
         })
     }
 
@@ -169,7 +234,7 @@ impl MeshNode {
         let tcp_addr = listen_addr(tcp);
         self.swarm.listen_on(tcp_addr.clone())?;
         println!("listening on {tcp_addr}");
-        let quic_addr = listen_addr(quic);
+        let quic_addr = quic_listen_addr(quic);
         self.swarm.listen_on(quic_addr.clone())?;
         println!("listening on {quic_addr}");
         Ok(())
@@ -199,6 +264,38 @@ impl MeshNode {
     /// The node's own peer id.
     pub fn local_peer_id(&self) -> PeerId {
         self.local_peer_id
+    }
+
+    /// A sender the socket server uses to hand each client its own event receiver.
+    pub fn events(&self) -> broadcast::Sender<MeshEvent> {
+        self.events.clone()
+    }
+
+    /// The addresses the swarm is listening on right now.
+    pub fn listen_addrs(&self) -> Vec<String> {
+        self.swarm.listeners().map(|a| a.to_string()).collect()
+    }
+
+    /// Add a peer to the paired peers (no code involved) and announce it.
+    pub fn trust(&mut self, peer: PeerId, name: &str) -> anyhow::Result<()> {
+        self.book.add(&peer, name)?;
+        self.emit(MeshEvent::Paired { peer_id: peer.to_string(), name: name.to_string() });
+        Ok(())
+    }
+
+    /// Parse a peer id and check that the peer is paired; the error is the text for the caller.
+    fn paired_peer(&self, to: &str) -> Result<PeerId, String> {
+        let peer = to.parse::<PeerId>().map_err(|e| format!("invalid peer id {to}: {e}"))?;
+        if self.book.contains(&peer) {
+            Ok(peer)
+        } else {
+            Err(format!("peer {to} is not paired; pair with it first"))
+        }
+    }
+
+    fn emit(&self, event: MeshEvent) {
+        // No subscriber is fine: the event is only for whoever is listening.
+        let _ = self.events.send(event);
     }
 
     /// Currently connected peers.
@@ -270,7 +367,14 @@ impl MeshNode {
             chunk_size: CHUNK_SIZE,
             ts: now_ms(),
         };
-        Ok(self.send_request(to, req))
+        Ok(self.send_file_request(to, &tid, req))
+    }
+
+    /// Send a file-transfer request and remember which transfer it belongs to.
+    fn send_file_request(&mut self, to: &PeerId, tid: &str, req: Request) -> u64 {
+        let id = self.swarm.behaviour_mut().rr.send_request(to, req);
+        self.file_requests.insert(id, tid.to_string());
+        id.to_string().parse().unwrap_or(0)
     }
 
     /// Send the next chunk of an outbound transfer (or the `FileEnd` if all chunks are sent).
@@ -301,7 +405,7 @@ impl MeshNode {
                 let len = std::cmp::min(CHUNK_SIZE, t.size - offset) as usize;
                 let seq = t.next_seq;
                 let path = t.path.clone();
-                match read_chunk(&path, offset as u64, len) {
+                match read_chunk(&path, offset, len) {
                     Ok(data) => {
                         let req = Request::FileChunk {
                             from: self.local_peer_id.to_string(),
@@ -324,7 +428,7 @@ impl MeshNode {
                 }
             }
         };
-        let req_id = self.send_request(to, req);
+        let req_id = self.send_file_request(to, tid, req);
         println!("{log} (req {req_id})");
         if let Some(t) = self.outbound.get_mut(tid) {
             t.state = next_state;
@@ -365,7 +469,7 @@ impl MeshNode {
 
     /// Delegate a task to a peer. Returns the outbound request id and the task id.
     pub fn send_task(&mut self, to: &PeerId, task: &str) -> (u64, String) {
-        let task_id = format!("task-{}", now_ms());
+        let task_id = format!("task-{}-{:08x}", now_ms(), rand::random::<u32>());
         let req = Request::Task {
             from: self.local_peer_id.to_string(),
             to: to.to_string(),
@@ -373,7 +477,9 @@ impl MeshNode {
             task: task.to_string(),
             ts: now_ms(),
         };
-        (self.send_request(to, req), task_id)
+        let id = self.swarm.behaviour_mut().rr.send_request(to, req);
+        self.task_requests.insert(id, task_id.clone());
+        (id.to_string().parse().unwrap_or(0), task_id)
     }
 
     /// Send a request to a peer. Returns the outbound request id.
@@ -404,6 +510,11 @@ impl MeshNode {
                     match event {
                         Some(libp2p::swarm::SwarmEvent::ConnectionEstablished { peer_id, .. }) => {
                             println!("connection established with {peer_id}");
+                            self.emit(MeshEvent::PeerConnected { peer_id: peer_id.to_string() });
+                        }
+                        Some(libp2p::swarm::SwarmEvent::ConnectionClosed { peer_id, num_established: 0, .. }) => {
+                            println!("connection closed with {peer_id}");
+                            self.emit(MeshEvent::PeerDisconnected { peer_id: peer_id.to_string() });
                         }
                         Some(libp2p::swarm::SwarmEvent::NewListenAddr { address, .. }) => {
                             println!("new listen addr {address}");
@@ -465,7 +576,7 @@ impl MeshNode {
                 message: request_response::Message::Request { request, channel, .. },
                 ..
             } => {
-                let resp = self.handle_inbound_request(request);
+                let resp = self.handle_inbound_request(peer, request);
                 match self.swarm.behaviour_mut().rr.send_response(channel, resp) {
                     Ok(()) => println!("sent response to {peer}"),
                     Err(unsent) => println!("failed to send response to {peer}: {unsent:?}"),
@@ -473,10 +584,57 @@ impl MeshNode {
             }
             request_response::Event::Message {
                 peer,
-                message: request_response::Message::Response { response, .. },
+                message: request_response::Message::Response { request_id, response },
                 ..
             } => {
+                let file_tid = self.file_requests.remove(&request_id);
+                let task_id_for_request = self.task_requests.remove(&request_id);
+                let pending_pair = self.pending_pairs.remove(&request_id);
                 match response {
+                    Response::Denied { reason, .. } => {
+                        println!("{peer} refused our request: {reason}");
+                        if let Some(tid) = file_tid {
+                            // The transfer cannot go on; leave it resumable and tell the caller why.
+                            if let Some(t) = self.outbound.get_mut(&tid) {
+                                t.state = SendState::Failed;
+                            }
+                            self.emit(MeshEvent::FileSent {
+                                peer_id: peer.to_string(),
+                                transfer_id: tid,
+                                ok: false,
+                                note: format!("refused by peer: {reason}"),
+                            });
+                        }
+                        if let Some(task_id) = task_id_for_request {
+                            self.emit(MeshEvent::TaskResult {
+                                peer_id: peer.to_string(),
+                                task_id,
+                                ok: false,
+                                result: format!("refused by peer: {reason}"),
+                            });
+                        }
+                        self.emit(MeshEvent::RequestFailed {
+                            peer_id: peer.to_string(),
+                            error: format!("refused by peer: {reason}"),
+                        });
+                    }
+                    Response::PairAck { ok, name, note, .. } => {
+                        // Only an answer to a pairing request we actually sent counts.
+                        if pending_pair == Some(peer) {
+                            if ok {
+                                let name = clean_label(&name);
+                                match self.trust(peer, &name) {
+                                    Ok(()) => println!("paired with {peer} ({name})"),
+                                    Err(e) => self.emit(MeshEvent::PairFailed {
+                                        peer_id: peer.to_string(),
+                                        note: format!("could not save the pairing: {e}"),
+                                    }),
+                                }
+                            } else {
+                                self.emit(MeshEvent::PairFailed { peer_id: peer.to_string(), note });
+                            }
+                        }
+                    }
                     Response::Ack { ok, note, .. } => {
                         println!("received ack from {peer}: ok={} note=\"{}\"", ok, note);
                     }
@@ -491,6 +649,12 @@ impl MeshNode {
                                 .take(200)
                                 .collect::<String>()
                         );
+                        self.emit(MeshEvent::TaskResult {
+                            peer_id: peer.to_string(),
+                            task_id,
+                            ok,
+                            result,
+                        });
                     }
                     Response::FileStartAck {
                         transfer_id,
@@ -514,6 +678,12 @@ impl MeshNode {
                             if let Some(t) = self.outbound.get_mut(&transfer_id) {
                                 t.state = SendState::Done;
                             }
+                            self.emit(MeshEvent::FileSent {
+                                peer_id: peer.to_string(),
+                                transfer_id,
+                                ok: false,
+                                note,
+                            });
                         }
                     }
                     Response::FileChunkAck {
@@ -531,6 +701,12 @@ impl MeshNode {
                             if let Some(t) = self.outbound.get_mut(&transfer_id) {
                                 t.state = SendState::Done;
                             }
+                            self.emit(MeshEvent::FileSent {
+                                peer_id: peer.to_string(),
+                                transfer_id,
+                                ok: false,
+                                note: format!("chunk {seq} rejected"),
+                            });
                         }
                     }
                     Response::FileEndAck {
@@ -543,11 +719,48 @@ impl MeshNode {
                         if let Some(t) = self.outbound.get_mut(&transfer_id) {
                             t.state = SendState::Done;
                         }
+                        self.emit(MeshEvent::FileSent {
+                            peer_id: peer.to_string(),
+                            transfer_id,
+                            ok,
+                            note,
+                        });
                     }
                 }
             }
-            request_response::Event::OutboundFailure { peer, error, .. } => {
+            request_response::Event::OutboundFailure { peer, request_id, error, .. } => {
                 println!("outbound request to {peer} failed: {error}");
+                // A transfer whose request never arrived is stuck; mark it so the caller can
+                // `send_file` again to resume from where the receiver got to.
+                if let Some(tid) = self.file_requests.remove(&request_id) {
+                    if let Some(t) = self.outbound.get_mut(&tid) {
+                        t.state = SendState::Failed;
+                    }
+                    self.emit(MeshEvent::FileSent {
+                        peer_id: peer.to_string(),
+                        transfer_id: tid,
+                        ok: false,
+                        note: format!("delivery failed: {error}"),
+                    });
+                }
+                if let Some(task_id) = self.task_requests.remove(&request_id) {
+                    self.emit(MeshEvent::TaskResult {
+                        peer_id: peer.to_string(),
+                        task_id,
+                        ok: false,
+                        result: format!("delivery failed: {error}"),
+                    });
+                }
+                if let Some(p) = self.pending_pairs.remove(&request_id) {
+                    self.emit(MeshEvent::PairFailed {
+                        peer_id: p.to_string(),
+                        note: format!("could not reach the peer: {error}"),
+                    });
+                }
+                self.emit(MeshEvent::RequestFailed {
+                    peer_id: peer.to_string(),
+                    error: error.to_string(),
+                });
             }
             request_response::Event::InboundFailure { peer, error, .. } => {
                 println!("inbound request from {peer} failed: {error}");
@@ -635,10 +848,53 @@ impl MeshNode {
     }
 
     /// Process an inbound request (message, file, or task). Returns the response to send back.
-    fn handle_inbound_request(&mut self, request: Request) -> Response {
+    ///
+    /// `peer` is the libp2p-authenticated sender. The `from` field inside a request is whatever
+    /// the sender wrote, so it is never used to decide anything.
+    fn handle_inbound_request(&mut self, peer: PeerId, request: Request) -> Response {
+        // Only a pairing request may come from a peer we do not know.
+        if !matches!(request, Request::Pair { .. }) && !self.book.contains(&peer) {
+            println!("refused a request from unpaired peer {peer}");
+            return Response::Denied { reason: "not paired".to_string(), ts: now_ms() };
+        }
+        let from = peer.to_string();
         match request {
-            Request::Message { text, from, .. } => {
+            Request::Pair { code, name, .. } => {
+                let verdict = match self.window.as_mut() {
+                    Some(w) => w.check(&code, Instant::now()),
+                    None => PairCheck::Closed,
+                };
+                let ack = |ok: bool, note: &str, me: &str| Response::PairAck {
+                    ok,
+                    name: me.to_string(),
+                    note: note.to_string(),
+                    ts: now_ms(),
+                };
+                match verdict {
+                    PairCheck::Accepted => {
+                        self.window = None;
+                        let name = clean_label(&name);
+                        match self.trust(peer, &name) {
+                            Ok(()) => {
+                                println!("paired with {peer} ({name})");
+                                ack(true, "paired", &self.name)
+                            }
+                            Err(e) => ack(false, &format!("could not save the pairing: {e}"), &self.name),
+                        }
+                    }
+                    PairCheck::Wrong => {
+                        println!("wrong pairing code from {peer}");
+                        ack(false, "wrong code", &self.name)
+                    }
+                    PairCheck::Closed => {
+                        self.window = None;
+                        ack(false, "pairing is not open", &self.name)
+                    }
+                }
+            }
+            Request::Message { text, ts, .. } => {
                 println!("received message from {from}: \"{}\"", text);
+                self.emit(MeshEvent::Message { from, text, ts });
                 Response::Ack {
                     ok: true,
                     note: "delivered".to_string(),
@@ -651,9 +907,21 @@ impl MeshNode {
                 size,
                 sha256,
                 chunk_size,
-                from: _,
                 ..
             } => {
+                // Both ids end up as file names under our inbound directory, so neither may be
+                // chosen freely by the sender. The transfer id must be the one both sides derive
+                // from (name, size, hash), which also makes it plain hex.
+                if !safe_file_name(&name) || transfer_id != crate::transfer_id(&name, size, &sha256) {
+                    println!("file {transfer_id}: refused start from {from} (bad name or id)");
+                    return Response::FileStartAck {
+                        ok: false,
+                        transfer_id,
+                        next_seq: 0,
+                        note: "refused: invalid file name or transfer id".to_string(),
+                        ts: now_ms(),
+                    };
+                }
                 let partial_dir = self.inbound_dir.join(".partial");
                 let _ = std::fs::create_dir_all(&partial_dir);
                 let partial_path = partial_dir.join(&transfer_id);
@@ -686,6 +954,7 @@ impl MeshNode {
                                     size,
                                     sha256,
                                     next_seq: 0,
+                                    received: 0,
                                     path: partial_path,
                                 },
                             );
@@ -714,7 +983,6 @@ impl MeshNode {
                 transfer_id,
                 seq,
                 data_b64,
-                from,
                 ..
             } => {
                 let Some(t) = self.inbound.get_mut(&transfer_id) else {
@@ -728,11 +996,21 @@ impl MeshNode {
                 };
                 match base64::engine::general_purpose::STANDARD.decode(&data_b64) {
                     Ok(data) => {
-                        if seq == t.next_seq {
+                        if seq == t.next_seq && t.received + data.len() as u64 > t.size {
+                            // More bytes than the transfer declared: refuse rather than fill the disk.
+                            println!("file {transfer_id}: chunk {seq} overruns the declared size");
+                            Response::FileChunkAck {
+                                ok: false,
+                                transfer_id,
+                                seq,
+                                ts: now_ms(),
+                            }
+                        } else if seq == t.next_seq {
                             // Append the chunk.
                             match append_chunk(&t.path, &data) {
                                 Ok(()) => {
                                     t.next_seq += 1;
+                                    t.received += data.len() as u64;
                                     Response::FileChunkAck {
                                         ok: true,
                                         transfer_id,
@@ -783,7 +1061,7 @@ impl MeshNode {
                     }
                 }
             }
-            Request::FileEnd { transfer_id, from, .. } => {
+            Request::FileEnd { transfer_id, .. } => {
                 let Some(t) = self.inbound.get_mut(&transfer_id) else {
                     println!("file {transfer_id}: end for unknown transfer (from {from})");
                     return Response::FileEndAck {
@@ -793,7 +1071,7 @@ impl MeshNode {
                         ts: now_ms(),
                     };
                 };
-                let done = std::fs::metadata(&t.path).map(|m| m.len()).unwrap_or(0);
+                let done = t.received;
                 if done != t.size {
                     println!(
                         "file {transfer_id}: end but only {done}/{size} bytes received",
@@ -841,7 +1119,15 @@ impl MeshNode {
                             t.size,
                             final_path.display()
                         );
+                        let (name, size) = (t.name.clone(), t.size);
                         self.inbound.remove(&transfer_id);
+                        self.emit(MeshEvent::FileReceived {
+                            from,
+                            transfer_id: transfer_id.clone(),
+                            name,
+                            path: final_path.display().to_string(),
+                            size,
+                        });
                         Response::FileEndAck {
                             ok: true,
                             transfer_id,
@@ -860,9 +1146,7 @@ impl MeshNode {
                     }
                 }
             }
-            Request::Task {
-                task_id, task, from, ..
-            } => {
+            Request::Task { task_id, task, .. } => {
                 println!("received task {task_id} from {from}: \"{}\"", task);
                 let (ok, result) = self.execute_task(&from, &task);
                 println!(
@@ -913,86 +1197,84 @@ impl MeshNode {
 
     /// Handle a command from the socket server.
     fn handle_command(&mut self, cmd: Command) -> CmdResponse {
+        let ok = CmdResponse::ok;
         match cmd {
             Command::Status => CmdResponse {
-                ok: true,
                 peer_id: Some(self.local_peer_id.to_string()),
+                addrs: Some(self.listen_addrs()),
                 peers: Some(self.connected_peers()),
-                request_id: None,
-                task_id: None,
-                transfers: None,
-                error: None,
+                ..ok()
             },
-            Command::ListPeers => CmdResponse {
-                ok: true,
-                peer_id: None,
-                peers: Some(self.connected_peers()),
-                request_id: None,
-                task_id: None,
-                transfers: None,
-                error: None,
+            Command::ListPeers => CmdResponse { peers: Some(self.connected_peers()), ..ok() },
+            Command::ListTransfers => CmdResponse { transfers: Some(self.list_transfers()), ..ok() },
+            Command::ListPaired => CmdResponse { paired: Some(self.book.list()), ..ok() },
+            Command::SendMessage { to, text } => match self.paired_peer(&to) {
+                Ok(peer_id) => CmdResponse { request_id: Some(self.send_message(&peer_id, &text)), ..ok() },
+                Err(e) => CmdResponse::err(e),
             },
-            Command::ListTransfers => CmdResponse {
-                ok: true,
-                peer_id: None,
-                peers: None,
-                request_id: None,
-                task_id: None,
-                transfers: Some(self.list_transfers()),
-                error: None,
-            },
-            Command::SendMessage { to, text } => match to.parse::<PeerId>() {
-                Ok(peer_id) => {
-                    let req_id = self.send_message(&peer_id, &text);
-                    CmdResponse {
-                        ok: true,
-                        peer_id: None,
-                        peers: None,
-                        request_id: Some(req_id),
-                        task_id: None,
-                        transfers: None,
-                        error: None,
-                    }
-                }
-                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
-            },
-            Command::SendFile { to, path } => match to.parse::<PeerId>() {
+            Command::SendFile { to, path } => match self.paired_peer(&to) {
                 Ok(peer_id) => match self.send_file(&peer_id, &path) {
-                    Ok(req_id) => CmdResponse {
-                        ok: true,
-                        peer_id: None,
-                        peers: None,
-                        request_id: Some(req_id),
-                        task_id: None,
-                        transfers: None,
-                        error: None,
-                    },
+                    Ok(req_id) => CmdResponse { request_id: Some(req_id), ..ok() },
                     Err(e) => CmdResponse::err(format!("failed to read file {path}: {e}")),
                 },
-                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
+                Err(e) => CmdResponse::err(e),
             },
-            Command::DelegateTask { to, task } => match to.parse::<PeerId>() {
+            Command::DelegateTask { to, task } => match self.paired_peer(&to) {
                 Ok(peer_id) => {
                     let (req_id, task_id) = self.send_task(&peer_id, &task);
-                    CmdResponse {
-                        ok: true,
-                        peer_id: None,
-                        peers: None,
-                        request_id: Some(req_id),
-                        task_id: Some(task_id),
-                        transfers: None,
-                        error: None,
-                    }
+                    CmdResponse { request_id: Some(req_id), task_id: Some(task_id), ..ok() }
                 }
-                Err(e) => CmdResponse::err(format!("invalid peer id {to}: {e}")),
+                Err(e) => CmdResponse::err(e),
             },
             Command::Dial { addr } => match addr.parse::<Multiaddr>() {
                 Ok(multiaddr) => match self.dial(multiaddr) {
-                    Ok(()) => CmdResponse::ok(),
+                    Ok(()) => ok(),
                     Err(e) => CmdResponse::err(format!("failed to dial {addr}: {e}")),
                 },
                 Err(e) => CmdResponse::err(format!("invalid multiaddr {addr}: {e}")),
             },
+            Command::PairStart => {
+                let now = Instant::now();
+                let window = PairingWindow::open(now);
+                let (code, expires_in) = (window.code().to_string(), window.seconds_left(now));
+                self.window = Some(window);
+                CmdResponse { code: Some(code), expires_in: Some(expires_in), ..ok() }
+            }
+            Command::PairWith { addr, code } => match addr.parse::<Multiaddr>() {
+                Ok(multiaddr) => match peer_id_from_addr(&multiaddr) {
+                    Some(peer) => {
+                        self.swarm.add_peer_address(peer, multiaddr);
+                        let req = Request::Pair { code, name: self.name.clone(), ts: now_ms() };
+                        let id = self.swarm.behaviour_mut().rr.send_request(&peer, req);
+                        self.pending_pairs.insert(id, peer);
+                        ok()
+                    }
+                    None => CmdResponse::err("the address must end in /p2p/<peer id>, so the peer can be verified"),
+                },
+                Err(e) => CmdResponse::err(format!("invalid multiaddr {addr}: {e}")),
+            },
+            Command::Trust { peer_id, name } => match peer_id.parse::<PeerId>() {
+                Ok(peer) => match self.trust(peer, &clean_label(&name)) {
+                    Ok(()) => ok(),
+                    Err(e) => CmdResponse::err(format!("could not save: {e}")),
+                },
+                Err(e) => CmdResponse::err(format!("invalid peer id {peer_id}: {e}")),
+            },
+            Command::Revoke { peer_id } => match peer_id.parse::<PeerId>() {
+                Ok(peer) => match self.book.remove(&peer) {
+                    Ok(had) => {
+                        let _ = self.swarm.disconnect_peer_id(peer);
+                        if had {
+                            self.emit(MeshEvent::Revoked { peer_id });
+                        }
+                        ok()
+                    }
+                    Err(e) => CmdResponse::err(format!("could not save: {e}")),
+                },
+                Err(e) => CmdResponse::err(format!("invalid peer id {peer_id}: {e}")),
+            },
+            // The socket server answers this itself; it never reaches the node in practice.
+            Command::Subscribe => ok(),
         }
     }
 }
@@ -1068,6 +1350,45 @@ fn listen_addr(port: u16) -> Multiaddr {
     a
 }
 
+/// The node's keys: read from `path`, or made and saved there (owner-only) on first start, so
+/// the peer id stays the same across restarts.
+fn load_or_create_identity(path: &Path) -> anyhow::Result<identity::Keypair> {
+    match std::fs::read(path) {
+        Ok(bytes) => Ok(identity::Keypair::from_protobuf_encoding(&bytes)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let key = identity::Keypair::generate_ed25519();
+            write_private(path, &key.to_protobuf_encoding()?)?;
+            Ok(key)
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// A peer-supplied label made safe to show and store: no control characters, at most 64 chars.
+fn clean_label(raw: &str) -> String {
+    raw.chars().filter(|c| !c.is_control()).take(64).collect::<String>().trim().to_string()
+}
+
+fn quic_listen_addr(port: u16) -> Multiaddr {
+    let mut a = Multiaddr::empty();
+    a.push(Protocol::Ip4([0, 0, 0, 0].into()));
+    a.push(Protocol::Udp(port));
+    a.push(Protocol::QuicV1);
+    a
+}
+
+/// A file name a peer may ask us to create: exactly one normal path component. Anything that
+/// could point outside the inbound directory (`..`, `/etc/x`, `a/b`, an empty name) is refused,
+/// as is the name of our own scratch directory.
+fn safe_file_name(name: &str) -> bool {
+    use std::path::{Component, Path};
+    let p = Path::new(name);
+    let mut comps = p.components();
+    matches!((comps.next(), comps.next()), (Some(Component::Normal(n)), None) if n == p.as_os_str())
+        && name != ".partial"
+        && !name.contains('\0')
+}
+
 /// Extract the peer id from a multiaddr's `p2p` component, if present.
 fn peer_id_from_addr(addr: &Multiaddr) -> Option<PeerId> {
     for protocol in addr.iter() {
@@ -1076,4 +1397,276 @@ fn peer_id_from_addr(addr: &Multiaddr) -> Option<PeerId> {
         }
     }
     None
+}
+#[cfg(test)]
+mod tests {
+    //! Requests a malicious peer could craft, fed straight to the inbound handler. The network
+    //! round trips are in `tests/mesh.rs`.
+
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::task_policy::PathGuard;
+
+    fn node(trusted: &[PeerId]) -> (MeshNode, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let policy = TaskPolicy::new(PathGuard::new(vec![], vec![]), trusted.iter().cloned().collect::<HashSet<_>>());
+        (MeshNode::new(dir.path().join("inbound"), policy).unwrap(), dir)
+    }
+
+    fn peer() -> PeerId {
+        PeerId::from(identity::Keypair::generate_ed25519().public())
+    }
+
+    /// A new peer this node has already paired with.
+    fn paired(n: &mut MeshNode) -> PeerId {
+        let p = peer();
+        n.trust(p, "test").unwrap();
+        p
+    }
+
+    fn task(from: &PeerId, text: &str) -> Request {
+        Request::Task { from: from.to_string(), to: String::new(), task_id: "t".into(), task: text.into(), ts: 0 }
+    }
+
+    fn file_start(name: &str, tid: &str, size: u64, sha: &str) -> Request {
+        Request::FileStart {
+            from: String::new(), to: String::new(), transfer_id: tid.into(), name: name.into(),
+            size, sha256: sha.into(), chunk_size: CHUNK_SIZE, ts: 0,
+        }
+    }
+
+    fn chunk(tid: &str, seq: u64, data: &[u8]) -> Request {
+        Request::FileChunk {
+            from: String::new(), to: String::new(), transfer_id: tid.into(), seq,
+            data_b64: base64::engine::general_purpose::STANDARD.encode(data), ts: 0,
+        }
+    }
+
+    fn end(tid: &str) -> Request {
+        Request::FileEnd { from: String::new(), to: String::new(), transfer_id: tid.into(), ts: 0 }
+    }
+
+    fn task_result(r: Response) -> (bool, String) {
+        match r {
+            Response::TaskResult { ok, result, .. } => (ok, result),
+            other => panic!("expected a task result, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_peer_cannot_claim_to_be_a_trusted_peer() {
+        let trusted = peer();
+        let (mut n, _dir) = node(&[trusted]);
+        n.trust(trusted, "t").unwrap();
+        let mallory = paired(&mut n);
+        // `&&` is only allowed for trusted peers. Mallory writes the trusted id in `from`.
+        let forged = task(&trusted, "shell:echo a && echo b");
+        let (ok, why) = task_result(n.handle_inbound_request(mallory, forged));
+        assert!(!ok, "forged `from` must not grant shell access, got: {why}");
+        assert!(why.contains("not allowed"), "{why}");
+    }
+
+    #[tokio::test]
+    async fn the_real_trusted_peer_still_gets_a_shell() {
+        let trusted = peer();
+        let (mut n, _dir) = node(&[trusted]);
+        n.trust(trusted, "t").unwrap();
+        // The body names somebody else; only the authenticated peer counts.
+        let (ok, out) = task_result(n.handle_inbound_request(trusted, task(&peer(), "shell:echo a && echo b")));
+        assert!(ok, "{out}");
+        assert_eq!(out, "a\nb");
+    }
+
+    #[tokio::test]
+    async fn file_names_cannot_leave_the_inbound_directory() {
+        let (mut n, dir) = node(&[]);
+        let outside = dir.path().join("evil");
+        for name in ["../evil", "/tmp/evil", "a/b", "..", ".", "", ".partial", "x\0y"] {
+            let tid = crate::transfer_id(name, 1, "00");
+            let p = paired(&mut n);
+            let r = n.handle_inbound_request(p, file_start(name, &tid, 1, "00"));
+            assert!(matches!(r, Response::FileStartAck { ok: false, .. }), "{name:?} was accepted: {r:?}");
+        }
+        assert!(!outside.exists());
+        assert!(n.inbound.is_empty());
+    }
+
+    #[tokio::test]
+    async fn transfer_ids_must_be_the_derived_hash_not_a_path() {
+        let (mut n, _dir) = node(&[]);
+        for tid in ["../../etc/x", "/etc/x", "not-the-derived-id"] {
+            let p = paired(&mut n);
+            let r = n.handle_inbound_request(p, file_start("ok.bin", tid, 1, "00"));
+            assert!(matches!(r, Response::FileStartAck { ok: false, .. }), "{tid:?} was accepted: {r:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_chunk_past_the_declared_size_is_refused() {
+        let (mut n, _dir) = node(&[]);
+        let tid = crate::transfer_id("f.bin", 4, "00");
+        let p = paired(&mut n);
+        assert!(matches!(n.handle_inbound_request(p, file_start("f.bin", &tid, 4, "00")), Response::FileStartAck { ok: true, .. }));
+        let r = n.handle_inbound_request(p, chunk(&tid, 0, &[0u8; 8]));
+        assert!(matches!(r, Response::FileChunkAck { ok: false, .. }), "{r:?}");
+        let partial = std::fs::metadata(&n.inbound[&tid].path).unwrap().len();
+        assert_eq!(partial, 0, "nothing past the declared size may be written");
+    }
+
+    #[tokio::test]
+    async fn a_file_with_the_wrong_hash_is_not_kept() {
+        let (mut n, _dir) = node(&[]);
+        let claimed = sha256_hex(b"what the sender promised");
+        let tid = crate::transfer_id("f.bin", 4, &claimed);
+        let p = paired(&mut n);
+        n.handle_inbound_request(p, file_start("f.bin", &tid, 4, &claimed));
+        assert!(matches!(n.handle_inbound_request(p, chunk(&tid, 0, b"abcd")), Response::FileChunkAck { ok: true, .. }));
+        let r = n.handle_inbound_request(p, end(&tid));
+        assert!(matches!(r, Response::FileEndAck { ok: false, .. }), "{r:?}");
+        assert!(!n.inbound_dir.join("f.bin").exists());
+    }
+
+    #[tokio::test]
+    async fn a_good_file_is_saved_and_announced_with_the_authenticated_sender() {
+        let (mut n, _dir) = node(&[]);
+        let p = paired(&mut n);
+        let mut events = n.events().subscribe();
+        let sha = sha256_hex(b"abcd");
+        let tid = crate::transfer_id("f.bin", 4, &sha);
+        n.handle_inbound_request(p, file_start("f.bin", &tid, 4, &sha));
+        n.handle_inbound_request(p, chunk(&tid, 0, b"abcd"));
+        assert!(matches!(n.handle_inbound_request(p, end(&tid)), Response::FileEndAck { ok: true, .. }));
+        assert_eq!(std::fs::read(n.inbound_dir.join("f.bin")).unwrap(), b"abcd");
+        match events.try_recv().unwrap() {
+            MeshEvent::FileReceived { from, name, size, .. } => {
+                assert_eq!((from, name, size), (p.to_string(), "f.bin".to_string(), 4));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unpaired_peer_is_refused_for_every_request_type() {
+        let (mut n, _dir) = node(&[]);
+        let stranger = peer();
+        let sha = sha256_hex(b"abcd");
+        let tid = crate::transfer_id("f.bin", 4, &sha);
+        let requests = [
+            Request::Message { from: String::new(), to: String::new(), text: "hi".into(), ts: 0 },
+            file_start("f.bin", &tid, 4, &sha),
+            chunk(&tid, 0, b"abcd"),
+            end(&tid),
+            task(&stranger, "echo:hi"),
+        ];
+        for r in requests {
+            let label = format!("{r:?}");
+            let resp = n.handle_inbound_request(stranger, r);
+            assert!(matches!(resp, Response::Denied { .. }), "{label} got {resp:?}");
+        }
+        assert!(n.inbound.is_empty());
+        assert!(!n.inbound_dir.join("f.bin").exists());
+    }
+
+    fn pair_request(code: &str, name: &str) -> Request {
+        Request::Pair { code: code.into(), name: name.into(), ts: 0 }
+    }
+
+    fn open_code(n: &mut MeshNode) -> String {
+        n.handle_command(Command::PairStart).code.unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_right_code_pairs_a_stranger_exactly_once() {
+        let (mut n, _dir) = node(&[]);
+        let code = open_code(&mut n);
+        let (first, second) = (peer(), peer());
+
+        let r = n.handle_inbound_request(first, pair_request(&code, "laptop\u{7}\nx"));
+        assert!(matches!(r, Response::PairAck { ok: true, .. }), "{r:?}");
+        assert!(n.book.contains(&first));
+        assert_eq!(n.book.list()[0].name, "laptopx", "labels are cleaned");
+
+        // The code is spent: a second peer cannot reuse it, and the first is still paired.
+        let r = n.handle_inbound_request(second, pair_request(&code, "evil"));
+        assert!(matches!(r, Response::PairAck { ok: false, .. }), "{r:?}");
+        assert!(!n.book.contains(&second));
+        let r = n.handle_inbound_request(first, Request::Message { from: String::new(), to: String::new(), text: "x".into(), ts: 0 });
+        assert!(matches!(r, Response::Ack { ok: true, .. }));
+    }
+
+    #[tokio::test]
+    async fn without_an_open_window_nobody_can_pair() {
+        let (mut n, _dir) = node(&[]);
+        let p = peer();
+        let r = n.handle_inbound_request(p, pair_request("000000", "x"));
+        assert!(matches!(r, Response::PairAck { ok: false, .. }), "{r:?}");
+        assert!(!n.book.contains(&p));
+    }
+
+    #[tokio::test]
+    async fn guessing_the_code_closes_the_window() {
+        let (mut n, _dir) = node(&[]);
+        let code = open_code(&mut n);
+        let wrong = if code == "000000" { "111111" } else { "000000" };
+        let guesser = peer();
+        for _ in 0..crate::pairing::MAX_TRIES {
+            let r = n.handle_inbound_request(guesser, pair_request(wrong, "g"));
+            assert!(matches!(r, Response::PairAck { ok: false, .. }));
+        }
+        // Even the right code no longer works, for anyone.
+        let r = n.handle_inbound_request(peer(), pair_request(&code, "late"));
+        assert!(matches!(r, Response::PairAck { ok: false, .. }), "{r:?}");
+        assert!(n.book.list().is_empty());
+    }
+
+    #[tokio::test]
+    async fn commands_to_an_unpaired_peer_are_rejected_up_front() {
+        let (mut n, _dir) = node(&[]);
+        let stranger = peer().to_string();
+        for cmd in [
+            Command::SendMessage { to: stranger.clone(), text: "x".into() },
+            Command::SendFile { to: stranger.clone(), path: "/etc/hostname".into() },
+            Command::DelegateTask { to: stranger.clone(), task: "echo:x".into() },
+        ] {
+            let r = n.handle_command(cmd);
+            assert!(!r.ok && r.error.unwrap().contains("not paired"));
+        }
+    }
+
+    #[tokio::test]
+    async fn revoking_a_peer_closes_the_door_again() {
+        let (mut n, _dir) = node(&[]);
+        let p = paired(&mut n);
+        let msg = || Request::Message { from: String::new(), to: String::new(), text: "x".into(), ts: 0 };
+        assert!(matches!(n.handle_inbound_request(p, msg()), Response::Ack { ok: true, .. }));
+        assert!(n.handle_command(Command::Revoke { peer_id: p.to_string() }).ok);
+        assert!(matches!(n.handle_inbound_request(p, msg()), Response::Denied { .. }));
+    }
+
+    #[tokio::test]
+    async fn the_identity_and_paired_peers_survive_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let make = || {
+            let mut cfg = NodeConfig::new(dir.path().join("inbound"), TaskPolicy::new(PathGuard::new(vec![], vec![]), HashSet::new()));
+            cfg.state_dir = Some(dir.path().join("state"));
+            MeshNode::with_config(cfg).unwrap()
+        };
+        let mut first = make();
+        let friend = peer();
+        first.trust(friend, "friend").unwrap();
+        let id = first.local_peer_id();
+        drop(first);
+
+        let second = make();
+        assert_eq!(second.local_peer_id(), id, "the peer id must not change on restart");
+        assert!(second.book.contains(&friend));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(dir.path().join("state/identity.key")).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "the private key must be owner-only");
+        }
+    }
 }
