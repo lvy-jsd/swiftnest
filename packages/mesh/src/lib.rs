@@ -206,6 +206,30 @@ pub enum Command {
     /// The address is recorded in the address book and the node re-dials it if the
     /// connection drops.
     Dial { addr: String },
+    /// Ask the node to push [`MeshEvent`]s down this socket connection as they happen. Handled
+    /// by the socket server, not the node.
+    Subscribe,
+}
+
+/// Something that happened on the node. Subscribed socket clients receive one JSON line per
+/// event, distinguished from a command response by the `event` key.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum MeshEvent {
+    /// A connection to a peer came up.
+    PeerConnected { peer_id: String },
+    /// The last connection to a peer went away.
+    PeerDisconnected { peer_id: String },
+    /// A text message arrived. `from` is the authenticated peer id, not a claim in the message.
+    Message { from: String, text: String, ts: u64 },
+    /// A file arrived, was verified against its hash, and is now at `path`.
+    FileReceived { from: String, transfer_id: String, name: String, path: String, size: u64 },
+    /// An outbound file transfer finished (`ok`) or failed.
+    FileSent { peer_id: String, transfer_id: String, ok: bool, note: String },
+    /// The result of a task this node delegated.
+    TaskResult { peer_id: String, task_id: String, ok: bool, result: String },
+    /// An outbound request could not be delivered (peer unreachable, protocol unsupported, …).
+    RequestFailed { peer_id: String, error: String },
 }
 
 /// A response from the node to a [`Command`].
@@ -216,6 +240,9 @@ pub struct CmdResponse {
     /// The node's own peer id (for `status`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peer_id: Option<String>,
+    /// The addresses this node listens on (for `status`), without the trailing `/p2p/<id>`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub addrs: Option<Vec<String>>,
     /// Connected peers (for `status` / `list_peers`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers: Option<Vec<PeerInfo>>,
@@ -239,6 +266,7 @@ impl CmdResponse {
         Self {
             ok: true,
             peer_id: None,
+            addrs: None,
             peers: None,
             request_id: None,
             task_id: None,
@@ -252,6 +280,7 @@ impl CmdResponse {
         Self {
             ok: false,
             peer_id: None,
+            addrs: None,
             peers: None,
             request_id: None,
             task_id: None,

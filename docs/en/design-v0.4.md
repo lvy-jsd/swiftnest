@@ -70,16 +70,25 @@ A new package, `packages/mesh` (Rust, published as `swiftnest-mesh`), is the hea
 
 ### 3.3 The Socket Protocol (TS ↔ Rust)
 
-Line-delimited JSON over a local Unix socket, the same convention as the dsh-tool-manager sidecar:
+Line-delimited JSON over a local Unix socket (mode 600, owner only), the same convention as the dsh-tool-manager sidecar. The TS side sends one command per line and gets one response per line, in order. After `subscribe`, the same connection also carries events; an event line has an `event` key and a response does not.
 
 ```
-TS → Rust:  {"id":1,"op":"dial","peer":"<ed25519-pubkey>"}
-Rust → TS:  {"id":1,"ok":true,"conn":"c7"}
-TS → Rust:  {"id":2,"op":"send","conn":"c7","msg":{"type":"text","body":"hello"}}
-Rust → TS:  {"id":0,"event":"msg","conn":"c7","from":"<peer>","msg":{"type":"text","body":"hi"}}
-TS → Rust:  {"id":3,"op":"sendfile","conn":"c7","path":"/tmp/x.bin","name":"x.bin"}
-Rust → TS:  {"id":0,"event":"file_progress","conn":"c7","name":"x.bin","sent":1048576,"total":2097152}
+TS → Rust:  {"cmd":"status"}
+Rust → TS:  {"ok":true,"peer_id":"12D3Koo…","addrs":["/ip4/127.0.0.1/tcp/30001","/ip4/127.0.0.1/udp/30000/quic-v1"],"peers":[]}
+TS → Rust:  {"cmd":"dial","addr":"/ip4/10.0.0.5/tcp/30001/p2p/12D3Koo…"}
+TS → Rust:  {"cmd":"subscribe"}
+TS → Rust:  {"cmd":"send_message","to":"<peer-id>","text":"hello"}
+Rust → TS:  {"event":"message","from":"<peer-id>","text":"hi","ts":1761800000000}
+TS → Rust:  {"cmd":"send_file","to":"<peer-id>","path":"/tmp/x.bin"}
+Rust → TS:  {"event":"file_sent","peer_id":"<peer-id>","transfer_id":"…","ok":true,"note":"file saved to …"}
+TS → Rust:  {"cmd":"delegate_task","to":"<peer-id>","task":"echo:hi"}
+Rust → TS:  {"ok":true,"request_id":4,"task_id":"task-…"}
+Rust → TS:  {"event":"task_result","peer_id":"<peer-id>","task_id":"task-…","ok":true,"result":"hi"}
 ```
+
+Commands: `status`, `list_peers`, `list_transfers`, `dial`, `send_message`, `send_file`, `delegate_task`, `subscribe`. Events: `peer_connected`, `peer_disconnected`, `message`, `file_received`, `file_sent`, `task_result`, `request_failed`.
+
+**The sender is the authenticated libp2p peer.** The `from` / `to` fields inside a mesh request are whatever the sender wrote and are never used for a decision: trust (`MESH_TRUSTED_PEERS`), events and logs all use the peer id the transport authenticated. File names must be a single path component, and a transfer id must equal the hash both sides derive from (name, size, sha256), because both become file names under the inbound directory.
 
 The Rust core owns the libp2p event loop; the TS layer never touches the network directly. If the Rust core dies, the TS layer sees the socket close and can restart it (the sidecar pattern already handles parent-process monitoring).
 

@@ -80,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
     // Build the node and start listening.
     let mut node = MeshNode::new(PathBuf::from(inbound_dir), task_policy)?;
     let local_peer_id = node.local_peer_id();
+    let events = node.events();
     println!("local peer id: {local_peer_id}");
     node.listen(listen_tcp, listen_quic)?;
 
@@ -121,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let socket_path = PathBuf::from(socket_path);
     let socket_task = tokio::spawn({
         let tx = cmd_tx;
-        async move { socket::run(&socket_path, tx).await }
+        async move { socket::run(&socket_path, tx, events).await }
     });
 
     // Run for the configured duration, or forever until interrupted.
