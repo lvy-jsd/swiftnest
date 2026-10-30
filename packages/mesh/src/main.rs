@@ -10,6 +10,9 @@
 //!   MESH_SOCKET       (default /tmp/swiftnest-mesh.sock)  the Unix socket path
 //!   MESH_INBOUND_DIR  (default /tmp/swiftnest-mesh-inbound)  where received files are written
 //!   MESH_RUN_SECS     (default 0)      run for this many seconds, then exit (0 = run forever)
+//!   MESH_STATE_DIR    (default ~/.local/state/swiftnest/mesh)  identity key and paired peers
+//!   MESH_NAME         (default node)   this node's label, shown to peers it pairs with
+//!   MESH_RELAY_SERVER (default off)    set to 1 to relay traffic for other peers
 //!   MESH_TRUSTED_PEERS (default empty) comma-separated peer ids that may run any `shell:` task
 //!                        through `sh -c`; everyone else is limited to read-only commands
 //!   MESH_TASK_ROOTS   (default: the home directory) comma-separated folders shared for task paths
@@ -22,9 +25,22 @@ use std::time::Duration;
 use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 use tokio::sync::mpsc;
 
-use swiftnest_mesh::node::{CommandEnvelope, MeshNode};
+use swiftnest_mesh::node::{CommandEnvelope, MeshNode, NodeConfig};
 use swiftnest_mesh::socket;
 use swiftnest_mesh::task_policy::{PathGuard, TaskPolicy};
+
+/// Where the node keeps its identity key and paired peers: `$MESH_STATE_DIR`, else
+/// `$XDG_STATE_HOME/swiftnest/mesh`, else `~/.local/state/swiftnest/mesh`.
+fn state_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("MESH_STATE_DIR") {
+        return PathBuf::from(d);
+    }
+    let base = std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("swiftnest").join("mesh")
+}
 
 fn env_or(name: &str, default: u16) -> u16 {
     std::env::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
@@ -78,7 +94,11 @@ async fn main() -> anyhow::Result<()> {
     let task_policy = TaskPolicy::new(PathGuard::new(task_roots, task_deny), trusted_peers);
 
     // Build the node and start listening.
-    let mut node = MeshNode::new(PathBuf::from(inbound_dir), task_policy)?;
+    let mut cfg = NodeConfig::new(PathBuf::from(inbound_dir), task_policy);
+    cfg.state_dir = Some(state_dir());
+    cfg.name = std::env::var("MESH_NAME").ok().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "node".to_string());
+    cfg.relay_server = matches!(std::env::var("MESH_RELAY_SERVER").as_deref(), Ok("1") | Ok("true"));
+    let mut node = MeshNode::with_config(cfg)?;
     let local_peer_id = node.local_peer_id();
     let events = node.events();
     println!("local peer id: {local_peer_id}");

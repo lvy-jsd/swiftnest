@@ -86,7 +86,11 @@ Rust → TS:  {"ok":true,"request_id":4,"task_id":"task-…"}
 Rust → TS:  {"event":"task_result","peer_id":"<peer-id>","task_id":"task-…","ok":true,"result":"hi"}
 ```
 
-Commands: `status`, `list_peers`, `list_transfers`, `dial`, `send_message`, `send_file`, `delegate_task`, `subscribe`. Events: `peer_connected`, `peer_disconnected`, `message`, `file_received`, `file_sent`, `task_result`, `request_failed`.
+Commands: `status`, `list_peers`, `list_transfers`, `dial`, `send_message`, `send_file`, `delegate_task`, `subscribe`, and for pairing `pair_start`, `pair_with`, `trust`, `revoke`, `list_paired`. Events: `peer_connected`, `peer_disconnected`, `message`, `file_received`, `file_sent`, `task_result`, `request_failed`, `paired`, `pair_failed`, `revoked`.
+
+**Who may talk to a node (implemented).** A node keeps its Ed25519 key in `<state>/identity.key` (mode 600), so its peer id survives restarts, and the paired peers in `<state>/peers.json`. A request from anyone else is answered `denied`, except a pairing request. Pairing: the owner runs `pair_start` and reads out a six-digit code (valid 5 minutes, closed after 5 wrong guesses); the other side runs `pair_with <address ending in /p2p/<id>> <code>`. The id in the address is verified by the transport handshake before the code is sent, so a node that merely answers at that address never sees it. Sending to a peer that is not paired is refused locally. A node relays for other peers only when started with `MESH_RELAY_SERVER=1`.
+
+Not yet: the owner is not asked to confirm a fingerprint on pairing (the code is the secret), approvals are not signed, and there is no local confirmation on the device.
 
 **The sender is the authenticated libp2p peer.** The `from` / `to` fields inside a mesh request are whatever the sender wrote and are never used for a decision: trust (`MESH_TRUSTED_PEERS`), events and logs all use the peer id the transport authenticated. File names must be a single path component, and a transfer id must equal the hash both sides derive from (name, size, sha256), because both become file names under the inbound directory.
 

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use libp2p::PeerId;
-use swiftnest_mesh::node::{CommandEnvelope, MeshNode};
+use swiftnest_mesh::node::{CommandEnvelope, MeshNode, NodeConfig};
 use swiftnest_mesh::socket;
 use swiftnest_mesh::task_policy::{PathGuard, TaskPolicy};
 use swiftnest_mesh::{CmdResponse, Command, MeshEvent};
@@ -14,6 +14,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 const WAIT: Duration = Duration::from_secs(20);
 
 struct TestNode {
+    task: tokio::task::JoinHandle<()>,
     peer_id: PeerId,
     cmd: mpsc::Sender<CommandEnvelope>,
     events: broadcast::Receiver<MeshEvent>,
@@ -23,20 +24,32 @@ struct TestNode {
 }
 
 fn start(trusted: &[PeerId]) -> TestNode {
-    let dir = tempfile::tempdir().unwrap();
+    start_in(tempfile::tempdir().unwrap(), false, trusted)
+}
+
+/// A node that keeps its identity and paired peers under `<dir>/state`, as the real one does.
+fn start_persistent(dir: tempfile::TempDir) -> TestNode {
+    start_in(dir, true, &[])
+}
+
+fn start_in(dir: tempfile::TempDir, persistent: bool, trusted: &[PeerId]) -> TestNode {
     let inbound = dir.path().join("inbound");
     let policy = TaskPolicy::new(
         PathGuard::new(vec![], vec![]),
         trusted.iter().cloned().collect::<HashSet<_>>(),
     );
-    let mut node = MeshNode::new(inbound.clone(), policy).unwrap();
+    let mut cfg = NodeConfig::new(inbound.clone(), policy);
+    if persistent {
+        cfg.state_dir = Some(dir.path().join("state"));
+    }
+    let mut node = MeshNode::with_config(cfg).unwrap();
     node.listen(0, 0).unwrap();
     let (cmd, rx) = mpsc::channel(16);
     let events_tx = node.events();
     let events = events_tx.subscribe();
     let peer_id = node.local_peer_id();
-    tokio::spawn(async move { node.run(rx).await });
-    TestNode { peer_id, cmd, events, events_tx, inbound, _dir: dir }
+    let task = tokio::spawn(async move { node.run(rx).await });
+    TestNode { task, peer_id, cmd, events, events_tx, inbound, _dir: dir }
 }
 
 impl TestNode {
@@ -86,8 +99,16 @@ impl TestNode {
     }
 }
 
-/// Dial `b` from `a` and wait until both sides report the connection.
+/// Dial `b` from `a`, wait until both sides report the connection, and pair them (as an owner
+/// would for a headless set-up). Pairing itself is tested separately below.
 async fn connect(a: &mut TestNode, b: &mut TestNode, transport: &str) {
+    dial(a, b, transport).await;
+    assert!(a.send(Command::Trust { peer_id: b.peer_id.to_string(), name: "b".into() }).await.ok);
+    assert!(b.send(Command::Trust { peer_id: a.peer_id.to_string(), name: "a".into() }).await.ok);
+}
+
+/// Dial `b` from `a` and wait until both sides report the connection, without pairing.
+async fn dial(a: &mut TestNode, b: &mut TestNode, transport: &str) {
     let addr = b.addr(transport).await;
     assert!(a.send(Command::Dial { addr: addr.clone() }).await.ok, "dial {addr}");
     let want_b = b.peer_id.to_string();
@@ -231,6 +252,7 @@ async fn a_trusted_peer_runs_the_shell_it_is_trusted_with() {
 async fn sending_to_an_unreachable_peer_fails_loudly_and_can_be_retried() {
     let mut a = start(&[]);
     let nobody = PeerId::random();
+    a.send(Command::Trust { peer_id: nobody.to_string(), name: "ghost".into() }).await;
     let src = a._dir.path().join("f.bin");
     std::fs::write(&src, b"data").unwrap();
 
@@ -302,4 +324,146 @@ async fn socket_clients_receive_events_after_subscribing() {
             break;
         }
     }
+}
+
+#[tokio::test]
+async fn a_stranger_can_pair_with_the_code_and_then_talk() {
+    let (mut owner, mut guest) = (start(&[]), start(&[]));
+    let code = owner.send(Command::PairStart).await.code.expect("a code");
+    assert_eq!(code.len(), 6);
+
+    let addr = owner.addr("/tcp/").await;
+    assert!(guest.send(Command::PairWith { addr, code }).await.ok);
+
+    let want = guest.peer_id.to_string();
+    owner.expect("the owner's pairing", |e| matches!(e, MeshEvent::Paired { peer_id, .. } if *peer_id == want).then_some(())).await;
+    let want = owner.peer_id.to_string();
+    guest.expect("the guest's pairing", |e| matches!(e, MeshEvent::Paired { peer_id, .. } if *peer_id == want).then_some(())).await;
+
+    assert!(guest.send(Command::SendMessage { to: owner.peer_id.to_string(), text: "now paired".into() }).await.ok);
+    let text = owner.expect("the message", |e| match e {
+        MeshEvent::Message { text, .. } => Some(text.clone()),
+        _ => None,
+    }).await;
+    assert_eq!(text, "now paired");
+    assert_eq!(owner.send(Command::ListPaired).await.paired.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn a_wrong_code_pairs_nobody() {
+    let (owner, mut guest) = (start(&[]), start(&[]));
+    let code = owner.send(Command::PairStart).await.code.unwrap();
+    let wrong = if code == "000000" { "111111" } else { "000000" };
+
+    let addr = owner.addr("/tcp/").await;
+    guest.send(Command::PairWith { addr, code: wrong.into() }).await;
+    let note = guest.expect("the failure", |e| match e {
+        MeshEvent::PairFailed { note, .. } => Some(note.clone()),
+        _ => None,
+    }).await;
+    assert_eq!(note, "wrong code");
+
+    let r = guest.send(Command::SendMessage { to: owner.peer_id.to_string(), text: "let me in".into() }).await;
+    assert!(!r.ok, "the guest must not be able to send to an owner it is not paired with");
+    assert!(owner.send(Command::ListPaired).await.paired.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn pairing_to_the_wrong_peer_id_fails_instead_of_leaking_the_code() {
+    // The pairing string names the peer it is for. A node that answers at that address but
+    // is someone else fails the transport handshake, and the code is never sent to it.
+    let (owner, impostor) = (start(&[]), start(&[]));
+    let code = owner.send(Command::PairStart).await.code.unwrap();
+    let mut guest = start(&[]);
+
+    let impostor_addr = impostor.addr("/tcp/").await;
+    let (host, _) = impostor_addr.rsplit_once("/p2p/").unwrap();
+    let forged = format!("{host}/p2p/{}", owner.peer_id);
+    guest.send(Command::PairWith { addr: forged, code }).await;
+
+    guest.expect("the failure", |e| matches!(e, MeshEvent::PairFailed { .. }).then_some(())).await;
+    assert!(owner.send(Command::ListPaired).await.paired.unwrap().is_empty());
+    assert!(impostor.send(Command::ListPaired).await.paired.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn an_unpaired_sender_is_told_no_for_tasks_and_files() {
+    // b trusts a, but a has not paired with b: everything b sends is refused, and b hears it.
+    let (mut a, mut b) = (start(&[]), start(&[]));
+    dial(&mut b, &mut a, "/tcp/").await;
+    assert!(b.send(Command::Trust { peer_id: a.peer_id.to_string(), name: "a".into() }).await.ok);
+
+    let marker = a._dir.path().join("pwned");
+    b.send(Command::DelegateTask { to: a.peer_id.to_string(), task: format!("shell:touch {}", marker.display()) }).await;
+    let (ok, result) = b.expect("the task result", |e| match e {
+        MeshEvent::TaskResult { ok, result, .. } => Some((*ok, result.clone())),
+        _ => None,
+    }).await;
+    assert!(!ok);
+    assert!(result.contains("not paired"), "{result}");
+    assert!(!marker.exists());
+
+    let src = b._dir.path().join("f.bin");
+    std::fs::write(&src, b"data").unwrap();
+    b.send(Command::SendFile { to: a.peer_id.to_string(), path: src.display().to_string() }).await;
+    let note = b.expect("the file refusal", |e| match e {
+        MeshEvent::FileSent { ok: false, note, .. } => Some(note.clone()),
+        _ => None,
+    }).await;
+    assert!(note.contains("not paired"), "{note}");
+    assert!(!a.inbound.join("f.bin").exists());
+}
+
+#[tokio::test]
+async fn a_revoked_peer_is_cut_off() {
+    let (mut a, mut b) = (start(&[]), start(&[]));
+    connect(&mut a, &mut b, "/tcp/").await;
+    let gone = b.peer_id.to_string();
+    assert!(a.send(Command::Revoke { peer_id: gone.clone() }).await.ok);
+    a.expect("the revocation", |e| matches!(e, MeshEvent::Revoked { peer_id } if *peer_id == gone).then_some(())).await;
+
+    // b still believes it is paired and tries; a must not deliver it.
+    b.send(Command::SendMessage { to: a.peer_id.to_string(), text: "still there?".into() }).await;
+    b.expect("a failed request", |e| matches!(e, MeshEvent::RequestFailed { .. }).then_some(())).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    while let Ok(ev) = a.events.try_recv() {
+        assert!(!matches!(ev, MeshEvent::Message { .. }), "a revoked peer's message was delivered: {ev:?}");
+    }
+}
+
+#[tokio::test]
+async fn pairing_and_identity_survive_a_restart() {
+    let mut guest = start(&[]);
+    let mut owner = start_persistent(tempfile::tempdir().unwrap());
+    let owner_id = owner.peer_id;
+
+    let code = owner.send(Command::PairStart).await.code.unwrap();
+    let addr = owner.addr("/tcp/").await;
+    guest.send(Command::PairWith { addr, code }).await;
+    let want = guest.peer_id.to_string();
+    owner.expect("pairing", |e| matches!(e, MeshEvent::Paired { peer_id, .. } if *peer_id == want).then_some(())).await;
+
+    // Stop the owner and start it again over the same state directory.
+    owner.task.abort();
+    let _ = (&mut owner.task).await;
+    let dir = owner._dir;
+    drop(owner.cmd);
+    let mut owner = start_persistent(dir);
+
+    assert_eq!(owner.peer_id, owner_id, "the peer id must be the same after a restart");
+    assert_eq!(owner.send(Command::ListPaired).await.paired.unwrap().len(), 1);
+
+    // The guest, still paired on its side, reaches the restarted owner and is heard. Its queue
+    // still holds the connection events from before the restart; only a new one counts.
+    while guest.events.try_recv().is_ok() {}
+    let addr = owner.addr("/tcp/").await;
+    assert!(guest.send(Command::Dial { addr }).await.ok);
+    let want = owner.peer_id.to_string();
+    guest.expect("reconnect", |e| matches!(e, MeshEvent::PeerConnected { peer_id } if *peer_id == want).then_some(())).await;
+    guest.send(Command::SendMessage { to: owner.peer_id.to_string(), text: "after restart".into() }).await;
+    let text = owner.expect("the message", |e| match e {
+        MeshEvent::Message { text, .. } => Some(text.clone()),
+        _ => None,
+    }).await;
+    assert_eq!(text, "after restart");
 }

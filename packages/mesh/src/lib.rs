@@ -12,6 +12,7 @@
 
 pub mod codec;
 pub mod node;
+pub mod pairing;
 pub mod socket;
 pub mod task_policy;
 
@@ -84,6 +85,16 @@ pub enum Request {
         /// Unix timestamp in milliseconds.
         ts: u64,
     },
+    /// Ask to be added to the recipient's paired peers, with the one-time code the owner read
+    /// out. The only request an unpaired peer may make.
+    Pair {
+        /// The six-digit code.
+        code: String,
+        /// A label for the sender, shown to the owner; never used to decide anything.
+        name: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
     /// A task delegated to the recipient's agent.
     Task {
         /// The sender's peer id (or agent name).
@@ -103,6 +114,24 @@ pub enum Request {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Response {
+    /// The recipient does not talk to unpaired peers (or did not allow this request).
+    Denied {
+        /// Why, for the sender's logs and the person reading them.
+        reason: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
+    /// The answer to a [`Request::Pair`].
+    PairAck {
+        /// Whether the peer was added.
+        ok: bool,
+        /// The answering node's own label.
+        name: String,
+        /// A short human-readable note.
+        note: String,
+        /// Unix timestamp in milliseconds.
+        ts: u64,
+    },
     /// Acknowledgement for a received request.
     Ack {
         /// Whether the request was accepted.
@@ -206,6 +235,19 @@ pub enum Command {
     /// The address is recorded in the address book and the node re-dials it if the
     /// connection drops.
     Dial { addr: String },
+    /// Open a pairing window and return its one-time code. A peer that presents it is added to
+    /// the paired peers.
+    PairStart,
+    /// Pair with the node at `addr` (which must end in `/p2p/<id>`) using the code its owner
+    /// read out. The result arrives as a `paired` or `pair_failed` event.
+    PairWith { addr: String, code: String },
+    /// Add a peer whose id is already known (headless set-ups). No code involved: only someone
+    /// with access to this socket can do it.
+    Trust { peer_id: String, name: String },
+    /// Remove a peer and drop its connection.
+    Revoke { peer_id: String },
+    /// List the paired peers.
+    ListPaired,
     /// Ask the node to push [`MeshEvent`]s down this socket connection as they happen. Handled
     /// by the socket server, not the node.
     Subscribe,
@@ -228,6 +270,12 @@ pub enum MeshEvent {
     FileSent { peer_id: String, transfer_id: String, ok: bool, note: String },
     /// The result of a task this node delegated.
     TaskResult { peer_id: String, task_id: String, ok: bool, result: String },
+    /// A peer was added to the paired peers, by a code (either direction) or by `trust`.
+    Paired { peer_id: String, name: String },
+    /// Pairing with a peer did not work.
+    PairFailed { peer_id: String, note: String },
+    /// A peer was removed from the paired peers.
+    Revoked { peer_id: String },
     /// An outbound request could not be delivered (peer unreachable, protocol unsupported, …).
     RequestFailed { peer_id: String, error: String },
 }
@@ -240,6 +288,15 @@ pub struct CmdResponse {
     /// The node's own peer id (for `status`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peer_id: Option<String>,
+    /// The pairing code (for `pair_start`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Seconds the pairing code stays valid (for `pair_start`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
+    /// Paired peers (for `list_paired`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paired: Option<Vec<crate::pairing::PairedPeer>>,
     /// The addresses this node listens on (for `status`), without the trailing `/p2p/<id>`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub addrs: Option<Vec<String>>,
@@ -267,6 +324,9 @@ impl CmdResponse {
             ok: true,
             peer_id: None,
             addrs: None,
+            code: None,
+            expires_in: None,
+            paired: None,
             peers: None,
             request_id: None,
             task_id: None,
@@ -281,6 +341,9 @@ impl CmdResponse {
             ok: false,
             peer_id: None,
             addrs: None,
+            code: None,
+            expires_in: None,
+            paired: None,
             peers: None,
             request_id: None,
             task_id: None,
