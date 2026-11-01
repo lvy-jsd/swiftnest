@@ -17,7 +17,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["packages/*/test/**/*.test.ts", "plugins/*/test/**/*.test.ts", "templates/*/test/**/*.test.ts"],
+    include: ["packages/*/test/**/*.test.ts", "plugins/*/test/**/*.test.ts", "templates/*/test/**/*.test.ts", "server/test/**/*.test.ts", "server/bundle/test/**/*.test.ts"],
     testTimeout: 30_000,
   },
 });

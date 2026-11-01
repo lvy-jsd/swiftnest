@@ -1,0 +1,16 @@
+{
+  "name": "@swiftnest/server",
+  "version": "0.0.1",
+  "description": "Swiftnest Server: runs a pinned DeepSeek Harness kernel with Swiftnest's built-in modules.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "swiftnest-server": "./dist/cli.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b", "start": "node dist/cli.js start" },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.5",
+    "@swiftnest/server-bundle": "workspace:*",
+    "yaml": "^2.8.1"
+  }
+}

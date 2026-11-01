@@ -2,8 +2,17 @@ packages:
   - packages/*
   - plugins/*
   - templates/*
+  - server
+  - server/bundle
 
 # pnpm 12 requires an explicit decision for dependency build scripts.
 # esbuild (used by the docs site) installs its platform binary in a build script.
 allowBuilds:
   esbuild: true
+  # DSH's subprocess helper repairs an executable bit at install; DSH needs it.
+  '@deepseek-ai/dsh-subprocess-local': true
+  # Optional native or codegen steps DSH does not need for Swiftnest's profile.
+  '@google/genai': false
+  koffi: false
+  node-pty: false
+  protobufjs: false

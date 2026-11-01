@@ -10,6 +10,8 @@
     { "path": "plugins/cap-files" },
     { "path": "packages/cli" },
     { "path": "packages/create-swiftnest-plugin" },
-    { "path": "templates/capability" }
+    { "path": "templates/capability" },
+    { "path": "server/bundle" },
+    { "path": "server" }
   ]
 }
