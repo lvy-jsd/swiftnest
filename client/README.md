@@ -2,60 +2,73 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Our Apache-2.0 app uses React 19, strict TypeScript, Vite and Tauri 2. Components and assets are original;
-Phosphor icons and TanStack Virtual are MIT licensed. Follow the [design rulebook](../docs/en/dev/design-system.md).
+Apache-2.0 React 19 + TypeScript + Vite + Tauri 2 App. Components and assets are original;
+Phosphor icons and TanStack Virtual are MIT licensed. No DSH Go code is used.
+Follow the [design rulebook](../docs/en/dev/design-system.md).
 
-Run commands from the repository root. Node 24+, pnpm and Rust are provided by the Nix shell.
+From the repository root, inside `nix develop`:
 
-```bash
-nix develop
+```sh
 pnpm install
-pnpm --filter @swiftnest/app dev
-```
-
-Open `http://127.0.0.1:1420`. Build a plain web app with:
-
-```bash
+pnpm build
 pnpm --filter @swiftnest/app build:web
+SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 ```
 
-Deploy `client/dist/` to a static host. Relative assets and hash routes support subpaths and chat deep links
-without server rewrite rules. Web mode requires no Tauri APIs; `src/runtime.ts` feature-detects
-`window.__TAURI_INTERNALS__` before native integration is considered.
+Open the server's **App (web)** link. It serves `/app/` on the API's origin and opens
+`#/pair?url=<encoded pairing URL>`; the App pairs automatically, removes the URL/token from the
+address bar, and shows the real chat list. Alternatively open `#/pair` and paste the server's
+Swiftnest App pairing URL; `#/pair?url=…` and `/app/?url=…#/pair` both work. Choose **New chat**, type,
+and send (Ctrl/Cmd+Enter also sends). The composer stays enabled during generation; further messages
+queue for the next turn. Streamed assistant text grows in place and the durable final message replaces
+it. Thinking has an elapsed-time pill; finished tools fold into one expandable row; errors are inline
+and other events have a generic expandable card. Transcripts and lists virtualize above 50 rows.
 
-Desktop development (Linux and Windows):
+For another device on the same Wi-Fi, start the server with `SWIFTNEST_HOST=<server's concrete LAN IP>`
+and open its App (web) link there. Keep plain HTTP on a trusted network. The browser requires the
+**same origin** as the server; deploying these files on an unrelated static host will not enable pairing.
+`pnpm --filter @swiftnest/app dev` previews the shell at `http://127.0.0.1:1420`; use the built App served
+by the server for real web chat. Assets are relative and navigation uses hash routes.
 
-```bash
-nix develop
-pnpm --filter @swiftnest/app tauri dev
-```
+`src/connection.tsx` owns one ephemeral `@swiftnest/api` client. Only the server root is remembered in
+localStorage (`swiftnest.serverRoot`). Tokens and native cookies stay in memory; browser cookies stay
+in the browser jar. Reloading or losing the connection requires **Pair again** in phase 0. No automatic
+mutation retry or message resubmission occurs. Recent server history is replayed when reopening a chat;
+older-page navigation and interactive approval/question controls are deferred.
 
-The CLI starts Vite automatically. On Windows use a Windows Rust/MSVC toolchain and Tauri's WebView2
-prerequisites; the Nix shell supplies Linux dependencies. No native plugins are installed. Android initialization
-is deferred; the library entry point and Vite host support are ready for later mobile setup.
+Desktop builds use `isTauriRuntime()` to dynamically load `src/nativeTransport.ts`; ordinary web mode
+never loads Tauri modules. Official HTTP/WebSocket plugins provide manual-cookie transports. HTTP uses
+`maxRedirections: 0`, `unsafe-headers`, and an empty Origin header (the plugin's explicit opt-out from
+inserting the WebView Origin). Rust HTTP defaults are disabled to avoid the plugin's shared Cookie jar;
+TLS verification remains enabled. WebSocket forwards the API Cookie in its native handshake. This keeps
+the kernel's Origin/fetch-site fence intact. See the [integration notes](../docs/en/dev/dsh-integration.md).
 
-Checks:
+The capability applies only to the local **main** window, with no remote-origin IPC access. HTTP scopes
+allow HTTP(S), arbitrary user-selected hosts/ports, and only `/connect`, `/api/*`, `/swiftnest/health`.
+Hosts cannot be enumerated ahead of LAN pairing. The official WebSocket plugin currently has no URL scope;
+only its required `allow-connect` and `allow-send` commands are granted. The App derives the socket URL
+from the paired root. No filesystem, shell, or navigation permissions are added. These HTTP scopes cover
+the server's root deployment; desktop reverse-proxy path prefixes need an explicit capability adjustment.
 
-```bash
+Desktop development uses `pnpm --filter @swiftnest/app tauri dev` (not part of checks). Linux dependencies
+come from Nix; Windows needs Rust/MSVC and WebView2. Android packaging and real-device measurements come later.
+Preferences retain bilingual copy, system/light/dark themes, accent presets, reduced motion/transparency,
+accessible sheets, two panes at 600 px, desktop sidebar at 1024 px, Alt+Left and phone edge-swipe back.
+
+Checks (no Tauri launch or packaging needed):
+
+```sh
 pnpm build
 pnpm test
-pnpm --filter @swiftnest/app test
 pnpm --filter @swiftnest/app build:web
-cd client/src-tauri
-cargo check
+cargo check --manifest-path client/src-tauri/Cargo.toml
+SWIFTNEST_E2E=1 pnpm vitest run packages/api server
+SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/web.e2e.test.ts
 ```
 
-`pnpm build` checks the client with the root TypeScript project graph; `build:web` also bundles it.
-Tests cover exact design scales, all text/background contrast pairs in five presets and both modes,
-custom hues, motion durations, color conversion, bilingual rendering and routing.
-
-The avatar button opens preferences: language, system/forced light/dark, five accent presets or a custom hue,
-reduced motion and opaque surfaces. System accessibility preferences are also honored. Glass falls back
-to opaque surfaces when blur is unavailable. Preferences and sample messages are in memory only.
-The sidebar appears at 600 px (including landscape phones) and stays visible on desktop at 1024 px.
-Use Alt+Left to return to Chats and Ctrl/Cmd+Enter to send; phones also support a swipe from the left edge.
-Transcripts and list layouts virtualize above 50 rows. Sheet dialogs trap focus and support Escape.
-
-Sample messages are local only. `src/App.tsx` marks the future `@swiftnest/api` boundary. Streaming,
-interrupt/queue choices, approvals and tool/artifact cards need the backend integration and are not simulated.
-Real-device performance measurements and Android initialization remain for later work.
+The optional web test starts an isolated real kernel and fake SSE model, drives Chromium through pairing,
+new chat, streamed text, queued send and history replay, then cleans up. Build the web App first. It skips
+when Chromium cannot launch; it never downloads a browser automatically. Use `SWIFTNEST_CHROMIUM=/path/to/chrome`
+for a system browser. A non-loopback IPv4 address, when available, also exercises plain LAN HTTP UUID support.
+Unit tests cover the connection store, native adapter, transcript reducer against API fixtures, routing,
+translations, design tokens, contrast and motion.

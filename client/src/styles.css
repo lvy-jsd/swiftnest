@@ -65,7 +65,19 @@ input::placeholder, textarea::placeholder { color: var(--color-text-muted); opac
 .message__body p { margin-top: var(--space-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message--own .message__body { background: var(--color-surface2); border-radius: var(--radius-card); padding: var(--space-lg); }
 .composer-area { padding: var(--space-lg) var(--page-gutter) calc(var(--space-lg) + env(safe-area-inset-bottom, 0px)); }
-.sample-notice { font-size: var(--type-footnote-size); line-height: var(--type-footnote-line); color: var(--color-text-muted); margin-bottom: var(--space-md); }
+.composer-notice { font-size: var(--type-footnote-size); line-height: var(--type-footnote-line); color: var(--color-text-muted); margin-bottom: var(--space-md); }
+.connection-status { padding: var(--space-md) var(--page-gutter); color: var(--color-text-secondary); font-size: var(--type-footnote-size); overflow-wrap: anywhere; }
+.connection-status a { display: inline-flex; align-items: center; min-height: var(--min-target); }
+.connection-status [role="alert"], .inline-error { color: var(--color-danger); }
+.inline-error { padding: var(--space-md); }
+.thinking-pill { display: inline-block; padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md); background: var(--color-surface2); border-radius: var(--radius-control); }
+.event-card { padding: var(--space-md); margin-bottom: var(--space-lg); background: var(--color-surface2); border-radius: var(--radius-card); }
+.event-card summary { display: flex; align-items: center; min-height: var(--min-target); cursor: pointer; }
+.event-card pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-link time { color: var(--color-text-secondary); font-size: var(--type-footnote-size); }
+.page--hub .page__body { flex: 1; min-height: 0; }
+.page--hub .page__body > .virtual-list { flex: 1 0 240px; }
+.sidebar nav { flex: 1; min-height: 0; }
 .composer { display: flex; align-items: flex-end; gap: var(--space-md); }
 .composer textarea { flex: 1; min-width: 0; max-height: 32dvh; }
 .empty-state { padding: var(--space-xxl); color: var(--color-text-secondary); }

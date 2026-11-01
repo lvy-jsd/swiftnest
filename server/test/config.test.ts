@@ -35,4 +35,11 @@ describe("loadConfig", () => {
   it("reports a missing config file", () => {
     expect(() => loadConfig("/nonexistent/swiftnest.yaml", {})).toThrow(/not found/);
   });
+
+  it('resolves App dist from YAML with an environment override', () => {
+    const dir = tmp(); const file = join(dir, 'app.yaml');
+    writeFileSync(file, `appDist: ${dir}/file-dist\n`);
+    expect(loadConfig(file, {}).appDist).toBe(join(dir, 'file-dist'));
+    expect(loadConfig(file, { SWIFTNEST_APP_DIST: join(dir, 'env-dist') }).appDist).toBe(join(dir, 'env-dist'));
+  });
 });

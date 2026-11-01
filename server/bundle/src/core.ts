@@ -1,11 +1,12 @@
 /**
- * swiftnest-core: the first built-in module. It only adds a route; DSH's own
+ * swiftnest-core: the first built-in module. It adds health and App routes; DSH's own
  * routes and Web UI stay untouched.
  *
  * `GET /swiftnest/health` answers without authentication and reveals nothing
  * private: versions and whether the configured model endpoint answers.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { appHandler } from './app.js';
 
 export const name = "swiftnest-core";
 export const inject = ["webServer"];
@@ -13,6 +14,7 @@ export const inject = ["webServer"];
 export interface CoreConfig {
   version?: string;
   modelBaseUrl?: string;
+  appDist?: string;
 }
 
 interface WebRoute {
@@ -59,6 +61,9 @@ export async function health(config: CoreConfig, dshVersion: string, fetchImpl?:
 }
 
 export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
+  const handler = appHandler(config.appDist);
+  // DSH prefix paths have no trailing slash and match both /app and /app/*.
+  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/app', handler }), 'swiftnest-core: /app');
   const dshVersion = process.env.SWIFTNEST_DSH_VERSION ?? "unknown";
   ctx.effect(
     () =>

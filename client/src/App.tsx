@@ -1,28 +1,37 @@
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, FormEvent, PointerEvent } from "react";
-import { Button } from "./components/Button";
-import { Card } from "./components/Card";
-import { DetailPage, HubPage, SheetPage } from "./components/pages";
-import { VirtualList } from "./components/VirtualList";
-import { icons } from "./design/icons";
-import { presets } from "./design/palette";
-import { useTheme } from "./design/theme";
-import type { ThemePreference } from "./design/theme";
-import { breakpoints } from "./design/tokens";
-import { useI18n } from "./i18n";
-import type { Locale, StringKey } from "./i18n";
-import { isTauriRuntime } from "./runtime";
+import { useEffect, useReducer, useRef, useState } from 'react';
+import type { CSSProperties, FormEvent, PointerEvent } from 'react';
+import type { SessionSummary } from '@swiftnest/api';
+import { Button } from './components/Button';
+import { DetailPage, FormPage, HubPage, SheetPage } from './components/pages';
+import { VirtualList } from './components/VirtualList';
+import { icons } from './design/icons';
+import { presets } from './design/palette';
+import { useTheme } from './design/theme';
+import type { ThemePreference } from './design/theme';
+import { breakpoints } from './design/tokens';
+import { useI18n } from './i18n';
+import type { Locale } from './i18n';
+import { isTauriRuntime } from './runtime';
+import { useConnection } from './connection';
+import { chatReducer, emptyChat } from './chat';
+import type { ChatRow } from './chat';
 
-type Chat = { id: string; title: StringKey; preview: StringKey; message: StringKey };
-const chats: readonly Chat[] = [
-  { id: "fresh-start", title: "sampleTitle", preview: "samplePreview", message: "welcomeMessage" },
-  { id: "weekend", title: "secondTitle", preview: "secondPreview", message: "secondMessage" },
-];
-type Message = { id: string; text: string };
-export function chatFromHash(hash: string): Chat | undefined {
-  return chats.find(chat => hash === `#/chats/${chat.id}`);
+export function chatFromHash(hash: string): string | undefined {
+  const match = /^#\/chats\/([^/?#]+)$/.exec(hash);
+  try { return match ? decodeURIComponent(match[1]!) : undefined; } catch { return undefined; }
 }
-
+export function pairingFromLocation(): string {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash;
+  return new URLSearchParams(hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '').get('url')
+    ?? new URLSearchParams(window.location.search).get('url') ?? '';
+}
+function clearPairingLocation() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('url');
+  url.hash = '/pair';
+  window.history.replaceState(null, '', url);
+}
 function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t, locale, setLocale } = useI18n();
   const theme = useTheme();
@@ -39,69 +48,136 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
   </SheetPage>;
 }
 
-function ChatLink({ chat, selected = false }: { chat: Chat; selected?: boolean }) {
-  const { t } = useI18n();
+function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?: boolean }) {
+  const { t, locale } = useI18n();
   const ChatIcon = icons.chat;
-  return <a className="chat-link" href={`#/chats/${chat.id}`} aria-current={selected ? "page" : undefined}>
-    <span className="avatar"><ChatIcon size={24} weight={selected ? "fill" : "regular"} aria-hidden="true" /></span>
-    <span className="chat-link__copy"><strong>{t(chat.title)}</strong><span>{t(chat.preview)}</span></span>
+  return <a className="chat-link" href={`#/chats/${encodeURIComponent(chat.sessionId)}`} aria-current={selected ? 'page' : undefined}>
+    <span className="avatar"><ChatIcon size={24} weight={selected ? 'fill' : 'regular'} aria-hidden="true" /></span>
+    <span className="chat-link__copy"><strong>{chat.title || t('untitledChat')}</strong><time dateTime={new Date(chat.updatedAt).toISOString()}>{new Date(chat.updatedAt).toLocaleString(locale)}</time></span>
   </a>;
 }
-
-function ChatDetail({ chat, messages, onSend, onBack, onOptions }: { chat: Chat; messages: readonly Message[]; onSend: (text: string) => void; onBack: () => void; onOptions: () => void }) {
+function ConnectionStatus() {
+  const { status, root, error } = useConnection();
   const { t } = useI18n();
-  const [draft, setDraft] = useState("");
-  const Send = icons.send, Options = icons.settings, Avatar = icons.avatar;
-  const transcript = [{ id: "welcome", text: t(chat.message), name: t("botName"), own: false }, ...messages.map(message => ({ ...message, name: t("you"), own: true }))];
+  return <div className="connection-status"><p role="status">{t(status)}{root ? ` · ${root}` : ''}</p>
+    {error && <p role="alert">{t(error)}</p>}
+    <a href="#/pair">{t(status === 'connected' ? 'reconnect' : 'pair')}</a>
+  </div>;
+}
+function PairPage({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  const { store, status, error, root } = useConnection();
+  const [url, setUrl] = useState(pairingFromLocation);
+  const opened = useRef(false);
+  async function pair(value: string) {
+    setUrl('');
+    clearPairingLocation();
+    if (await store.pair(value)) window.location.hash = '/';
+  }
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    const value = pairingFromLocation();
+    clearPairingLocation();
+    if (value) void pair(value);
+  }, []);
+  return <FormPage title={t('pair')} subtitle={t('pairHelp')} onBack={onBack} saveLabel={t('pair')} saveDisabled={status === 'connecting' || !url.trim()} onSave={event => { event.preventDefault(); if (url.trim()) void pair(url.trim()); }}>
+    <label className="field"><span>{t('pairUrl')}</span><input type="url" required autoComplete="off" spellCheck={false} value={url} onChange={event => setUrl(event.target.value)} /></label>
+    <p role="status">{t(status)}{root ? ` · ${root}` : ''}</p>
+    {error && <p role="alert">{t(error)}</p>}
+  </FormPage>;
+}
+function Thinking() {
+  const { t } = useI18n();
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => { const start = Date.now(); const timer = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); return () => clearInterval(timer); }, []);
+  return <p className="thinking-pill" role="status">{t('thinking')} · {seconds} {t('seconds')}</p>;
+}
+function TranscriptRow({ row }: { row: ChatRow }) {
+  const { t } = useI18n();
+  if (row.kind === 'message') return row.text ? <article className={`message${row.role === 'user' ? ' message--own' : ''}`} data-streaming={!row.final || undefined}>
+    <div className="message__body"><strong>{t(row.role === 'user' ? 'you' : 'botName')}</strong><p>{row.text}</p></div>
+  </article> : null;
+  if (row.kind === 'error') return <p className="inline-error" role="alert">{row.text}</p>;
+  if (row.kind === 'tools') return <details key={String(row.finished)} className="event-card"><summary>{t(row.finished ? 'ranTools' : 'runningTools').replace('{count}', String(Object.keys(row.calls).length))}</summary><pre>{JSON.stringify(row.calls, null, 2)}</pre></details>;
+  return <details className="event-card"><summary>{t('unknownEvent')}</summary><pre>{JSON.stringify(row.event, null, 2)}</pre></details>;
+}
+function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBack: () => void; onOptions: () => void }) {
+  const { t } = useI18n();
+  const { store, status, root, sessions } = useConnection();
+  const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
+  const [draft, setDraft] = useState('');
+  const [ready, setReady] = useState(false);
+  const { client } = store;
+  const Send = icons.send, Options = icons.settings;
+  useEffect(() => {
+    if (!client || status !== 'connected') return;
+    const controller = new AbortController();
+    let ended = false;
+    void (async () => {
+      try {
+        const subscription = await client.follow(sessionId, { signal: controller.signal });
+        if (ended) { subscription.close(); return; }
+        setReady(true);
+        for await (const event of subscription) {
+          if (ended) break;
+          dispatch(event);
+          if (event.type === 'turn-end') void store.refresh();
+        }
+        if (!ended) setReady(false);
+      } catch { if (!ended) { setReady(false); dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') }); } }
+    })();
+    return () => { ended = true; controller.abort(); };
+  }, [client, sessionId, status, store]);
   function send(event: FormEvent) {
     event.preventDefault();
-    if (!draft.trim()) return;
-    onSend(draft.trim());
-    setDraft("");
+    if (!draft.trim() || !ready || !client) return;
+    const text = draft.trim();
+    setDraft('');
+    dispatch({ type: 'waiting' });
+    void client.sendMessage(sessionId, text).catch(() => { dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') }); });
   }
-  return <DetailPage title={t(chat.title)} subtitle={t("sampleSubtitle")} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t("chatActions")} onClick={onOptions}><Options size={24} /></Button>}>
-    <VirtualList items={transcript} itemKey={message => message.id} label={t("messages")} followEnd className="transcript" renderItem={message => <article className={`message${message.own ? " message--own" : ""}`}>
-      <span className="avatar" aria-hidden="true"><Avatar size={24} /></span><div className="message__body"><strong>{message.name}</strong><p>{message.text}</p></div>
-    </article>} />
-    <div className="composer-area glass"><p className="sample-notice">{t("sampleNotice")}</p><form className="composer" onSubmit={send}>
-      <textarea aria-label={t("composer")} placeholder={t("composer")} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
-      <Button type="submit" variant="primary" iconOnly disabled={!draft.trim()} aria-label={t("send")}><Send size={24} /></Button>
+  return <DetailPage title={sessions.find(s => s.sessionId === sessionId)?.title || t('untitledChat')} subtitle={root || t(status)} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}><Options size={24} /></Button>}>
+    <ConnectionStatus />
+    <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
+    <div className="composer-area glass">{state.waiting && <Thinking />}<p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p><form className="composer" onSubmit={send}>
+      <textarea aria-label={t('composer')} placeholder={t('composer')} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
+      <Button type="submit" variant="primary" iconOnly disabled={!draft.trim() || !ready || status !== 'connected'} aria-label={t('send')}><Send size={24} /></Button>
     </form></div>
   </DetailPage>;
 }
-
 export function App() {
   const { t } = useI18n();
   const { reducedMotion } = useTheme();
-  const [hash, setHash] = useState(() => typeof window === "undefined" ? "#/" : window.location.hash);
+  const { store, sessions, status } = useConnection();
+  const [hash, setHash] = useState(() => typeof window === 'undefined' ? '#/' : window.location.hash);
   const [preferences, setPreferences] = useState(false);
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
+  const [creating, setCreating] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const swipe = useRef<{ x: number; y: number } | null>(null);
-  const nextMessageId = useRef(0);
-  const chat = chatFromHash(hash);
+  const chatId = chatFromHash(hash);
+  const pairing = hash.startsWith('#/pair');
   const Settings = icons.settings, Avatar = icons.avatar;
-  const visibleChats = chats.filter(item => `${t(item.title)} ${t(item.preview)}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
-  const back = () => { window.location.hash = "/"; };
+  const visibleChats = sessions.filter(item => (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  const back = () => { window.location.hash = '/'; };
   useEffect(() => {
     const navigate = () => { setHash(window.location.hash); setSwipeOffset(0); };
-    const shortcut = (event: KeyboardEvent) => { if (event.altKey && event.key === "ArrowLeft") { event.preventDefault(); back(); } };
-    window.addEventListener("hashchange", navigate);
-    window.addEventListener("keydown", shortcut);
-    return () => { window.removeEventListener("hashchange", navigate); window.removeEventListener("keydown", shortcut); };
-  }, []);
-  useEffect(() => { document.getElementById("main-content")?.focus({ preventScroll: true }); }, [hash]);
-
-  function send(text: string) {
-    if (!chat) return;
-    // TODO: connect @swiftnest/api here. Keep the composer enabled during generation;
-    // offer Send now / Queue when a real turn is running (design-system §9).
-    const id = String(++nextMessageId.current);
-    setMessages(previous => ({ ...previous, [chat.id]: [...(previous[chat.id] ?? []), { id, text }] }));
+    const shortcut = (event: KeyboardEvent) => { if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); back(); } };
+    const refresh = () => { if (document.visibilityState === 'visible') void store.refresh(); };
+    window.addEventListener('hashchange', navigate);
+    window.addEventListener('keydown', shortcut);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { window.removeEventListener('hashchange', navigate); window.removeEventListener('keydown', shortcut); document.removeEventListener('visibilitychange', refresh); };
+  }, [store]);
+  useEffect(() => { document.getElementById('main-content')?.focus({ preventScroll: true }); if (!chatId && !pairing) void store.refresh(); }, [hash, store]);
+  async function newChat() {
+    setCreating(true);
+    try { const id = await store.newChat(); if (id) window.location.hash = `/chats/${encodeURIComponent(id)}`; }
+    finally { setCreating(false); }
   }
   function startSwipe(event: PointerEvent<HTMLElement>) {
-    if (chat && window.innerWidth < breakpoints.tablet && event.clientX <= 32 && event.isPrimary) swipe.current = { x: event.clientX, y: event.clientY };
+    if (chatId && window.innerWidth < breakpoints.tablet && event.clientX <= 32 && event.isPrimary) swipe.current = { x: event.clientX, y: event.clientY };
   }
   function moveSwipe(event: PointerEvent<HTMLElement>) {
     if (!swipe.current) return;
@@ -112,22 +188,21 @@ export function App() {
   }
   function endSwipe() {
     if (swipeOffset > Math.min(120, window.innerWidth / 4)) back();
-    swipe.current = null;
-    setSwipeOffset(0);
+    swipe.current = null; setSwipeOffset(0);
   }
-
   return <div className="app-shell">
-    <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById("main-content")?.focus(); }}>{t("skipToContent")}</a>
-    <aside className="sidebar"><div className="sidebar__brand"><strong>{t("appName")}</strong><Button variant="ghost" iconOnly aria-label={t("openPreferences")} onClick={() => setPreferences(true)}><Settings size={24} /></Button></div>
-      <p className="sidebar__caption">{t(isTauriRuntime() ? "desktop" : "web")}</p>
-      <nav aria-label={t("chatNavigation")}>{chats.map(item => <ChatLink key={item.id} chat={item} selected={item.id === chat?.id} />)}</nav>
+    <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>
+    <aside className="sidebar"><div className="sidebar__brand"><strong>{t('appName')}</strong><Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Settings size={24} /></Button></div>
+      <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>
+      <nav aria-label={t('chatNavigation')}><VirtualList items={sessions} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} selected={item.sessionId === chatId} />} /></nav>
     </aside>
     <main id="main-content" className="main-content" tabIndex={-1} onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={endSwipe} onPointerCancel={() => { swipe.current = null; setSwipeOffset(0); }}>
-      <div key={chat?.id ?? "hub"} className="route-view" data-direction={chat ? "forward" : "back"} style={swipeOffset && !reducedMotion ? { transform: `translateX(${swipeOffset}px)`, animation: "none" } as CSSProperties : undefined}>
-        {chat ? <ChatDetail key={chat.id} chat={chat} messages={messages[chat.id] ?? []} onSend={send} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t("chats")} subtitle={t("chatsSubtitle")} action={<Button variant="ghost" iconOnly aria-label={t("openPreferences")} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
-          <section className="chat-group" aria-label={t("localOnly")}><h2>{t("localOnly")}</h2><label className="search-field"><input type="search" value={query} placeholder={t("search")} aria-label={t("search")} onChange={event => setQuery(event.target.value)} /></label>
-            {visibleChats.length ? visibleChats.map(item => <Card key={item.id}><ChatLink chat={item} /></Card>) : <p className="empty-state">{t("noChats")}</p>}
-          </section>
+      <div key={chatId ?? (pairing ? 'pair' : 'hub')} className="route-view" data-direction={chatId ? 'forward' : 'back'} style={swipeOffset && !reducedMotion ? { transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties : undefined}>
+        {pairing ? <PairPage onBack={back} /> : chatId ? <ChatDetail key={`${chatId}:${status}`} sessionId={chatId} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t('chats')} subtitle={t('chatsSubtitle')} action={<Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
+          <ConnectionStatus />
+          {status === 'connected' && <Button variant="primary" disabled={creating} onClick={() => void newChat()}>{t('newChat')}</Button>}
+          <label className="search-field"><input type="search" value={query} placeholder={t('search')} aria-label={t('search')} onChange={event => setQuery(event.target.value)} /></label>
+          {visibleChats.length ? <VirtualList items={visibleChats} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} />} /> : <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>}
         </HubPage>}
       </div>
     </main>

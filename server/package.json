@@ -12,5 +12,8 @@
     "@deepseek-ai/dsh": "0.2.1-rc.5",
     "@swiftnest/server-bundle": "workspace:*",
     "yaml": "^2.8.1"
+  },
+  "optionalDependencies": {
+    "@swiftnest/app": "workspace:*"
   }
 }

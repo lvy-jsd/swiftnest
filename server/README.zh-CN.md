@@ -5,7 +5,7 @@
 Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和记忆。它内嵌锁定版本的
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH，MIT）作为内核，Swiftnest 自己的内置模块以 DSH bundle 的形式加载（`server/bundle`）。DSH 自带的 Web UI 在同一端口照常可用，第三方 DSH 插件也照样能装。
 
-状态：阶段 0 骨架。能拉起内核、配置一个 OpenAI 兼容的模型，并提供 `GET /swiftnest/health`。团队、记忆、配对和设备在后续阶段加入。
+状态：阶段 0 聊天。可以启动内核、配置 OpenAI 兼容模型，提供 `GET /swiftnest/health`、`/app/` 网页应用及网页/桌面链接配对。团队、记忆、每设备凭据和 Android 打包留待后续。
 
 ## 运行
 
@@ -13,11 +13,25 @@ Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和�
 
 ```sh
 pnpm install && pnpm build
+pnpm --filter @swiftnest/app build:web
 SWIFTNEST_MODEL_BASE_URL=http://127.0.0.1:11434/v1 SWIFTNEST_MODEL_ID=qwen3 \
   node server/dist/cli.js start
 ```
 
-启动后打印两个链接，重启前有效：一个在浏览器里打开 DSH Web UI，一个给 Swiftnest App 用。
+启动后打印三个重启前有效的链接：DSH Web UI、供桌面应用粘贴的配对链接，以及 **App (web)**
+（`<root>/app/#/pair?url=<编码后的配对链接>`）。打开最后一个即可自动配对，再选择“新建聊天”发送消息。
+应用会清除地址栏的配对链接，只记住服务器根地址，网页认证留在浏览器 Cookie jar。
+阶段 0 刷新、断线或服务器重启后需要重新配对。包含启动令牌的链接应当保密。
+
+同一 Wi-Fi 的其他设备访问时，将 `SWIFTNEST_HOST` 设置为服务器具体的局域网 IP，不能使用通配地址，
+然后打开对应的 App (web) 链接。明文 HTTP 仅用于可信网络。网页应用必须与 API 同源；桌面应用通过原生
+HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配置与权限](../client/README.zh-CN.md)。
+
+`@swiftnest/server` 默认从已安装的可选 `@swiftnest/app` 包解析 `dist` 目录，
+`appDist` / `SWIFTNEST_APP_DIST` 可覆盖它；源码开发可设置 `SWIFTNEST_APP_DIST="$PWD/client/dist"`。
+未安装或未构建应用时，`/app/` 返回明确的 404，不影响内核和 DSH 页面启动。
+应用外壳无需 DSH 认证，API 仍需配对。静态路由拒绝路径穿越和越界符号链接，设置 MIME，页面路由回退首页，
+带哈希的资源采用 immutable 缓存，首页重新验证。
 
 ## 配置
 
@@ -28,6 +42,7 @@ SWIFTNEST_MODEL_BASE_URL=http://127.0.0.1:11434/v1 SWIFTNEST_MODEL_ID=qwen3 \
 | `home` | `SWIFTNEST_HOME` | `$XDG_DATA_HOME/swiftnest` |
 | `host`（一个具体 IP，不能是 `0.0.0.0`） | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |
+| `appDist` | `SWIFTNEST_APP_DIST` | 已安装的 `@swiftnest/app/dist`，否则不可用 |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |
@@ -40,7 +55,11 @@ DSH 的数据在 `<home>/dsh`。Swiftnest 每次启动都会重新生成 `swiftn
 
 ```sh
 pnpm vitest run server                       # 单元测试
-SWIFTNEST_E2E=1 pnpm vitest run server       # 同时启动真实内核
+SWIFTNEST_E2E=1 pnpm vitest run packages/api server # 真实内核与假模型聊天
+SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/web.e2e.test.ts # 可选 Chromium 应用流程
 ```
+
+Chromium 测试前先构建网页。浏览器无法启动时会干净跳过，可设置 `SWIFTNEST_CHROMIUM=/path/to/chrome`
+指定系统浏览器。不需要外部模型凭据。
 
 内嵌方式和原因见 [docs/en/dev/dsh-integration.md](../docs/en/dev/dsh-integration.md)。

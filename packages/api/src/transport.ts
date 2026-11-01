@@ -1,6 +1,16 @@
 import type { RemoteStreamServerMessage } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import type { ApiWebSocket } from './types.js';
 
+/** randomUUID is secure-context-only; plain LAN HTTP still has getRandomValues. */
+export function randomId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 15) | 64;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export class ApiError extends Error {
   constructor(public readonly code: string, message: string) { super(message); this.name = 'ApiError'; }
 }
@@ -50,7 +60,7 @@ export class Mux {
   }
   stream(endpoint: string, args: unknown): Inbox<unknown> {
     if (this.closed) throw new ApiError('disconnected', 'API socket is closed');
-    const streamId = crypto.randomUUID();
+    const streamId = randomId();
     const inbox = new Inbox<unknown>(() => {
       if (this.streams.delete(streamId) && !this.closed) this.socket.send(JSON.stringify({ type: 'cancel', streamId }));
     });

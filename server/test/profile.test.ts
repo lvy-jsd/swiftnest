@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { loadConfig } from "../src/config.js";
 import { BUNDLES, PROVIDER_ID, profileDir, writeProfile } from "../src/profile.js";
-import { parseReadyLine } from "../src/kernel.js";
-import { pairingUrl } from "../src/pairing.js";
+import { parseReadyLine, resolveAppDist } from "../src/kernel.js";
+import { pairingUrl, webAppUrl } from "../src/pairing.js";
 
 function setup() {
   const home = mkdtempSync(join(tmpdir(), "swiftnest-profile-"));
@@ -53,9 +53,22 @@ describe("kernel output and pairing", () => {
   it("parses the ready line and strips the token from the URL", () => {
     expect(parseReadyLine("dsh web: http://127.0.0.1:3077/?token=abc")).toEqual({ url: "http://127.0.0.1:3077/", token: "abc" });
     expect(parseReadyLine("something else")).toBeUndefined();
+    expect(parseReadyLine('dsh web: listening on 192.168.1.5 over plain HTTP')).toBeUndefined();
   });
 
   it("builds the App pairing URL", () => {
     expect(pairingUrl("http://192.168.1.5:3077/", "t0k")).toBe("http://192.168.1.5:3077/connect?token=t0k&interactions=answer");
+  });
+
+  it('embeds the entire pairing URL in the web App hash', () => {
+    const root = 'http://192.168.1.5:3077/'; const token = 'a+b&c';
+    const url = new URL(webAppUrl(root, token));
+    expect(url.pathname).toBe('/app/');
+    expect(new URLSearchParams(url.hash.split('?')[1]).get('url')).toBe(pairingUrl(root, token));
+  });
+
+  it('resolves installed App dist and tolerates a server-only installation', () => {
+    expect(resolveAppDist(id => { expect(id).toBe('@swiftnest/app/package.json'); return '/installed/app/package.json'; })).toBe('/installed/app/dist');
+    expect(resolveAppDist(() => { throw new Error('not installed'); })).toBeUndefined();
   });
 });

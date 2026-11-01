@@ -1,7 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default core permissions for the main app window.",
+  "description": "Local main window only. HTTP pairing/API paths on user-selected HTTP(S) hosts; WebSocket connect/send for the paired host.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    { "identifier": "http:default", "allow": [
+      { "url": "http://*:*/connect" }, { "url": "https://*:*/connect" },
+      { "url": "http://*:*/api/*" }, { "url": "https://*:*/api/*" },
+      { "url": "http://*:*/swiftnest/health" }, { "url": "https://*:*/swiftnest/health" }
+    ] },
+    "websocket:allow-connect",
+    "websocket:allow-send"
+  ]
 }
