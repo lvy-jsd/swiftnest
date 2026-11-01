@@ -55,6 +55,30 @@ Overriding `session-title-llm` requires all of its fields (`targetWords`, …); 
 With that patch as `$DSH_HOME/cordis.patch.yml`, `dsh --profile headless "<prompt>"` answered through a local
 27B model in one turn.
 
+## Persona configuration
+
+`ServerConfig.persona` / YAML `persona` is a string, overridden by `SWIFTNEST_PERSONA`. Its default is
+`You are a helpful assistant in Swiftnest, powered by the {{model}} model.` DSH expands `{{model}}`
+at runtime. The generated profile owns both `system-prompt.config.personaPrefix` and preset persona
+prefixes; the static Swiftnest bundle has no separate persona text.
+
+Changing only `system-prompt` is insufficient: DSH Web's agent presets mount their own
+`@deepseek-ai/dsh-persona` plugins, whose prefixes otherwise identify a coding agent. Because a Cordis
+patch replaces the target row's **whole config**, `server/src/profile.ts` resolves
+`@deepseek-ai/dsh-web-app/package.json` from the installed, pinned `@deepseek-ai/dsh` package and reads
+its `presets/*.patch.yml` on each start. It emits an override for each preset with a persona, retaining
+the complete original row and changing only `config.plugins[].config.prefix` on the persona plugin.
+Rows with no persona and unrecognized shapes produce no override.
+
+The pinned presets use the custom scalar tag `!!js` for deferred runtime expressions (platform checks,
+profile context and skill paths). The generator registers this tag with `yaml` as an inert string,
+uses the AST to locate prefix scalars, and copies the original row source with just those spans
+replaced and the insert wrapper's indentation removed. It never evaluates expressions or serializes
+them as ordinary strings; tags, expressions, comments and all other fields survive unchanged.
+`user.patch.yml` is still applied last and never overwritten. Real preset fixture tests check byte
+preservation, and real-kernel fake-model chat tests check the received system prompt with both the
+default and a configured persona.
+
 ## Web host and native API (verified)
 
 - `dsh --profile web --no-open --port <p>` serves the DSH Web UI and its native API on loopback and prints a

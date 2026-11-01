@@ -51,6 +51,7 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `host` (one concrete IP, never `0.0.0.0`) | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |
 | `appDist` | `SWIFTNEST_APP_DIST` | installed `@swiftnest/app/dist`, otherwise unavailable |
+| `persona` (string) | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`, `model.contextWindow`, `model.maxTokens` | | `Local model`, `32768`, `8192` |
@@ -59,6 +60,18 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 
 DSH's data lives in `<home>/dsh`. Swiftnest regenerates the `swiftnest` profile on every start; put your own DSH
 patch rows in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which is applied last and never overwritten.
+
+`persona` sets both the shared system-prompt prefix and the persona in every shipped DSH agent preset;
+DSH expands `{{model}}` to the model identity at runtime. For example:
+
+```yaml
+persona: "You are Robin, a helpful assistant in Swiftnest, powered by the {{model}} model."
+```
+
+On each start, the server derives preset overrides from the web bundle installed with the pinned DSH
+kernel. It changes only persona prefixes, retaining the rest of each preset and its unevaluated `!!js`
+expressions. Presets without a persona are left alone. Operator patches still take precedence; a DSH
+patch replaces a row's whole `config`, so overriding a preset manually requires its complete config.
 
 ## Test
 

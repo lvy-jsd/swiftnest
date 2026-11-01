@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MODEL, DEFAULT_PORT, loadConfig } from "../src/config.js";
+import { DEFAULT_MODEL, DEFAULT_PORT, DEFAULT_PERSONA, loadConfig } from "../src/config.js";
 
 const tmp = () => mkdtempSync(join(tmpdir(), "swiftnest-config-"));
 
@@ -13,6 +13,7 @@ describe("loadConfig", () => {
     expect(c.host).toBe("127.0.0.1");
     expect(c.port).toBe(DEFAULT_PORT);
     expect(c.model).toEqual(DEFAULT_MODEL);
+    expect(c.persona).toBe(DEFAULT_PERSONA);
   });
 
   it("merges file, then environment", () => {
@@ -34,6 +35,16 @@ describe("loadConfig", () => {
 
   it("reports a missing config file", () => {
     expect(() => loadConfig("/nonexistent/swiftnest.yaml", {})).toThrow(/not found/);
+  });
+
+  it("reads a persona from YAML, with an environment override and string validation", () => {
+    const file = join(tmp(), "persona.yaml");
+    writeFileSync(file, 'persona: "You are the YAML assistant, powered by {{model}}."\n');
+    expect(loadConfig(file, {}).persona).toBe("You are the YAML assistant, powered by {{model}}.");
+    expect(loadConfig(file, { SWIFTNEST_PERSONA: "You are the env assistant." }).persona).toBe("You are the env assistant.");
+    expect(loadConfig(file, { SWIFTNEST_PERSONA: "" }).persona).toBe("");
+    writeFileSync(file, "persona: 42\n");
+    expect(() => loadConfig(file, {})).toThrow("persona must be a string");
   });
 
   it('resolves App dist from YAML with an environment override', () => {

@@ -10,12 +10,15 @@ import { loadConfig, startKernel, pairingUrl, type RunningKernel } from '../../.
 import { connect, type SwiftnestClient, type SwiftnestEvent } from '@swiftnest/api';
 
 const reply = 'Hello from Swiftnest.';
-describe.skipIf(process.env.SWIFTNEST_E2E !== '1')('API real kernel chat (e2e)', () => {
+describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
+  { name: 'default persona', persona: undefined, expected: 'You are a helpful assistant in Swiftnest, powered by the ' },
+  { name: 'configured persona', persona: 'You are the configured Swiftnest assistant, powered by the {{model}} model.', expected: 'You are the configured Swiftnest assistant, powered by the ' },
+])('API real kernel chat (e2e, $name)', ({ persona, expected }) => {
   let model: Server | undefined;
   let kernel: RunningKernel | undefined;
   let client: SwiftnestClient | undefined;
   let home: string | undefined;
-  const modelRequests: unknown[] = [];
+  const modelRequests: { stream?: boolean; messages: { role: string; content: unknown }[] }[] = [];
   const frames: unknown[] = [];
   const logs: string[] = [];
   beforeAll(async () => {
@@ -48,6 +51,7 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1')('API real kernel chat (e2e)',
     home = mkdtempSync(join(tmpdir(), 'swiftnest-api-e2e-'));
     kernel = await startKernel(loadConfig(undefined, {
       SWIFTNEST_HOME: home, SWIFTNEST_PORT: '0', SWIFTNEST_MODEL_ID: 'fake',
+      SWIFTNEST_PERSONA: persona,
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
     }), { readyTimeoutMs: 90_000, onLine: line => { logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')); } });
   }, 120_000);
@@ -90,6 +94,16 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1')('API real kernel chat (e2e)',
       expect(received.find(e => e.type === 'assistant-message')).toMatchObject({ text: reply });
       expect(received.at(-1)).toMatchObject({ type: 'turn-end', reason: 'completed' });
       expect(modelRequests.some(r => JSON.stringify(r).includes('hi'))).toBe(true);
+      // DSH's title generator streams too, but gets an aggregated transcript
+      // rather than the agent's original user message and persona.
+      const chatRequests = modelRequests.filter(request => request.messages.some(message => message.role === 'user' && message.content === 'hi'));
+      expect(chatRequests.length).toBeGreaterThan(0);
+      for (const request of chatRequests) {
+        const system = request.messages.filter(message => message.role === 'system').map(message => message.content).join('\n');
+        expect(system).toContain(expected);
+        expect(system).not.toContain('coding agent');
+        expect(system).not.toContain('{{model}}');
+      }
       if (process.env.SWIFTNEST_RECORD_FIXTURES === '1') {
         writeFileSync(new URL('./fixtures/chat.json', import.meta.url), JSON.stringify(frames, null, 2) + '\n');
       }
