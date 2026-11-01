@@ -1,0 +1,8 @@
+# Swiftnest's built-in modules, layered after dsh-base and dsh-web-app.
+# Rows only add; they never replace DSH's own rows or its Web UI.
+- insert:
+    - id: swiftnest-core
+      name: '@swiftnest/server-bundle/core'
+      config:
+        version: !!js process.env.SWIFTNEST_VERSION
+        modelBaseUrl: !!js process.env.SWIFTNEST_MODEL_BASE_URL
