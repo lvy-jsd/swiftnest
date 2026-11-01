@@ -5,6 +5,7 @@
     { "path": "packages/protocol" },
     { "path": "packages/core" },
     { "path": "packages/sdk" },
+    { "path": "packages/api" },
     { "path": "plugins/cap-shell" },
     { "path": "plugins/surface-mcp" },
     { "path": "plugins/link-lan" },

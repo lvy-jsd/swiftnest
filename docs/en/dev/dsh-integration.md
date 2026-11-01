@@ -78,9 +78,109 @@ With that patch as `$DSH_HOME/cordis.patch.yml`, `dsh --profile headless "<promp
    the same port, which is the compatibility promise.
 2. **Built-in modules are Cordis plugins in `@swiftnest/server-bundle`.** Phase 0 ships one: `swiftnest-core`,
    which registers `GET /swiftnest/health` (version, DSH version, model reachability) on `ctx.webServer`.
-3. **`@swiftnest/api` wraps DSH's published client packages** for sessions and events instead of re-implementing
-   the wire protocol, plus small typed helpers for Swiftnest's own `/swiftnest/*` routes. If the spike shows the
-   DSH client cannot run in a WebView, fall back to a thin `/swiftnest/v0/*` HTTP + SSE façade served by
-   `swiftnest-core` and record the decision here.
+3. **`@swiftnest/api` first tries DSH's published clients** for sessions and events, plus typed helpers for
+   Swiftnest's own `/swiftnest/*` routes. The verified B1 spike below required the minimal native-wire
+   fallback; no façade is needed.
 4. **Phase 0 pairing is a URL.** The server prints `http://<lan-ip>:<port>/connect?token=…`; the client accepts it
    pasted or scanned. Long-lived per-device credentials come with the gateway module in phase 2.
+
+
+## @swiftnest/api
+
+Verified on 2026-11-01 against **exactly 0.2.1-rc.5**, using published MIT package declarations and bundled
+sources in `node_modules`, followed by the real-kernel acceptance test. The wrapper is Apache-2.0 and
+keeps every DSH type private; App code imports only `@swiftnest/api`.
+
+### Published-client spike and decision
+
+- `@deepseek-ai/dsh-client-connection/client` has a genuine `client.node.js` ESM entry.
+  `installConnection(ctx, {transport: {fetch, createWebSocket, streamBaseUrl}})` can use non-page carriers;
+  `window.__DSH_BOOT__` is not required by that explicit installation path. A direct Node import succeeds.
+- Its browser export, `client.browser.js`, is **a ModuleLoader registration**, beginning with
+  `window.__ModuleLoader__.load(...)`, not a standalone ESM client.
+- `@deepseek-ai/dsh-api-session-controller/client` has only that same ModuleLoader form in `lib/client.js`.
+  Direct Node import fails with `ReferenceError: window is not defined`. The `/remote` export is ordinary
+  ESM containing generated endpoint descriptors and schemas, not a standalone transport/session runtime.
+  The lower-level gateway has Node ESM, but its browser entry uses
+  the same page loader. Thus injecting WebSocket alone does not make the published stack portable to an
+  independent App build. Installing fake page globals or transplanting DSH's loader is unnecessary scope.
+- **Decision:** implement the small observed JSON RPC + mux protocol within `packages/api`. No runtime DSH
+  dependency, copied client bundle, or `/swiftnest/v0` façade. The connection, session-controller and
+  gateway packages remain exact-pinned **development dependencies** to type-check the internal adapter
+  and record the upstream version. Public declarations expose only Swiftnest-owned types. Sources were
+  inspected at `lib/types/client/*.d.ts`, session `lib/types/types.d.ts`, `lib/typert.remote-client.*`,
+  connection `lib/client.node.js` / `lib/index.js`, and gateway `lib/client.node.js` / stream declarations.
+
+### Observed native protocol
+
+1. `GET <root>/connect?token=…&interactions=answer`, with redirects disabled, exchanges the token for a
+   signed HttpOnly API cookie and returns `302 ./api/remote.mux`. Browser fetch exposes an opaque redirect
+   (status 0) and hides Set-Cookie; the browser jar processes it. Successful socket + `$events` readiness
+   proves browser authentication. Node extracts cookie name/value pairs and sends them on RPC and socket
+   requests. Pairing URLs/cookies are never logged by the client.
+2. Unary calls go to **`POST <root>/api/<endpoint>`**, not the bare `/api` path (which was verified to return
+   404 after authentication). JSON is `{type:"client-request", rpcId, method:endpoint, payload:{args}}`;
+   the response is `{type:"server-response", rpcId, result:{ok:true,value}}` or a typed error branch.
+   Correlation is checked. `session/list` uses `{_request:{}}`; create/prompt/follow use `{request:…}`.
+3. One cookie's Peer owns **one** `/api/remote.mux` socket. Multiple followers share it. Open a logical
+   stream with `{type:"open",streamId,endpoint,payload:{args}}`; downlink frames are `item` (`value`),
+   `end`, or `error`. `{type:"cancel",streamId}` releases an individual subscription.
+4. Connect opens `$events` with `{args:{}}` and waits for `{type:"ready",clientId,host}`. Follow opens
+   `session/follow` with `{request:{address:{kind:"session",sessionId},assistantStream:true}}`, waits for
+   its `snapshot`, queues history and then maps durable `event` and transient `assistant-stream` frames.
+   This establishes the subscription before `sendMessage`, avoiding a send/follow race.
+5. `session/prompt` takes `{request:{sessionId,requestId,mode:"queue",content:[{type:"text",text}]}}` and
+   returns `{accepted:true}` immediately. It is admission, not completed inference. Human user messages
+   carry `source.kind="user"` and `source.rpcId=requestId`; runtime/time contexts also use the user role
+   but are filtered out. Assistant text deltas carry an attempt id and index; the final durable message
+   is authoritative and replaces accumulated partial text. Assistant start/end events delimit attempts;
+   the end event links the attempt to the final message sequence or marks it abandoned. Tool ids are retained. Failed
+   `turn/end` emits an error and a turn end; successful completion has `reason.kind="completed"`.
+6. Opening snapshots include compact active-attempt records (`text-chunks` runs / `chunk` records), which
+   are replayed as accumulated partial text before future deltas. Durable history messages are replayed
+   as final messages, not fabricated live deltas. Phase 0 exposes the native recent history window;
+   older-page navigation and general surface-replacement editing are future work.
+
+### Approvals and questions
+
+Both are reachable through `$events`: Agent-scoped `waterfall` items name `approval/request` or
+`user-questions/request`. `agentId` identifies the session. The wrapper publishes a typed request only
+for followed sessions; otherwise it returns `{kind:"next"}` to the Host's answerer chain. Replies use
+`$events/result` with `{args:{clientId,eventId,outcome:{kind:"result",value}}}`. Approval values are the
+closed outcomes `allowed-once`, `rejected`, `cancelled`, `unavailable`; questions carry structured answers.
+Host `cancel` invalidates the request id and emits `interaction-cancelled`.
+
+Timed foreground questions also claim `userQuestions/attachWait` using `{agentId,callId}`; the stream is
+released on answer/cancellation. Continued questions use unary `userQuestions/answer` with
+`{agentId,callId,answer}` (exposed via the object-target overload of `answerQuestion`). Historical pending
+question projection/card restoration is not exposed in this phase. Approval/question transport is covered
+by deterministic carrier tests; the real-model acceptance test covers text chat, not live tool approval.
+
+### Browser, Node and Tauri carriers
+
+Runtime source has no Node imports or DSH page globals. `fetch` and an authenticated WebSocket factory
+are injectable; the Node e2e uses `ws` because Node's built-in browser-style WebSocket cannot set Cookie.
+Only name/value cookie pairs are retained in memory and cleared on close. Do not use one manual-cookie
+client's injected carrier for unrelated hosts. A new pairing creates a new client; disconnect emits a
+typed error and ends follows. There is no automatic mutation retry or silent session resubmission.
+
+Same-origin browser/WebView deployments use `credentials:"include"` and the browser cookie jar. The
+packaged Tauri App normally has another origin: the kernel explicitly rejects cross-site fetch metadata
+and differing Origin authorities, independently of CORS and cookie SameSite rules. Plain cross-origin
+fetch/WebSocket therefore **does not work**. The App needs an authorized native HTTP/WebSocket carrier
+(inject both, `cookieMode:"manual"`) or a same-origin hosting arrangement. Do not weaken the Host trust
+fence as a workaround. Native carrier permissions/configuration belong to App integration, outside B1.
+
+### Verification
+
+- Event fixtures include a recorded real-kernel SSE chat plus explicitly constructed tool/failure and
+  active-attempt snapshots. Tests cover mapping, cookies, mount paths, RPC correlation/errors, timeout
+  cleanup, cancellation, socket loss, and forwarded approvals/questions.
+- Opt-in acceptance: `SWIFTNEST_E2E=1 pnpm vitest run packages/api server`. It starts a real isolated
+  Swiftnest kernel with random ports and a fake OpenAI-compatible `/v1/chat/completions` SSE model;
+  pairs → creates → follows → sends `hi` → verifies live text deltas, the final message and turn end.
+  Resources are disposed in teardown; no external model credentials are needed.
+- An esbuild browser ESM bundle was also checked: no external runtime imports or Node dependencies.
+- Workspace install explicitly permits the DSH subprocess helper's executable-bit repair, while marking
+  other unused dependency scripts disabled, as required by pnpm 12. The fixed chat model needs none of
+  those optional builds. `pnpm build`, `pnpm test`, and the opt-in kernel suite are the B1 checks.

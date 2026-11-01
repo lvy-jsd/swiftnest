@@ -10,6 +10,7 @@ export default defineConfig({
       "@swiftnest/protocol": src("./packages/protocol/src/index.ts"),
       "@swiftnest/core": src("./packages/core/src/index.ts"),
       "@swiftnest/sdk": src("./packages/sdk/src/index.ts"),
+      "@swiftnest/api": src("./packages/api/src/index.ts"),
       "@swiftnest/cap-shell": src("./plugins/cap-shell/src/index.ts"),
       "@swiftnest/surface-mcp": src("./plugins/surface-mcp/src/index.ts"),
       "@swiftnest/link-lan": src("./plugins/link-lan/src/index.ts"),

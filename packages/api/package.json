@@ -1,0 +1,27 @@
+{
+  "name": "@swiftnest/api",
+  "version": "0.0.1",
+  "description": "UI-free typed chat client for Swiftnest Server.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "ws": "^8.21.3",
+    "@types/ws": "^8.18.1"
+  }
+}
