@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "client" },
     { "path": "packages/protocol" },
     { "path": "packages/core" },
     { "path": "packages/sdk" },
