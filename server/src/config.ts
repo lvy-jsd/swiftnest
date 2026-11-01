@@ -29,10 +29,13 @@ export interface ServerConfig {
   port: number;
   /** Built web App directory; otherwise resolved from the optional App package. */
   appDist?: string;
+  /** Default persona for DSH's system prompt and agent presets; supports {{model}}. */
+  persona: string;
   model: ModelConfig;
 }
 
 export const DEFAULT_PORT = 3077;
+export const DEFAULT_PERSONA = "You are a helpful assistant in Swiftnest, powered by the {{model}} model.";
 
 export function defaultHome(env: NodeJS.ProcessEnv = process.env): string {
   const base = env.XDG_DATA_HOME || join(homedir(), ".local", "share");
@@ -64,6 +67,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     host: env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
     port: num(env.SWIFTNEST_PORT) ?? fromFile.port ?? DEFAULT_PORT,
     appDist: appDist ? resolve(appDist) : undefined,
+    persona: env.SWIFTNEST_PERSONA ?? fromFile.persona ?? DEFAULT_PERSONA,
     model: {
       ...DEFAULT_MODEL,
       ...fromFile.model,
@@ -76,6 +80,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if (typeof config.persona !== "string") throw new Error("persona must be a string");
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) {
     throw new Error(`port must be an integer 0-65535, got ${config.port}`);
   }

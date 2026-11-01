@@ -43,6 +43,7 @@ HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配�
 | `host`（一个具体 IP，不能是 `0.0.0.0`） | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |
 | `appDist` | `SWIFTNEST_APP_DIST` | 已安装的 `@swiftnest/app/dist`，否则不可用 |
+| `persona`（字符串） | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |
@@ -50,6 +51,17 @@ HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配�
 | 内核用的 Node 可执行文件 | `SWIFTNEST_KERNEL_NODE` | 运行 Swiftnest 的那个 Node |
 
 DSH 的数据在 `<home>/dsh`。Swiftnest 每次启动都会重新生成 `swiftnest` profile；你自己的 DSH patch 写在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，它最后应用，永远不会被覆盖。
+
+`persona` 同时设置共享 system-prompt 的前缀和 DSH 自带的各个智能体预设的人设；
+DSH 会在运行时把 `{{model}}` 替换成模型身份。例如：
+
+```yaml
+persona: "你是 Swiftnest 中的助手小雨，由 {{model}} 模型驱动。"
+```
+
+每次启动时，服务器从锁定版本的 DSH 所安装的 web bundle 中读取预设并生成覆盖行。
+只替换 persona 前缀，保留预设其余内容及未经求值的 `!!js` 表达式；没有 persona 的预设保持原样。
+用户 patch 仍然优先。DSH patch 会替换目标行的整个 `config`，因此手动覆盖预设时须提供完整配置。
 
 ## 测试
 
