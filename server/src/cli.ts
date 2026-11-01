@@ -2,14 +2,14 @@
 import { parseArgs } from "node:util";
 import { loadConfig } from "./config.js";
 import { startKernel } from "./kernel.js";
-import { pairingUrl } from "./pairing.js";
+import { pairingUrl, webAppUrl } from "./pairing.js";
 
 const HELP = `swiftnest-server — run Swiftnest Server
 
 Usage:
   swiftnest-server start [--config <file>] [--verbose]
 
-Environment overrides: SWIFTNEST_HOME, SWIFTNEST_HOST, SWIFTNEST_PORT,
+Environment overrides: SWIFTNEST_HOME, SWIFTNEST_HOST, SWIFTNEST_PORT, SWIFTNEST_APP_DIST,
 SWIFTNEST_MODEL_BASE_URL, SWIFTNEST_MODEL_ID, and the key variable named by
 model.apiKeyEnv (default SWIFTNEST_MODEL_API_KEY).`;
 
@@ -36,6 +36,7 @@ async function main(argv: string[]): Promise<number> {
   console.log(`Links below are valid until the server restarts.`);
   console.log(`  Browser (DSH Web UI): ${kernel.url}?token=${kernel.token}`);
   console.log(`  Swiftnest App:        ${pairingUrl(kernel.url, kernel.token)}`);
+  console.log(`  App (web): ${webAppUrl(kernel.url, kernel.token)}`);
 
   const shutdown = async () => {
     await kernel.stop();

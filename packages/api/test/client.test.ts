@@ -23,7 +23,7 @@ class Socket implements ApiWebSocket {
   interaction(value: unknown): void { this.frame(this.sent.find(f => f.endpoint === '$events').streamId, value); }
 }
 
-function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean } = {}) {
+function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean; legacyHeaders?: boolean } = {}) {
   let socket!: Socket;
   const calls: { url: string; init: RequestInit; body?: any }[] = [];
   const doFetch = vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -32,7 +32,11 @@ function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boo
     calls.push({ url, init, body });
     if (url.includes('/connect?')) {
       if (options.browser) return { status: 0, type: 'opaqueredirect' } as Response;
-      return new Response(null, { status: 302, headers: { 'set-cookie': 'dsh_api=secret; HttpOnly; Path=/api', location: './api/remote.mux' } });
+      const response = new Response(null, { status: 302, headers: { 'set-cookie': options.legacyHeaders
+        ? 'dsh_api=secret; Expires=Wed, 01 Jan 2030 00:00:00 GMT; HttpOnly, second=value; Path=/api'
+        : 'dsh_api=secret; HttpOnly; Path=/api', location: './api/remote.mux' } });
+      if (options.legacyHeaders) Object.defineProperty(response.headers, 'getSetCookie', { value: undefined });
+      return response;
     }
     const value = body?.method === 'session/create' ? { sessionId: 'session-1' }
       : body?.method === 'session/list' ? { items: [{ sessionId: 'session-1', updatedAt: 100, running: false, blank: true, projections: { values: { title: 'Test' } } }] }
@@ -64,6 +68,12 @@ describe('independent API client', () => {
   it('accepts browser opaque redirects and leaves cookies to the jar', async () => {
     const h = harness({ browser: true }); await h.client.connect(pairing);
     try { await h.client.createSession(); expect(h.factory.mock.calls[0]?.[1].headers).toEqual({}); expect(h.calls[1]?.init.headers).not.toHaveProperty('cookie'); }
+    finally { h.client.close(); }
+  });
+  it('reads native cookies on WebViews without Headers.getSetCookie, preserving Expires commas', async () => {
+    const h = harness({ legacyHeaders: true });
+    await h.client.connect(pairing);
+    try { expect(h.factory.mock.calls[0]?.[1].headers).toEqual({ cookie: 'dsh_api=secret; second=value' }); }
     finally { h.client.close(); }
   });
   it.each([{ badRpcId: true, code: 'protocol-error' }, { failRpc: true, code: 'session/agent-busy' }])('preserves remote errors and rejects mismatched replies: $code', async opts => {

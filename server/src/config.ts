@@ -27,6 +27,8 @@ export interface ServerConfig {
   /** One concrete local IP address (DSH refuses wildcards). */
   host: string;
   port: number;
+  /** Built web App directory; otherwise resolved from the optional App package. */
+  appDist?: string;
   model: ModelConfig;
 }
 
@@ -56,10 +58,12 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     fromFile = (parse(readFileSync(file, "utf8")) ?? {}) as Partial2<ServerConfig>;
   }
   const num = (v: string | undefined) => (v === undefined || v === "" ? undefined : Number(v));
+  const appDist = env.SWIFTNEST_APP_DIST || fromFile.appDist;
   const config: ServerConfig = {
     home: resolve(env.SWIFTNEST_HOME ?? fromFile.home ?? defaultHome(env)),
     host: env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
     port: num(env.SWIFTNEST_PORT) ?? fromFile.port ?? DEFAULT_PORT,
+    appDist: appDist ? resolve(appDist) : undefined,
     model: {
       ...DEFAULT_MODEL,
       ...fromFile.model,

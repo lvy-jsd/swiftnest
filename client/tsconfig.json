@@ -10,5 +10,6 @@
     "outDir": ".build",
     "emitDeclarationOnly": true
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": ["src", "test", "vite.config.ts"],
+  "references": [{ "path": "../packages/api" }, { "path": "../server" }]
 }

@@ -18,6 +18,13 @@ export interface KernelPaths {
   dshVersion: string;
   bundleDir: string;
   swiftnestVersion: string;
+  appDist?: string;
+}
+
+/** Optional App package: explicit config wins; never assume a source checkout layout. */
+export function resolveAppDist(resolvePackage: (id: string) => string = id => require.resolve(id)): string | undefined {
+  try { return join(dirname(resolvePackage('@swiftnest/app/package.json')), 'dist'); }
+  catch { return undefined; }
 }
 
 export function resolveKernel(): KernelPaths {
@@ -29,6 +36,7 @@ export function resolveKernel(): KernelPaths {
     dshBin: join(dirname(dshPkg), "lib", "bin.js"),
     dshVersion: (JSON.parse(readFileSync(dshPkg, "utf8")) as { version: string }).version,
     bundleDir: dirname(bundlePkg),
+    appDist: resolveAppDist(),
   };
 }
 
@@ -52,12 +60,13 @@ export interface StartOptions {
 }
 
 /** `dsh web: http://127.0.0.1:3077/?token=…` */
-const READY_LINE = /dsh web:\s*(\S+)/;
+const READY_LINE = /dsh web:\s*(https?:\/\/\S+)/;
 
 export function parseReadyLine(line: string): { url: string; token: string } | undefined {
   const match = READY_LINE.exec(line);
   if (!match?.[1]) return undefined;
-  const full = new URL(match[1]);
+  let full: URL;
+  try { full = new URL(match[1]); } catch { return undefined; }
   const token = full.searchParams.get("token");
   if (!token) return undefined;
   full.search = "";
@@ -88,6 +97,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
       SWIFTNEST_MODEL_BASE_URL: config.model.baseUrl,
+      SWIFTNEST_APP_DIST: config.appDist ?? opts.env?.SWIFTNEST_APP_DIST ?? paths.appDist ?? '',
       [config.model.apiKeyEnv]: opts.env?.[config.model.apiKeyEnv] ?? process.env[config.model.apiKeyEnv] ?? "none",
     },
     stdio: ["ignore", "pipe", "pipe"],

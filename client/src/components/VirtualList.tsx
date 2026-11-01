@@ -13,7 +13,7 @@ export function VirtualList<T>({ items, itemKey, renderItem, label, followEnd, c
     if (!followEnd || !items.length) return;
     if (virtual) list.scrollToIndex(items.length - 1, { align: "end" });
     else if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
-  }, [items.length, followEnd, virtual, list]);
+  }, [items, followEnd, virtual, list]);
   return <div ref={scroll} className={`virtual-list ${className}`} role="list" aria-label={label} tabIndex={0}>
     {virtual ? <div className="virtual-list__canvas" style={{ height: list.getTotalSize() }}>
       {list.getVirtualItems().map(row => <div role="listitem" className="virtual-list__row" key={row.key} data-index={row.index} ref={list.measureElement} style={{ transform: `translateY(${row.start}px)` }}>{renderItem(items[row.index]!)}</div>)}

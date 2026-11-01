@@ -4,15 +4,16 @@ import { App, chatFromHash } from "../src/App";
 import { ThemeProvider } from "../src/design/theme";
 import { I18nProvider, en, translate, zhCN } from "../src/i18n";
 import { isTauriRuntime } from "../src/runtime";
+import { ConnectionProvider } from '../src/connection';
 
 describe("web shell and translations", () => {
   it("renders in English and Chinese without a native runtime", () => {
     expect(isTauriRuntime()).toBe(false);
     for (const locale of ["en", "zh-CN"] as const) {
-      const html = renderToStaticMarkup(<ThemeProvider><I18nProvider initialLocale={locale}><App /></I18nProvider></ThemeProvider>);
+      const html = renderToStaticMarkup(<ThemeProvider><I18nProvider initialLocale={locale}><ConnectionProvider><App /></ConnectionProvider></I18nProvider></ThemeProvider>);
       expect(html).toContain(translate(locale, "chats"));
-      expect(html).toContain(translate(locale, "sampleTitle"));
-      expect(html).toContain("#/chats/fresh-start");
+      expect(html).toContain(translate(locale, "pair"));
+      expect(html).not.toContain('fresh-start');
     }
   });
   it("keeps the string tables complete", () => { expect(Object.keys(zhCN).sort()).toEqual(Object.keys(en).sort()); });
@@ -29,9 +30,9 @@ describe("web shell and translations", () => {
     }
   });
   it("recognizes chat deep links and falls back for unknown paths", () => {
-    expect(chatFromHash("#/chats/fresh-start")?.id).toBe("fresh-start");
-    expect(chatFromHash("#/chats/weekend")?.id).toBe("weekend");
-    expect(chatFromHash("#/chats/missing")).toBeUndefined();
+    expect(chatFromHash("#/chats/real-chat")).toBe("real-chat");
+    expect(chatFromHash("#/chats/encoded%20chat")).toBe("encoded chat");
+    expect(chatFromHash("#/chats/%zz")).toBeUndefined();
     expect(chatFromHash("#/")).toBeUndefined();
   });
 });

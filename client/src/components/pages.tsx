@@ -19,9 +19,9 @@ export function ListPage<T>({ title, onBack, query, onQueryChange, items, itemKe
   const Search = icons.search;
   return <section className="page page--list"><PageHeader title={title} onBack={onBack}><label className="search-field"><Search size={24} aria-hidden="true" /><input type="search" value={query} onChange={event => onQueryChange(event.target.value)} aria-label={t("search")} placeholder={t("search")} /></label></PageHeader><VirtualList items={items} itemKey={itemKey} renderItem={renderItem} label={title} className="page__body" /></section>;
 }
-export function FormPage({ children, onSave, ...header }: Omit<PageProps, "action"> & { onSave: FormEventHandler<HTMLFormElement> }) {
+export function FormPage({ children, onSave, saveLabel, saveDisabled, ...header }: Omit<PageProps, "action"> & { onSave: FormEventHandler<HTMLFormElement>; saveLabel?: string; saveDisabled?: boolean }) {
   const { t } = useI18n();
-  return <form className="page page--form" onSubmit={onSave}><PageHeader {...header} action={<Button type="submit" variant="primary">{t("save")}</Button>} /><div className="page__body field-groups">{children}</div></form>;
+  return <form className="page page--form" onSubmit={onSave}><PageHeader {...header} action={<Button type="submit" variant="primary" disabled={saveDisabled}>{saveLabel ?? t("save")}</Button>} /><div className="page__body field-groups">{children}</div></form>;
 }
 export function SheetPage(props: Parameters<typeof Sheet>[0]) {
   return <Sheet {...props} />;

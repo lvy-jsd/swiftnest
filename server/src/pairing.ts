@@ -9,3 +9,7 @@ export function pairingUrl(rootUrl: string, token: string): string {
   url.searchParams.set("interactions", "answer");
   return url.toString();
 }
+
+export function webAppUrl(rootUrl: string, token: string): string {
+  return new URL(`app/#/pair?url=${encodeURIComponent(pairingUrl(rootUrl, token))}`, rootUrl).href;
+}

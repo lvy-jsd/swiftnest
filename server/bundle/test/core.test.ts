@@ -30,17 +30,17 @@ describe("swiftnest-core", () => {
     expect(await probeModel("http://m/v1", fake)).toBe(false);
   });
 
-  it("registers only /swiftnest/health and disposes it with the plugin", () => {
+  it("registers health and App routes and disposes them with the plugin", () => {
     const routes: string[] = [];
-    let disposer: (() => void) | undefined;
+    const disposers: (() => void)[] = [];
     apply({
       webServer: { register: (r) => (routes.push(r.path), () => routes.splice(routes.indexOf(r.path), 1)) },
       effect: (fn) => {
-        disposer = fn();
+        disposers.push(fn());
       },
     });
-    expect(routes).toEqual(["/swiftnest/health"]);
-    disposer?.();
+    expect(routes).toEqual(["/app", "/swiftnest/health"]);
+    disposers.forEach(dispose => dispose());
     expect(routes).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import type { SessionFollowFrame, SessionListValue, SessionCreateValue, SessionPromptValue } from '@deepseek-ai/dsh-api-session-controller/types';
 import type { RemoteEventDownlinkFrame } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import { mapFrame } from './events.js';
-import { ApiError, Inbox, Mux } from './transport.js';
+import { ApiError, Inbox, Mux, randomId } from './transport.js';
 import type { ApprovalAnswer, ClientOptions, CreateSessionOptions, CreatedSession, Health, MessageReceipt, Question, QuestionAnswer, SessionSummary, Subscription, SwiftnestEvent } from './types.js';
 export type * from './types.js';
 export { ApiError } from './transport.js';
@@ -41,7 +41,9 @@ export class SwiftnestClient {
       // still processes Set-Cookie. Socket authentication verifies the exchange.
       if (response.status !== 302 && !(response.type === 'opaqueredirect' && !this.manualCookies)) throw new ApiError('pairing-failed', `Pairing returned HTTP ${response.status}`);
       if (this.manualCookies) {
-        this.cookie = response.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+        const cookies = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie()
+          : (response.headers.get('set-cookie') ?? '').split(/,(?=\s*[^;,=\s]+=)/).filter(Boolean);
+        this.cookie = cookies.map(value => value.split(';', 1)[0]!.trim()).join('; ');
         if (!this.cookie) throw new ApiError('pairing-failed', 'Pairing did not issue an API cookie');
       }
       const socketUrl = new URL('api/remote.mux', this.root);
@@ -83,7 +85,7 @@ export class SwiftnestClient {
   }
   async sendMessage(sessionId: string, text: string): Promise<MessageReceipt> {
     if (!text.trim()) throw new ApiError('invalid-message', 'Message text must not be empty');
-    const requestId = crypto.randomUUID();
+    const requestId = randomId();
     const result = await this.rpc<SessionPromptValue>('session/prompt', { request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text }] } });
     return { requestId, accepted: result.accepted };
   }
@@ -224,7 +226,7 @@ export class SwiftnestClient {
   }
   private async rpc<T>(endpoint: string, args: unknown): Promise<T> {
     this.assertConnected();
-    const rpcId = crypto.randomUUID();
+    const rpcId = randomId();
     const response = await this.request(this.url(`api/${endpoint}`), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }) });
     if (!response.ok) throw new ApiError('http-error', `API returned HTTP ${response.status}`);
     const envelope = await response.json() as { type: string; rpcId: string; result: { ok: true; value: T } | { ok: false; error: { code: string; message: string } } };

@@ -4,7 +4,7 @@
  * seconds; CI runs it in the server job.
  */
 import { createServer, type Server } from "node:http";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
@@ -18,6 +18,7 @@ const enabled = process.env.SWIFTNEST_E2E === "1";
 describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
   let model: Server;
   let kernel: RunningKernel;
+  let home: string;
 
   beforeAll(async () => {
     model = createServer((req, res) => {
@@ -29,8 +30,14 @@ describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
     });
     await new Promise<void>((r) => model.listen(0, "127.0.0.1", r));
     const modelPort = (model.address() as AddressInfo).port;
+    home = mkdtempSync(join(tmpdir(), "swiftnest-e2e-"));
+    const dist = join(home, 'app');
+    mkdirSync(join(dist, 'assets'), { recursive: true });
+    writeFileSync(join(dist, 'index.html'), '<html>App shell</html>');
+    writeFileSync(join(dist, 'assets', 'app-12345678.js'), 'export {};');
     const config = loadConfig(undefined, {
-      SWIFTNEST_HOME: mkdtempSync(join(tmpdir(), "swiftnest-e2e-")),
+      SWIFTNEST_HOME: home,
+      SWIFTNEST_APP_DIST: dist,
       SWIFTNEST_PORT: "0",
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
       SWIFTNEST_MODEL_ID: "fake",
@@ -41,6 +48,7 @@ describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
   afterAll(async () => {
     await kernel?.stop();
     await new Promise((r) => model?.close(r));
+    if (home) rmSync(home, { recursive: true, force: true });
   });
 
   it("serves /swiftnest/health from the built-in module", async () => {
@@ -51,6 +59,15 @@ describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
 
   it("keeps DSH's native API behind authentication", async () => {
     expect((await fetch(new URL("api", kernel.url), { method: "POST" })).status).toBe(401);
+  });
+
+  it('serves the public App and nested assets through real DSH prefix routing', async () => {
+    expect(await (await fetch(new URL('app/', kernel.url))).text()).toBe('<html>App shell</html>');
+    const asset = await fetch(new URL('app/assets/app-12345678.js', kernel.url));
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get('cache-control')).toContain('immutable');
+    expect(await asset.text()).toBe('export {};');
+    expect((await fetch(new URL('app/assets/missing.js', kernel.url))).status).toBe(404);
   });
 
   it("lets an App trade the launch token for an API session", async () => {
