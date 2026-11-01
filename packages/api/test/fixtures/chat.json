@@ -1,0 +1,515 @@
+[
+  {
+    "type": "snapshot",
+    "header": {
+      "version": 4,
+      "id": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503",
+      "createdAt": 1793535662835,
+      "cwd": "/workspace",
+      "isSeeded": false,
+      "agentPreset": "standard"
+    },
+    "cursor": 2,
+    "records": [
+      {
+        "type": "event",
+        "event": {
+          "type": "permission/preset",
+          "seq": 0,
+          "time": 1793535662843,
+          "data": {
+            "preset": "workspace-write"
+          }
+        }
+      },
+      {
+        "type": "event",
+        "event": {
+          "type": "sandbox/mode",
+          "seq": 1,
+          "time": 1793535662846,
+          "data": {
+            "mode": "workspace-write"
+          }
+        }
+      },
+      {
+        "type": "event",
+        "event": {
+          "type": "approval/policy",
+          "seq": 2,
+          "time": 1793535662847,
+          "data": {
+            "policy": "ask"
+          }
+        }
+      }
+    ],
+    "hasMore": false,
+    "projections": {
+      "asOfSeq": 2,
+      "values": {
+        "title": null,
+        "goal": null,
+        "tokenUsage": {
+          "uncachedInputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "contextPressure": {},
+        "contextBreakdown": {
+          "systemTokens": 0,
+          "toolsTokens": 0,
+          "messageTokens": 0
+        },
+        "inbox": {
+          "next-turn": [],
+          "next-step": []
+        },
+        "sessionStats": {
+          "turns": 0,
+          "steps": 0,
+          "llmMs": 0,
+          "toolMs": 0,
+          "ttftMs": 0,
+          "ttftSteps": 0,
+          "decodeMs": 0,
+          "decodeTokens": 0
+        },
+        "turnOutline": [],
+        "agentPreset": "standard",
+        "userQuestions": {
+          "active": [],
+          "settled": []
+        },
+        "permissions": {
+          "currentValue": "workspace-write"
+        },
+        "workingDirectory": "/workspace",
+        "subagentCatalog": [],
+        "subagentTiming": {
+          "settledMs": 0
+        },
+        "subagent": null,
+        "todos": null,
+        "plan": {
+          "active": false,
+          "pending": false
+        },
+        "modelSelection": {
+          "lastUsed": null,
+          "next": null
+        },
+        "sessionListMetadata": {
+          "blank": true,
+          "lastPromptAt": null
+        },
+        "imageLimits": {
+          "maxImageBytes": 20971520,
+          "maxImagesPerMessage": 20,
+          "maxMessageImageBytes": 209715200,
+          "maxImagePixels": 64000000,
+          "maxImageDimension": 8192,
+          "mediaTypes": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif"
+          ]
+        }
+      }
+    },
+    "assistantStream": {
+      "revision": 0
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "type": "user/message",
+      "seq": 8,
+      "time": 1793535662955,
+      "data": {
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "source": {
+          "kind": "user",
+          "rpcId": "b8141450-1f29-4246-8d44-6e5cbed2370a"
+        },
+        "role": "user",
+        "id": "382a1fad-0235-47a3-80f2-bf9a10a2698a"
+      },
+      "surfaceOp": "append"
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "type": "user/message",
+      "seq": 9,
+      "time": 1793535662956,
+      "data": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nCurrent working directory: \"/workspace\".\n\nCurrent DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: \"/workspace\". Some platform temporary areas may also be writable.\n\nApproval policy: ask. Operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed.\n\nCurrent DeepSeek Harness implementation checkout: \"/dsh-checkout/\".\n\nCurrent DeepSeek Harness Web GUI URL: \"http://127.0.0.1:41025\"."
+          }
+        ],
+        "source": {
+          "kind": "runtime-context",
+          "form": "snapshot",
+          "sections": [
+            {
+              "name": "working-directory:current",
+              "text": "Current working directory: \"/workspace\"."
+            },
+            {
+              "name": "sandbox:policy",
+              "text": "Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: \"/workspace\". Some platform temporary areas may also be writable."
+            },
+            {
+              "name": "approval:policy",
+              "text": "Approval policy: ask. Operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed."
+            },
+            {
+              "name": "harness:source",
+              "text": "Current DeepSeek Harness implementation checkout: \"/dsh-checkout/\"."
+            },
+            {
+              "name": "app:web-surface",
+              "text": "Current DeepSeek Harness Web GUI URL: \"http://127.0.0.1:41025\"."
+            }
+          ]
+        },
+        "role": "user",
+        "id": "20dcfcc2-b2c4-4d06-b6f2-cbd2c7d132d0"
+      },
+      "surfaceOp": "append"
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "type": "user/message",
+      "seq": 10,
+      "time": 1793535662957,
+      "data": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Time sampled while preparing turn 1, step 1: 2026-11-01T20:21:02+08:00[Australia/Perth]\nBrowser time zone for this request: unavailable. Ask the user to clarify otherwise-unqualified dates and times.\nElapsed since the preceding model-visible message: unavailable."
+          }
+        ],
+        "source": {
+          "kind": "time-context",
+          "form": "snapshot",
+          "sections": [
+            {
+              "name": "time-context",
+              "text": "Time sampled while preparing turn 1, step 1: 2026-11-01T20:21:02+08:00[Australia/Perth]\nBrowser time zone for this request: unavailable. Ask the user to clarify otherwise-unqualified dates and times.\nElapsed since the preceding model-visible message: unavailable."
+            }
+          ]
+        },
+        "role": "user",
+        "id": "05f61853-7a94-4ea4-a9db-433d5e723a36"
+      },
+      "surfaceOp": "append"
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "start",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 1,
+      "turn": 1,
+      "step": 1,
+      "startedAfterSeq": 12
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 2,
+      "index": 0,
+      "time": 1793535663055,
+      "chunk": {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "text"
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 3,
+      "index": 1,
+      "time": 1793535663055,
+      "chunk": {
+        "type": "text-delta",
+        "index": 0,
+        "text": "Hello "
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 4,
+      "index": 2,
+      "time": 1793535663072,
+      "chunk": {
+        "type": "text-delta",
+        "index": 0,
+        "text": "from "
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 5,
+      "index": 3,
+      "time": 1793535663092,
+      "chunk": {
+        "type": "text-delta",
+        "index": 0,
+        "text": "Swiftnest."
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 6,
+      "index": 4,
+      "time": 1793535663114,
+      "chunk": {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "text",
+          "text": "Hello from Swiftnest."
+        }
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 7,
+      "index": 5,
+      "time": 1793535663114,
+      "chunk": {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0
+        }
+      }
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "chunk",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 8,
+      "index": 6,
+      "time": 1793535663115,
+      "chunk": {
+        "type": "finish",
+        "reason": {
+          "kind": "stop"
+        },
+        "replayState": {
+          "response": {
+            "kind": "pi-ai",
+            "version": 2,
+            "api": "openai-completions",
+            "provider": "swiftnest-local",
+            "model": "fake",
+            "responseId": "fixed-reply",
+            "stopReason": "stop"
+          },
+          "blocks": [
+            {
+              "type": "text"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "type": "assistant/message",
+      "seq": 15,
+      "time": 1793535663116,
+      "data": {
+        "turn": 1,
+        "step": 1,
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello from Swiftnest."
+            }
+          ],
+          "source": {
+            "kind": "model",
+            "provider": "swiftnest-local",
+            "model": "fake",
+            "replayState": {
+              "response": {
+                "kind": "pi-ai",
+                "version": 2,
+                "api": "openai-completions",
+                "provider": "swiftnest-local",
+                "model": "fake",
+                "responseId": "fixed-reply",
+                "stopReason": "stop"
+              },
+              "blocks": [
+                {
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "id": "b20afc4d-7a2e-43fc-83e4-4f022b1d61dd"
+        },
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0
+        },
+        "stream": [
+          {
+            "type": "chunk",
+            "time": 1793535663055,
+            "chunk": {
+              "type": "block-start",
+              "index": 0,
+              "blockType": "text"
+            }
+          },
+          {
+            "type": "text-chunks",
+            "time0": 1793535663055,
+            "index": 0,
+            "dt": [
+              17,
+              20
+            ],
+            "texts": [
+              "Hello ",
+              "from ",
+              "Swiftnest."
+            ]
+          },
+          {
+            "type": "chunk",
+            "time": 1793535663114,
+            "chunk": {
+              "type": "block-end",
+              "index": 0,
+              "block": {
+                "type": "text",
+                "text": "Hello from Swiftnest."
+              }
+            }
+          },
+          {
+            "type": "chunk",
+            "time": 1793535663114,
+            "chunk": {
+              "type": "usage",
+              "usage": {
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "totalTokens": 0
+              }
+            }
+          },
+          {
+            "type": "chunk",
+            "time": 1793535663115,
+            "chunk": {
+              "type": "finish",
+              "reason": {
+                "kind": "stop"
+              },
+              "replayState": {
+                "response": {
+                  "kind": "pi-ai",
+                  "version": 2,
+                  "api": "openai-completions",
+                  "provider": "swiftnest-local",
+                  "model": "fake",
+                  "responseId": "fixed-reply",
+                  "stopReason": "stop"
+                },
+                "blocks": [
+                  {
+                    "type": "text"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "surfaceOp": "append"
+    }
+  },
+  {
+    "type": "assistant-stream",
+    "frame": {
+      "type": "end",
+      "attemptId": "session-4e97d1bf-a7db-44ee-8ee3-f5898aa86503:1",
+      "revision": 9,
+      "index": 7,
+      "outcome": {
+        "kind": "committed",
+        "eventType": "assistant/message",
+        "seq": 15
+      }
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "type": "turn/end",
+      "seq": 17,
+      "time": 1793535663117,
+      "data": {
+        "turn": 1,
+        "reason": {
+          "kind": "completed"
+        }
+      }
+    }
+  }
+]

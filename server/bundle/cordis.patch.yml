@@ -6,3 +6,10 @@
       config:
         version: !!js process.env.SWIFTNEST_VERSION
         modelBaseUrl: !!js process.env.SWIFTNEST_MODEL_BASE_URL
+
+# Swiftnest's own default persona; DSH Web's says "coding agent". Deployments set their own
+# (for example a named bot) in user.patch.yml.
+- id: system-prompt
+  config:
+    personaPrefix: >-
+      You are a helpful assistant in Swiftnest, powered by the {{model}} model.

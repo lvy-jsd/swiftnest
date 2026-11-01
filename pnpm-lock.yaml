@@ -210,6 +210,24 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@24.19.2)(yaml@2.9.1)
 
+  packages/api:
+    devDependencies:
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(6822c2eb34b7a0317367f2caf744ad76)
+      '@deepseek-ai/dsh-client-connection':
+        specifier: 0.2.1-rc.5
+        version: 0.2.1-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.5(@deepseek-ai/cordis@4.0.5))
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.2
+      ws:
+        specifier: ^8.21.3
+        version: 8.22.0
+
   packages/cli:
     dependencies:
       '@swiftnest/cap-files':
