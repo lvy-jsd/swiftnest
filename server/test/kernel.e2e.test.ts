@@ -46,7 +46,7 @@ describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
   it("serves /swiftnest/health from the built-in module", async () => {
     const res = await fetch(new URL("swiftnest/health", kernel.url));
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, dsh: "0.2.1-rc.5", model: { configured: true, reachable: true } });
+    expect(await res.json()).toMatchObject({ ok: true, swiftnest: "0.0.1", dsh: "0.2.1-rc.5", model: { configured: true, reachable: true } });
   });
 
   it("keeps DSH's native API behind authentication", async () => {

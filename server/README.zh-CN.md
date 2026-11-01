@@ -32,6 +32,7 @@ SWIFTNEST_MODEL_BASE_URL=http://127.0.0.1:11434/v1 SWIFTNEST_MODEL_ID=qwen3 \
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |
 | `model.apiKeyEnv`（存放密钥的变量名） | | `SWIFTNEST_MODEL_API_KEY` |
+| 内核用的 Node 可执行文件 | `SWIFTNEST_KERNEL_NODE` | 运行 Swiftnest 的那个 Node |
 
 DSH 的数据在 `<home>/dsh`。Swiftnest 每次启动都会重新生成 `swiftnest` profile；你自己的 DSH patch 写在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，它最后应用，永远不会被覆盖。
 

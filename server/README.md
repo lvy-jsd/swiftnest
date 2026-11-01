@@ -37,6 +37,7 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`, `model.contextWindow`, `model.maxTokens` | | `Local model`, `32768`, `8192` |
 | `model.apiKeyEnv` (name of the key variable) | | `SWIFTNEST_MODEL_API_KEY` |
+| Node binary for the kernel | `SWIFTNEST_KERNEL_NODE` | the Node running Swiftnest |
 
 DSH's data lives in `<home>/dsh`. Swiftnest regenerates the `swiftnest` profile on every start; put your own DSH
 patch rows in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which is applied last and never overwritten.

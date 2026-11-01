@@ -17,12 +17,15 @@ export interface KernelPaths {
   dshBin: string;
   dshVersion: string;
   bundleDir: string;
+  swiftnestVersion: string;
 }
 
 export function resolveKernel(): KernelPaths {
   const dshPkg = require.resolve("@deepseek-ai/dsh/package.json");
   const bundlePkg = require.resolve("@swiftnest/server-bundle/package.json");
+  const ownPkg = require.resolve("../package.json");
   return {
+    swiftnestVersion: (JSON.parse(readFileSync(ownPkg, "utf8")) as { version: string }).version,
     dshBin: join(dirname(dshPkg), "lib", "bin.js"),
     dshVersion: (JSON.parse(readFileSync(dshPkg, "utf8")) as { version: string }).version,
     bundleDir: dirname(bundlePkg),
@@ -39,7 +42,7 @@ export interface RunningKernel {
 }
 
 export interface StartOptions {
-  /** Node executable for the kernel; defaults to the one running Swiftnest. */
+  /** Node executable for the kernel; defaults to $SWIFTNEST_KERNEL_NODE, then the one running Swiftnest. */
   node?: string;
   /** Extra environment for the kernel (API keys, proxies). */
   env?: NodeJS.ProcessEnv;
@@ -76,12 +79,13 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     "--port",
     String(config.port),
   ];
-  const child = spawn(opts.node ?? process.execPath, args, {
+  const child = spawn(opts.node ?? process.env.SWIFTNEST_KERNEL_NODE ?? process.execPath, args, {
     cwd: config.home,
     env: {
       ...process.env,
       ...opts.env,
       DSH_HOME: dshHome(config),
+      SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
       SWIFTNEST_MODEL_BASE_URL: config.model.baseUrl,
       [config.model.apiKeyEnv]: opts.env?.[config.model.apiKeyEnv] ?? process.env[config.model.apiKeyEnv] ?? "none",
@@ -106,7 +110,10 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       settled = true;
       clearTimeout(timer);
       void stop();
-      rejectStart(new Error(`${err.message}\n--- kernel output ---\n${tail.join("\n")}`));
+      const hint = tail.some((l) => l.includes("node-addon-require-builtin"))
+        ? "\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary."
+        : "";
+      rejectStart(new Error(`${err.message}${hint}\n--- kernel output ---\n${tail.join("\n")}`));
     };
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/\r?\n/)) {
