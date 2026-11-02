@@ -30,8 +30,14 @@ export function rawLiterals(source) {
   return result;
 }
 export function violations(source, allowlist) { return rawLiterals(source).filter(({ value }) => !allowlist.has(value)); }
+/** Catalog keys (e.g. 'pairThisPhone') are identifiers, not prose, wherever they appear in code. */
+export function catalogKeys() {
+  const catalog = readFileSync(resolve(root, 'client/src/i18n.tsx'), 'utf8');
+  return [...catalog.matchAll(/\b([A-Za-z][A-Za-z0-9]*): "/g)].map(match => match[1]);
+}
 export function lintUI() {
-  const allowlist = new Set(JSON.parse(readFileSync(resolve(root, 'scripts/i18n-technical-tokens.json'), 'utf8')).tokens);
+  const tokens = JSON.parse(readFileSync(resolve(root, 'scripts/i18n-technical-tokens.json'), 'utf8')).tokens;
+  const allowlist = new Set([...tokens, ...catalogKeys()]);
   return uiFiles().flatMap(file => violations(readFileSync(file, 'utf8'), allowlist).map(({ line, value }) => `${file.slice(root.length)}:${line}: ${JSON.stringify(value)}`));
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

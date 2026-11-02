@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">"Swiftnest"</string>
     <string name="main_activity_title">"Swiftnest"</string>
+    <string name="accessibility_label">Swiftnest 手机控制</string>
+    <string name="accessibility_description">让助手在你批准后查看屏幕、截屏、点按和输入。看屏幕内容不需要批准；点按、输入和打开应用每次都要你在 Swiftnest 里批准。随时可以在这里关闭。</string>
+    <string name="notification_listener_label">Swiftnest 读取通知</string>
+    <string name="notification_channel">Swiftnest 提醒</string>
 </resources>

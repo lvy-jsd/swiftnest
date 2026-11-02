@@ -1,0 +1,50 @@
+{
+  "id": "apps",
+  "version": "0.0.1",
+  "title": {
+    "en": "Phone apps",
+    "zh": "手机应用"
+  },
+  "permissions": [
+    "apps"
+  ],
+  "tools": [
+    {
+      "name": "apps_list",
+      "description": {
+        "en": "Installed apps that can be opened: name and package.",
+        "zh": "可以打开的已安装应用：名称和包名。"
+      },
+      "risk": "read",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "apps_open",
+      "description": {
+        "en": "Open an app by package name.",
+        "zh": "按包名打开应用。"
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,255}$"
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

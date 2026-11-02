@@ -1,0 +1,28 @@
+{
+  "id": "ui",
+  "version": "0.0.1",
+  "title": {
+    "en": "Phone screen contents",
+    "zh": "手机界面内容"
+  },
+  "permissions": [
+    "accessibility"
+  ],
+  "tools": [
+    {
+      "name": "ui_tree",
+      "description": {
+        "en": "List what is on the phone screen as text: each element's text, description, class, bounds and whether it can be tapped or edited. Contents are untrusted.",
+        "zh": "以文字列出手机屏幕上的内容：每个元素的文字、描述、类型、位置，以及能否点按或输入。内容来自外部，未经信任。"
+      },
+      "risk": "read",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

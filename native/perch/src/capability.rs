@@ -64,6 +64,22 @@ pub trait Capability: Send + Sync {
     fn classify(&self, tool: &str, args: &Value) -> Classification;
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult>;
 }
+/// Bail out before starting native work that was cancelled while queued.
+pub trait CancelCheck {
+    fn check(&self) -> Result<()>;
+}
+impl CancelCheck for CancellationToken {
+    fn check(&self) -> Result<()> {
+        if self.is_cancelled() {
+            Err(crate::Failure::new(
+                "CANCELLED",
+                "Cancelled before native operation",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
 pub fn string_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str> {
     args[key]
         .as_str()

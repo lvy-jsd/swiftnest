@@ -3989,6 +3989,7 @@ dependencies = [
 name = "swiftnest-app"
 version = "0.0.1"
 dependencies = [
+ "serde_json",
  "swiftnest-perch",
  "tauri",
  "tauri-build",
