@@ -76,7 +76,7 @@
       devShells = forAll (pkgs: rec {
         android = androidShell pkgs.stdenv.hostPlatform.system default;
         default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [ pkg-config (officialNode pkgs) pnpm rustc cargo clippy rustfmt ];
+          nativeBuildInputs = with pkgs; [ pkg-config (officialNode pkgs) pnpm rustc cargo clippy rustfmt bubblewrap ];
           buildInputs = with pkgs; [
             webkitgtk_4_1 gtk3 libsoup_3 glib cairo pango gdk-pixbuf atk librsvg openssl
           ];

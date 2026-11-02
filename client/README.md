@@ -47,7 +47,8 @@ The capability applies only to the local **main** window, with no remote-origin 
 allow HTTP(S), arbitrary user-selected hosts/ports, and only `/connect`, `/api/*`, `/swiftnest/health`.
 Hosts cannot be enumerated ahead of LAN pairing. The official WebSocket plugin currently has no URL scope;
 only its required `allow-connect` and `allow-send` commands are granted. The App derives the socket URL
-from the paired root. No filesystem, shell, or navigation permissions are added. These HTTP scopes cover
+from the paired root. The WebView receives no general filesystem or shell plugin permissions. Local custom IPC commands control
+the Rust Perch and native folder picker; the Perch enforces its own shared-folder policy. These HTTP scopes cover
 the server's root deployment; native reverse-proxy path prefixes need an explicit capability adjustment.
 
 Desktop development uses `pnpm --filter @swiftnest/app tauri dev` (not part of checks). Linux dependencies
@@ -122,3 +123,30 @@ when Chromium cannot launch; it never downloads a browser automatically. Use `SW
 for a system browser. A non-loopback IPv4 address, when available, also exercises plain LAN HTTP UUID support.
 Unit tests cover the connection store, native adapter, transcript reducer against API fixtures, routing,
 translations, design tokens, contrast and motion.
+
+## This device (desktop)
+
+**Devices → This device** hosts the Node-free `native/perch` Rust library in the App process. Control and
+background operation default off, with no shared folders. Pair with a code from the server Devices page,
+compare both fingerprints, then enable files/shell. See [Control this computer](../docs/en/guide/control-this-computer.md)
+for the complete flow, private storage, tray behavior and platform limits. Android hides the section.
+Linux requires bubblewrap for shell confinement; macOS uses sandbox-exec (unverified on hardware).
+Windows shell currently fails closed pending a filesystem sandbox; Windows file tools are portable.
+The App matches its native identity/fingerprint to the connected server’s device list and supplies that
+server-assigned slug as chat context; Android and web omit it. The chosen Windows command syntax is cmd.exe /D /S /C. Closing in background mode hides to the tray;
+Quit cancels the core before exiting. No autostart service is installed.
+
+Cargo uses the repository-root workspace/lockfile, containing this App and `native/perch`; the older mesh
+crate remains separate. Run from the root:
+
+```sh
+cargo check --workspace
+cargo test --workspace
+cargo build -p swiftnest-perch --example interop
+SWIFTNEST_PERCH_E2E=1 pnpm vitest run native/perch/test
+```
+
+The interop test starts a real TS Nest and a Rust child, exercises code/fingerprint pairing, tool schemas,
+reads, approval-gated writes, shell cancellation/timeouts, link drops, process restart and changed-key
+refusal. It uses temporary storage only. `native/perch/DESIGN.md` reserves separate authenticated binary
+streams for E2b/E2c without implementing capture, input or large transfers.

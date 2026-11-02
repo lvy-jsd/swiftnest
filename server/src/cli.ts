@@ -10,6 +10,7 @@ Usage:
   swiftnest-server start [--config <file>] [--verbose]
 
 Environment overrides: SWIFTNEST_HOME, SWIFTNEST_HOST, SWIFTNEST_PORT, SWIFTNEST_APP_DIST,
+SWIFTNEST_DEVICES_HOST, SWIFTNEST_DEVICES_PORT, SWIFTNEST_DEVICES_MDNS,
 SWIFTNEST_MODEL_BASE_URL, SWIFTNEST_MODEL_ID, and the key variable named by
 model.apiKeyEnv (default SWIFTNEST_MODEL_API_KEY).`;
 
@@ -44,7 +45,7 @@ async function main(argv: string[]): Promise<number> {
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
-  kernel.child.once("exit", (code) => process.exit(code ?? 1));
+  kernel.child.once("exit", (code) => { void kernel.stop().then(() => process.exit(code ?? 1)); });
   return new Promise(() => {});
 }
 

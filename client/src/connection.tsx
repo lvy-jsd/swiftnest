@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PropsWithChildren } from 'react';
 import { SwiftnestClient } from '@swiftnest/api';
-import type { ClientOptions, SessionSummary } from '@swiftnest/api';
+import type { ClientOptions, Device, SessionSummary } from '@swiftnest/api';
 import { isTauriRuntime } from './runtime';
 
 type Status = 'disconnected' | 'connecting' | 'connected';
@@ -35,6 +35,7 @@ export async function clientOptions(): Promise<ClientOptions> {
 export class ConnectionStore {
   client?: SwiftnestClient;
   private generation = 0;
+  private activeOptions?: ClientOptions;
   private listeners = new Set<() => void>();
   private state: ConnectionState = { status: 'disconnected', root: rememberedRoot(), sessions: [] };
   constructor(private options = clientOptions, private create = (options: ClientOptions) => new SwiftnestClient(options)) {}
@@ -54,7 +55,7 @@ export class ConnectionStore {
       const options = await this.options();
       if (generation !== this.generation) return false;
       const factory = options.createWebSocket ?? ((address: string) => new WebSocket(address));
-      candidate = this.create({ ...options, createWebSocket: (address, init) => {
+      const activeOptions: ClientOptions = { ...options, createWebSocket: (address, init) => {
         const socket = factory(address, init);
         const lost = () => {
           if (generation !== this.generation || this.state.status !== 'connected') return;
@@ -64,7 +65,9 @@ export class ConnectionStore {
         socket.addEventListener('close', lost, { once: true });
         socket.addEventListener('error', lost, { once: true });
         return socket;
-      } });
+      } };
+      this.activeOptions = activeOptions;
+      candidate = this.create(activeOptions);
       this.client = candidate;
       await candidate.connect(url);
       if (generation !== this.generation) { candidate.close(); return false; }
@@ -86,6 +89,17 @@ export class ConnectionStore {
       if (client === this.client) this.update({ sessions: [...sessions].sort((a, b) => b.updatedAt - a.updatedAt), error: undefined });
     } catch { if (client === this.client) this.update({ error: 'loadFailed' }); }
   }
+  /** Match the native identity to this server's assigned namespace, including after pairing/renaming. */
+  async updateDeviceContext(devices: Device[]): Promise<void> {
+    const client = this.client, options = this.activeOptions;
+    if (!client || !options || !isTauriRuntime()) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const local = await invoke<{ desktop: boolean; fingerprint: string; settings: { slug: string } }>('perch_snapshot');
+      if (this.client !== client || this.activeOptions !== options) return;
+      options.deviceSlug = local.desktop ? devices.find(device => device.device === local.settings.slug && device.fingerprint === local.fingerprint)?.slug : undefined;
+    } catch { if (this.activeOptions === options) options.deviceSlug = undefined; }
+  }
   async newChat(): Promise<string | undefined> {
     const client = this.client;
     if (!client || this.state.status !== 'connected') return;
@@ -100,6 +114,7 @@ export class ConnectionStore {
     ++this.generation;
     const previous = this.client;
     this.client = undefined;
+    this.activeOptions = undefined;
     previous?.close();
     this.update({ status: 'disconnected', sessions: [], error: undefined });
   }

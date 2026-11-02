@@ -50,7 +50,7 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
     await new Promise<void>(resolve => model!.listen(0, '127.0.0.1', resolve));
     home = mkdtempSync(join(tmpdir(), 'swiftnest-api-e2e-'));
     kernel = await startKernel(loadConfig(undefined, {
-      SWIFTNEST_HOME: home, SWIFTNEST_PORT: '0', SWIFTNEST_MODEL_ID: 'fake',
+      SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: "0", SWIFTNEST_DEVICES_MDNS: "false", SWIFTNEST_PORT: '0', SWIFTNEST_MODEL_ID: 'fake',
       SWIFTNEST_PERSONA: persona,
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
     }), { readyTimeoutMs: 90_000, onLine: line => { logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')); } });

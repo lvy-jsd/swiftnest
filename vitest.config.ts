@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["client/test/**/*.test.{ts,tsx}", "packages/*/test/**/*.test.ts", "plugins/*/test/**/*.test.ts", "templates/*/test/**/*.test.ts", "server/test/**/*.test.ts", "server/bundle/test/**/*.test.ts"],
+    include: ["native/perch/test/**/*.test.ts", "client/test/**/*.test.{ts,tsx}", "packages/*/test/**/*.test.ts", "plugins/*/test/**/*.test.ts", "templates/*/test/**/*.test.ts", "server/test/**/*.test.ts", "server/bundle/test/**/*.test.ts"],
     testTimeout: 30_000,
   },
 });

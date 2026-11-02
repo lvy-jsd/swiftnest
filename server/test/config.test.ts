@@ -33,6 +33,16 @@ describe("loadConfig", () => {
     expect(() => loadConfig(undefined, { SWIFTNEST_MODEL_BASE_URL: "not a url" })).toThrow(/baseUrl/);
   });
 
+  it('defaults the device listener to the server host and validates its configuration', () => {
+    expect(loadConfig(undefined, { SWIFTNEST_HOST: '192.168.1.20' }).devices).toEqual({ host: '192.168.1.20', port: 7711, mdns: true });
+    const file = join(tmp(), 'devices.yml');
+    writeFileSync(file, 'devices:\n  host: 127.0.0.1\n  port: 0\n  mdns: false\n');
+    expect(loadConfig(file, {}).devices).toEqual({ host: '127.0.0.1', port: 0, mdns: false });
+    expect(() => loadConfig(undefined, { SWIFTNEST_DEVICES_PORT: '-1' })).toThrow('devices.port');
+    writeFileSync(file, 'devices:\n  mdns: bad\n');
+    expect(() => loadConfig(file, {})).toThrow('devices.mdns');
+  });
+
   it("reports a missing config file", () => {
     expect(() => loadConfig("/nonexistent/swiftnest.yaml", {})).toThrow(/not found/);
   });

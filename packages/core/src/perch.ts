@@ -19,6 +19,7 @@ import { PluginHost, type Capability, type SwiftnestPlugin, type ToolOutput } fr
 export interface PerchOptions {
   /** Device name shown to agents as the first part of tool names, e.g. "laptop". */
   device: string;
+  kind?: 'desktop' | 'android';
   identity?: Identity;
   logger?: Logger;
 }
@@ -28,6 +29,7 @@ type Result = z.infer<typeof InvokeResult>;
 
 export class Perch {
   readonly device: string;
+  readonly kind: 'desktop' | 'android';
   readonly identity: Identity;
   readonly logger: Logger;
   private host: PluginHost;
@@ -37,6 +39,7 @@ export class Perch {
 
   constructor(opts: PerchOptions) {
     this.device = opts.device;
+    this.kind = opts.kind ?? 'desktop';
     this.identity = opts.identity ?? generateIdentity();
     this.logger = opts.logger ?? createLogger(`perch:${opts.device}`);
     this.host = new PluginHost("perch", this.logger);
@@ -76,6 +79,7 @@ export class Perch {
       type: "hello" as const,
       protocol: PROTOCOL_VERSION,
       device: this.device,
+      kind: this.kind,
       publicKey: this.identity.publicKey,
       capabilities: this.capabilities(),
     };

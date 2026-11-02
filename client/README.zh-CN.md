@@ -108,3 +108,26 @@ SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/web.e2e.test.ts
 最后清理资源。先构建网页；浏览器无法启动时干净跳过，不会自动下载浏览器。
 可用 `SWIFTNEST_CHROMIUM=/path/to/chrome` 指定系统浏览器。有非回环 IPv4 地址时，也验证明文局域网页面的 UUID 兼容路径。
 单元测试覆盖连接状态、原生适配器、API 事件夹具到聊天记录的转换、路由、翻译、设计尺寸、对比度和动效。
+
+## 此设备（桌面）
+
+**设备 → 此设备** 在 App 进程中运行 `native/perch` Rust 库，不需要 Node。控制与后台运行默认关闭，
+初始不共享文件夹。用服务器设备页的配对码连接，核对两端指纹后使用文件与命令能力。
+完整流程、私钥存储、托盘行为与平台限制见[控制这台电脑](../docs/zh/guide/control-this-computer.md)。
+Android 暂时隐藏此界面。Linux 命令隔离需要 bubblewrap；macOS 使用 sandbox-exec，尚未实机验证。
+Windows 文件工具可移植，但命令执行在文件系统沙箱完成前拒绝运行；选定语法为 cmd.exe /D /S /C。
+App 会将本机身份和指纹与当前服务器设备列表匹配，使用服务器分配的 slug 作为聊天设备上下文；Android 与网页省略此上下文。
+后台模式关闭窗口后隐藏到托盘；退出会取消核心任务。不会安装自启动服务。
+
+Cargo 工作区与锁文件位于仓库根目录，包含桌面 App 和 `native/perch`；旧 mesh crate 保持独立：
+
+```sh
+cargo check --workspace
+cargo test --workspace
+cargo build -p swiftnest-perch --example interop
+SWIFTNEST_PERCH_E2E=1 pnpm vitest run native/perch/test
+```
+
+互通测试启动真实 TS Nest 与 Rust 子进程，覆盖配对指纹、工具发现、读取、审批后写入、命令取消与超时、
+断线重连、进程重启与服务器换钥拒绝。仅使用临时目录。`native/perch/DESIGN.md` 描述 E2b/E2c 的独立加密
+二进制流设计；本任务不实现截屏、输入或大文件传输。

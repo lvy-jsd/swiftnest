@@ -62,6 +62,9 @@ export interface ApiWebSocket {
   removeEventListener<K extends keyof SocketEventMap>(type: K, listener: (event: SocketEventMap[K]) => void): void;
 }
 export interface ClientOptions {
+  /** Paired device this native App connection belongs to. Omit for the server's web App.
+   * Owner-reported context hint; does not grant device permissions. */
+  deviceSlug?: string;
   fetch?: typeof globalThis.fetch;
   /** Required in Node: e.g. (url, {headers}) => new WebSocket(url, {headers}) using `ws`. */
   createWebSocket?: (url: string, options: { headers: Readonly<Record<string, string>> }) => ApiWebSocket;

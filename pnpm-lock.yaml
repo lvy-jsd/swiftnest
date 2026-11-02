@@ -209,6 +209,15 @@ importers:
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
+      '@swiftnest/cap-files':
+        specifier: workspace:*
+        version: link:../plugins/cap-files
+      '@swiftnest/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@swiftnest/link-lan':
+        specifier: workspace:*
+        version: link:../plugins/link-lan
       '@tauri-apps/cli':
         specifier: ^2.12.4
         version: 2.12.4
@@ -226,6 +235,10 @@ importers:
         version: 8.3.5(@types/node@24.19.2)(yaml@2.9.1)
 
   packages/api:
+    dependencies:
+      '@swiftnest/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       '@deepseek-ai/dsh-api-gateway':
         specifier: 0.2.1-rc.5
@@ -359,12 +372,34 @@ importers:
       '@deepseek-ai/dsh':
         specifier: 0.2.1-rc.5
         version: 0.2.1-rc.5(247c2bd3c570ca626972821998009cf6)
+      '@swiftnest/api':
+        specifier: workspace:*
+        version: link:../packages/api
+      '@swiftnest/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@swiftnest/link-lan':
+        specifier: workspace:*
+        version: link:../plugins/link-lan
       '@swiftnest/server-bundle':
         specifier: workspace:*
         version: link:bundle
+      '@swiftnest/surface-mcp':
+        specifier: workspace:*
+        version: link:../plugins/surface-mcp
       yaml:
         specifier: ^2.8.1
         version: 2.9.1
+    devDependencies:
+      '@swiftnest/cap-files':
+        specifier: workspace:*
+        version: link:../plugins/cap-files
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
     optionalDependencies:
       '@swiftnest/app':
         specifier: workspace:*

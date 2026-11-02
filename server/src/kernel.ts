@@ -8,6 +8,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { startDevices } from "./devices.js";
 import type { ServerConfig } from "./config.js";
 import { PROFILE_NAME, dshHome, profileDir, writeProfile } from "./profile.js";
 
@@ -46,6 +47,7 @@ export interface RunningKernel {
   /** Per-process launch token; trades for a session cookie at `/` or `/connect`. */
   token: string;
   child: ChildProcess;
+  devices: Awaited<ReturnType<typeof startDevices>>;
   stop(): Promise<void>;
 }
 
@@ -75,7 +77,9 @@ export function parseReadyLine(line: string): { url: string; token: string } | u
 
 export async function startKernel(config: ServerConfig, opts: StartOptions = {}): Promise<RunningKernel> {
   const paths = resolveKernel();
-  writeProfile(config, { bundleDir: paths.bundleDir });
+  const devices = await startDevices(config);
+  try { writeProfile(config, { bundleDir: paths.bundleDir }); }
+  catch (error) { await devices.close(); throw error; }
   const args = [
     paths.dshBin,
     "--profile",
@@ -93,6 +97,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     env: {
       ...process.env,
       ...opts.env,
+      ...devices.env,
       DSH_HOME: dshHome(config),
       SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
@@ -103,13 +108,16 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  const stop = () =>
+  child.once("exit", () => { void devices.close(); });
+  const stopChild = () =>
     new Promise<void>((resolveStop) => {
-      if (child.exitCode !== null || child.signalCode !== null) return resolveStop();
+      if (!child.pid || child.exitCode !== null || child.signalCode !== null) return resolveStop();
       child.once("exit", () => resolveStop());
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 5000).unref();
     });
+
+  const stop = async () => { await stopChild(); await devices.close(); };
 
   return new Promise<RunningKernel>((resolveStart, rejectStart) => {
     let settled = false;
@@ -119,11 +127,10 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      void stop();
       const hint = tail.some((l) => l.includes("node-addon-require-builtin"))
         ? "\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary."
         : "";
-      rejectStart(new Error(`${err.message}${hint}\n--- kernel output ---\n${tail.join("\n")}`));
+      void stop().then(() => rejectStart(new Error(`${err.message}${hint}\n--- kernel output ---\n${tail.join("\n")}`)));
     };
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/\r?\n/)) {
@@ -135,7 +142,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
         if (ready) {
           settled = true;
           clearTimeout(timer);
-          resolveStart({ ...ready, child, stop });
+          resolveStart({ ...ready, child, devices, stop });
         }
       }
     };

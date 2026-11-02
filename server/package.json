@@ -4,16 +4,37 @@
   "description": "Swiftnest Server: runs a pinned DeepSeek Harness kernel with Swiftnest's built-in modules.",
   "license": "Apache-2.0",
   "type": "module",
-  "bin": { "swiftnest-server": "./dist/cli.js" },
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "build": "tsc -b", "start": "node dist/cli.js start" },
+  "bin": {
+    "swiftnest-server": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/cli.js start"
+  },
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.5",
     "@swiftnest/server-bundle": "workspace:*",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/link-lan": "workspace:*",
+    "@swiftnest/surface-mcp": "workspace:*",
+    "@swiftnest/api": "workspace:*"
   },
   "optionalDependencies": {
     "@swiftnest/app": "workspace:*"
+  },
+  "devDependencies": {
+    "@swiftnest/cap-files": "workspace:*",
+    "ws": "^8.22.0",
+    "@types/ws": "^8.18.2"
   }
 }

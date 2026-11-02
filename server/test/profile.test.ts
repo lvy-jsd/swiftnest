@@ -163,3 +163,10 @@ describe("kernel output and pairing", () => {
     expect(resolveAppDist(() => { throw new Error('not installed'); })).toBeUndefined();
   });
 });
+
+
+it('does not generate a device MCP bridge', () => {
+  const { config, bundleDir } = setup();
+  const dir = writeProfile(config, { bundleDir });
+  expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).not.toMatch(/devices-mcp|dsh-mcp-client|DEVICES_MCP_TOKEN/);
+});

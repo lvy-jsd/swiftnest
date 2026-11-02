@@ -11,5 +11,5 @@
     "emitDeclarationOnly": true
   },
   "include": ["src", "test", "vite.config.ts"],
-  "references": [{ "path": "../packages/api" }, { "path": "../server" }]
+  "references": [{ "path": "../packages/api" }, { "path": "../server" }, { "path": "../plugins/cap-files" }]
 }

@@ -98,3 +98,5 @@ swiftnest revoke laptop               # disconnect now and forget it; it has to 
 | `NEST_KEY_CHANGED` | the Nest at that address is not the one you paired with (reinstalled, or someone impersonating it): check, then pair again |
 | `PAIRING_CLOSED` | the Nest is not pairing right now: run `swiftnest pair` first and use the code within 5 minutes |
 | `NEST_NOT_RUNNING` | `swiftnest pair` and friends cannot find a running Nest: start `swiftnest nest` first |
+
+For the Node-free desktop App flow, see [Control this computer](./control-this-computer). The central Server hosts the Nest; the App hosts only its local Perch.

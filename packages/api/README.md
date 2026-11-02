@@ -56,3 +56,33 @@ server policy. Pairing tokens and cookies are secrets: do not log or persist the
 
 Tests: `pnpm test`; real chat acceptance: `SWIFTNEST_E2E=1 pnpm vitest run packages/api server`.
 Protocol findings: [DSH integration](../../docs/en/dev/dsh-integration.md#swiftnestapi).
+
+
+## Devices and approvals
+
+After `connect()`, `listDevices()` includes online and paired offline devices. `createDevicePairing()`
+returns a five-minute code, LAN dial URL and server fingerprint; `listDevicePairings()` and
+`confirmDevicePairing(id, accept)` handle the owner's fingerprint confirmation. `revokeDevice(name)`
+disconnects and forgets a device.
+
+Use `listDeviceApprovals()` for pending raw-argument tasks and `answerDeviceApproval(id, accept)` for
+an owner decision. A stale decision rejects with `ApiError.code === 'device-conflict'`. These methods
+use the App's session, never MCP. `deviceAudit(limit)` returns recent raw-argument audit entries.
+
+```ts
+const changes = await client.watchDevices({ signal });
+try {
+  for await (const event of changes) {
+    // Events invalidate snapshots; fetch both on initial subscription and reconnection too.
+    const devices = await client.listDevices();
+    const approvals = await client.listDeviceApprovals();
+    render({ event, devices, approvals });
+  }
+} finally {
+  changes.close();
+}
+```
+
+`watchDevices()` is a fetch-based SSE stream compatible with browser cookies and the native carrier.
+Caller abort, iterator return and `client.close()` release the reader. Reconnect the stream if it ends;
+mutating requests are never retried automatically. See [Devices](../../docs/en/guide/devices.md).

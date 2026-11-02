@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ApiWebSocket, ClientOptions, SwiftnestClient } from '@swiftnest/api';
+import type { ApiWebSocket, ClientOptions, Device, SwiftnestClient } from '@swiftnest/api';
 import { ConnectionStore, ROOT_KEY, clientOptions, serverRoot } from '../src/connection';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -69,6 +69,25 @@ describe('connection store', () => {
   });
   it('keeps ordinary web carrier native-free', async () => {
     expect(await clientOptions()).toEqual({ cookieMode: 'browser' });
+  });
+
+  it('reports only this server’s namespace for the native identity and clears it on revoke or Android', async () => {
+    let active: ClientOptions = {};
+    const invoke = vi.fn(async () => ({ desktop: true, fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } }));
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: { invoke } });
+    const store = new ConnectionStore(async () => ({}), options => {
+      active = options;
+      return { connect: async () => {}, listSessions: async () => [], close: () => {} } as unknown as SwiftnestClient;
+    });
+    expect(await store.pair(url)).toBe(true);
+    const device = { device: 'own-device', fingerprint: 'different', slug: 'server-slug' } as Device;
+    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBeUndefined();
+    device.fingerprint = 'own-fingerprint';
+    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBe('server-slug');
+    await store.updateDeviceContext([]); expect(active.deviceSlug).toBeUndefined();
+    invoke.mockResolvedValueOnce({ desktop: false, fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
+    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBeUndefined();
+    store.disconnect();
   });
 
   it('reports socket loss even with no open chat and disposes the client', async () => {

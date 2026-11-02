@@ -119,3 +119,15 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--color-accent);
   .button:active:not(:disabled) { transform: none; }
 }
 :root[data-reduce-motion="true"] .button:active:not(:disabled) { transform: none; }
+
+.devices-link { display: inline-flex; align-items: center; min-height: var(--min-target); }
+.device-card { min-width: 0; margin-bottom: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); overflow-wrap: anywhere; }
+.device-card pre, .sheet__content pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 32dvh; overflow: auto; }
+.device-actions, .approval-banner { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-md); }
+.approval-banner { padding: var(--space-sm) var(--page-gutter); background: var(--color-surface2); }
+.device-online { color: var(--color-success); }
+.pairing-code { font: var(--type-large-title-size) ui-monospace, monospace; letter-spacing: var(--space-xs); }
+.this-device { flex-shrink: 0; }
+.this-device input { min-width: 0; width: 100%; }
+.this-device input[type="checkbox"] { width: var(--min-target); height: var(--min-target); flex-shrink: 0; }
+.shared-folder { flex: 1; min-width: 0; overflow-wrap: anywhere; }
