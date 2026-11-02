@@ -34,6 +34,10 @@ describe('server device hub', () => {
     expect(new Date(pairing.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(300_000);
     expect((await api('/audit?limit=-1')).status).toBe(400);
     expect((await api('/approve', 'POST')).status).toBe(404);
+    expect((await api('/preferences', 'DELETE')).status).toBe(405);
+    const call = (body: string) => fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/control/devices/call`, { method: 'POST', body, headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` } });
+    expect((await call('not json')).status).toBe(400);
+    expect((await call('{"name":"device__nope__files_read","args":{}}')).status).toBe(404);
     expect((await readFile(join(home, 'devices/identity.pem'), 'utf8'))).toContain('PRIVATE KEY');
   });
 
