@@ -1,2 +1,3 @@
 .build/
-src-tauri/gen/
+src-tauri/gen/*
+!src-tauri/gen/android/

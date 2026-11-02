@@ -33,7 +33,7 @@ SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 阶段 0 刷新或断线后需要“重新配对”，不会自动重发消息或重试写入。重新打开聊天时恢复服务器最近的记录；
 更早历史分页和交互式审批/问题控件留待后续。
 
-桌面环境由 `isTauriRuntime()` 检测后动态加载 `src/nativeTransport.ts`，网页不会加载 Tauri 模块。
+桌面和 Android 环境由 `isTauriRuntime()` 检测后动态加载 `src/nativeTransport.ts`，网页不会加载 Tauri 模块。
 使用官方 HTTP/WebSocket 插件和手动 Cookie。HTTP 设置 `maxRedirections: 0`、启用 `unsafe-headers`，
 并传入空 Origin（插件提供的显式关闭 WebView Origin 注入方式）。Rust HTTP 关闭默认特性，避免共享 Cookie jar，
 仍验证 TLS 证书。原生 WebSocket 握手携带 API Cookie。服务器的来源与 fetch-site 校验保持原样，
@@ -43,12 +43,55 @@ SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 路径限定为 `/connect`、`/api/*`、`/swiftnest/health`；局域网主机无法预先枚举。
 官方 WebSocket 插件当前没有 URL 范围配置，因此只授予必要的 `allow-connect`、`allow-send`，
 应用根据配对后的根地址派生连接地址。没有添加文件系统、Shell 或导航权限。
-上述 HTTP 范围对应服务器根路径部署；桌面若使用带路径前缀的反向代理，需要明确调整能力范围。
+上述 HTTP 范围对应服务器根路径部署；原生应用若使用带路径前缀的反向代理，需要明确调整能力范围。
 
 桌面开发使用 `pnpm --filter @swiftnest/app tauri dev`，不属于检查命令。Linux 依赖由 Nix 提供，
-Windows 需要 Rust/MSVC 与 WebView2。Android 打包和真机性能测试留待后续。
+Windows 需要 Rust/MSVC 与 WebView2。
 保留中英切换、系统/明暗主题、强调色、减少动态/透明效果和无障碍弹层；600 像素起双栏、1024 像素起桌面侧栏，
 支持 Alt+左方向键返回及手机左边缘滑动返回。
+
+## Android（arm64 调试 APK）
+
+在仓库根目录执行：
+
+```sh
+nix develop .#android
+pnpm install --frozen-lockfile
+pnpm build
+# 工程已初始化并纳入版本管理，仅新增目标时需要：
+# pnpm --filter @swiftnest/app tauri android init
+pnpm --filter @swiftnest/app tauri icon src-tauri/icons/source.svg
+pnpm --filter @swiftnest/app tauri android build --debug --target aarch64 --apk
+```
+
+应用 ID 为 `dev.swiftnest.app`，支持 Android 7/API 24 及以上。APK 相对于 `client/` 位于
+`src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`。
+虽然目录名为 universal，仅选择 `aarch64` 时只包含 `arm64-v8a`。使用本地调试签名，仅用于测试。
+构建产物、生成的 JNI/Kotlin 桥接代码、本机 Gradle 配置和 SDK/签名设置已忽略；
+Gradle wrapper、构建脚本、清单、Activity 和资源应纳入版本管理。不要重新初始化并覆盖已定制的工程。
+
+Android 开发环境提供 JDK 17、Rust Android targets、SDK/API 36、Build Tools 36.0.0、NDK 27.2，
+并通过 `GRADLE_OPTS` 使用 SDK 的
+`aapt2`。NixOS 上调用 Tauri/Gradle 时需保留该变量，Gradle 从 Maven 下载的 `aapt2` 无法直接运行。
+首次构建会下载 Gradle 和 Maven 依赖。Android shell 通过官方 Node 的 Corepack 包装 `pnpm`，
+让 Tauri 构建钩子和 Gradle 任务也使用仓库锁定版本，避免 Nix 独立启动器缺少平台二进制的问题。
+如果旧 shell 只有 API 34/35，更新仓库后应重新进入 `nix develop .#android`。
+生成模板默认的 API 37 已调整为 API 36，与 Tauri Android 库和仓库开发环境保持一致。
+
+局域网聊天：服务器用 `SWIFTNEST_HOST=<服务器的具体局域网 IP>` 启动，将其输出的
+`http://192.168.x.y:<端口>/connect?token=…` 配对链接粘贴到 APK 的“配对服务器”，再选择“新建聊天”并发送。
+手机需要在同一可信局域网内访问服务器端口。HTTP 和带认证 Cookie 的 WebSocket 与桌面共用原生传输，
+服务器跨源校验保持启用。共用能力配置没有平台限制，同样匹配 Android 的本地 `main` 窗口。
+
+`network_security_config.xml` 为阶段 0 的局域网配对允许明文，包括调试和发布构建。
+用户选择的 IP 无法在构建时枚举，Android 域名规则也不能表达私有 IP CIDR，因此需要应用级例外。
+已有原生 HTTP 路径范围和仅本地 IPC 的限制仍然生效，TLS 证书校验不变。仅在可信网络使用；
+阶段 2 增加加密传输时应移除此例外。
+
+Activity 将系统栏、挖孔和键盘的 insets 应用到整个 WebView，并消费这些 insets，避免 CSS 重复留白，
+同时设置 `adjustResize`。网页继续使用 CSS safe area 和 `100dvh`。
+Android 系统返回先关闭偏好设置，再从详情/配对返回聊天列表，仅首页退出；键盘显示时先由系统正常收起。
+仍需真机检查手势/三键导航、旋转/挖孔、键盘显隐、局域网配对和流式聊天；浏览器视口测试不能验证 Android 输入法。
 
 检查无需启动或打包 Tauri：
 
