@@ -15,16 +15,16 @@ pnpm test         # 跑全部测试（直接测源码，不用先编译）
 
 ## 仓库结构
 
-| 目录 | 内容 |
-|---|---|
-| `packages/protocol` | 各组件共用的数据格式（zod） |
-| `packages/core` | 核心：插件宿主、身份、能力注册、权限代理、审计、任务状态机、服务器和设备 |
-| `packages/sdk` | 写插件用的开发包，带模拟服务器和模拟设备 |
-| `packages/cli` | `swiftnest` 命令行 |
-| `packages/create-swiftnest-plugin` | `npm create swiftnest-plugin` |
-| `plugins/*` | 官方插件，和社区插件地位相同 |
-| `templates/*` | 插件模板 |
-| `docs/zh`、`docs/en` | 中英文档 |
+| 目录                               | 内容                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `packages/protocol`                | 各组件共用的数据格式（zod）                                              |
+| `packages/core`                    | 核心：插件宿主、身份、能力注册、权限代理、审计、任务状态机、服务器和设备 |
+| `packages/sdk`                     | 写插件用的开发包，带模拟服务器和模拟设备                                 |
+| `packages/cli`                     | `swiftnest` 命令行                                                       |
+| `packages/create-swiftnest-plugin` | `npm create swiftnest-plugin`                                            |
+| `plugins/*`                        | 官方插件，和社区插件地位相同                                             |
+| `templates/*`                      | 插件模板                                                                 |
+| `docs/zh`、`docs/en`               | 中英文档                                                                 |
 
 ## 写插件
 

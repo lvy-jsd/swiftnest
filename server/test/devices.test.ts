@@ -10,14 +10,25 @@ import { startDevices, ADMIN_TOKEN_ENV, ADMIN_URL_ENV, MCP_TOKEN_ENV } from '../
 import { startKernel } from '../src/kernel.js';
 
 const cleanup: (() => Promise<unknown>)[] = [];
-afterEach(async () => { for (const fn of cleanup.splice(0).reverse()) await fn(); });
+afterEach(async () => {
+  for (const fn of cleanup.splice(0).reverse()) await fn();
+});
 async function setup() {
   const home = await mkdtemp(join(tmpdir(), 'swiftnest-hub-'));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
-  const config = loadConfig(undefined, { SWIFTNEST_LANG: "en", SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false' });
+  const config = loadConfig(undefined, {
+    SWIFTNEST_LANG: 'en',
+    SWIFTNEST_HOME: home,
+    SWIFTNEST_DEVICES_PORT: '0',
+    SWIFTNEST_DEVICES_MDNS: 'false',
+  });
   const hub = await startDevices(config);
   cleanup.push(hub.close);
-  const api = (path = '', method = 'GET', auth = hub.env[ADMIN_TOKEN_ENV]) => fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, { method, headers: { authorization: `Bearer ${auth}` } });
+  const api = (path = '', method = 'GET', auth = hub.env[ADMIN_TOKEN_ENV]) =>
+    fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, {
+      method,
+      headers: { authorization: `Bearer ${auth}` },
+    });
   return { home, config, hub, api };
 }
 
@@ -27,26 +38,40 @@ describe('server device hub', () => {
     expect((await api('', 'GET', 'bad')).status).toBe(401);
     expect((await api('', 'GET', hub.env[MCP_TOKEN_ENV])).status).toBe(401);
     expect((await fetch(hub.mcpUrl, { method: 'POST' })).status).toBe(401);
-    expect((await fetch(hub.mcpUrl, { headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` } })).status).toBe(401);
+    expect((await fetch(hub.mcpUrl, { headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` } })).status).toBe(
+      401,
+    );
     expect(await (await api()).json()).toEqual([]);
     const pairing = await (await api('/pairing', 'POST')).json();
-    expect(pairing).toMatchObject({ code: expect.stringMatching(/^\d{6}$/), url: hub.lanUrl, fingerprint: hub.nest.identity.fingerprint });
+    expect(pairing).toMatchObject({
+      code: expect.stringMatching(/^\d{6}$/),
+      url: hub.lanUrl,
+      fingerprint: hub.nest.identity.fingerprint,
+    });
     expect(new Date(pairing.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(300_000);
     expect((await api('/audit?limit=-1')).status).toBe(400);
     expect((await api('/approve', 'POST')).status).toBe(404);
     expect((await api('/preferences', 'DELETE')).status).toBe(405);
-    const call = (body: string) => fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/control/devices/call`, { method: 'POST', body, headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` } });
+    const call = (body: string) =>
+      fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/control/devices/call`, {
+        method: 'POST',
+        body,
+        headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` },
+      });
     expect((await call('not json')).status).toBe(400);
     expect((await call('{"name":"device__nope__files_read","args":{}}')).status).toBe(404);
-    expect((await readFile(join(home, 'devices/identity.pem'), 'utf8'))).toContain('PRIVATE KEY');
+    expect(await readFile(join(home, 'devices/identity.pem'), 'utf8')).toContain('PRIVATE KEY');
   });
 
   it('cleans up listeners when the kernel cannot spawn', async () => {
     const { hub, config } = await setup();
     config.devices.port = Number(new URL(hub.lanUrl).port);
     await hub.close();
-    await expect(startKernel(config, { node: '/missing-swiftnest-node', readyTimeoutMs: 1000 })).rejects.toThrow('ENOENT');
-    const reopened = await startDevices(config); cleanup.push(reopened.close);
+    await expect(startKernel(config, { node: '/missing-swiftnest-node', readyTimeoutMs: 1000 })).rejects.toThrow(
+      'ENOENT',
+    );
+    const reopened = await startDevices(config);
+    cleanup.push(reopened.close);
     expect(reopened.lanUrl).toBe(hub.lanUrl);
   });
 
@@ -59,8 +84,15 @@ describe('server device hub', () => {
     const pairing = await (await api('/pairing', 'POST')).json();
     const perch = await new Perch({ device: 'test' }).use(files, { roots: [home] });
     cleanup.push(() => perch.close());
-    const run = runLanPerch(perch, { url: pairing.url, reconnect: false, pairing: { code: pairing.code, confirm: async () => true } });
-    cleanup.push(async () => { run.stop(); await run.finished; });
+    const run = runLanPerch(perch, {
+      url: pairing.url,
+      reconnect: false,
+      pairing: { code: pairing.code, confirm: async () => true },
+    });
+    cleanup.push(async () => {
+      run.stop();
+      await run.finished;
+    });
     await expect.poll(() => hub.nest.pairing.pending().length).toBe(1);
     expect(hub.nest.devices()).toHaveLength(0);
     const candidate = (await (await api('/pairing')).json())[0];
@@ -70,7 +102,9 @@ describe('server device hub', () => {
     const args = { path: join(home, 'hello'), content: 'approved content' };
     const task = await hub.nest.call('test__files__write', args, { id: 'test-client', name: 'Test requester' });
     const pending = await (await api('/approvals')).json();
-    expect(pending).toMatchObject([{ id: task.id, risk: 'write', args, client: { id: 'test-client' }, reason: expect.any(String) }]);
+    expect(pending).toMatchObject([
+      { id: task.id, risk: 'write', args, client: { id: 'test-client' }, reason: expect.any(String) },
+    ]);
     expect((await api(`/approvals/${task.id}/approve`, 'POST')).status).toBe(200);
     expect((await hub.nest.tasks.wait(task.id, 3000)).state).toBe('succeeded');
     expect(await readFile(args.path, 'utf8')).toBe(args.content);
@@ -79,25 +113,49 @@ describe('server device hub', () => {
     expect((await api(`/approvals/${denied.id}/deny`, 'POST')).status).toBe(200);
     expect(hub.nest.tasks.get(denied.id)?.state).toBe('denied');
     expect(await readFile(args.path, 'utf8')).toBe(args.content);
-    expect(await (await api('/audit')).json()).toEqual(expect.arrayContaining([expect.objectContaining({ taskId: task.id, state: 'succeeded', args }), expect.objectContaining({ taskId: denied.id, state: 'denied' })]));
+    expect(await (await api('/audit')).json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ taskId: task.id, state: 'succeeded', args }),
+        expect.objectContaining({ taskId: denied.id, state: 'denied' }),
+      ]),
+    );
     const push = new TextDecoder().decode((await reader.read()).value);
     expect(push).toContain('pairing-changed');
-    run.stop(); await run.finished;
+    run.stop();
+    await run.finished;
     await expect.poll(() => hub.nest.devices().length).toBe(0);
     const offline = (await (await api()).json())[0];
-    expect(offline).toMatchObject({ online: false, paired: true, device: 'test', via: 'lan', lastSeen: expect.any(String), capabilities: [expect.objectContaining({ id: 'files' })] });
+    expect(offline).toMatchObject({
+      online: false,
+      paired: true,
+      device: 'test',
+      via: 'lan',
+      lastSeen: expect.any(String),
+      capabilities: [expect.objectContaining({ id: 'files' })],
+    });
     const key = hub.nest.identity.publicKey;
-    const beforeRestart = await fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/control/devices`, { headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` } }).then(r => r.json());
+    const beforeRestart = await fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/control/devices`, {
+      headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` },
+    }).then((r) => r.json());
     await reader.cancel();
     await hub.close();
-    const reopened = await startDevices(config); cleanup.push(reopened.close);
+    const reopened = await startDevices(config);
+    cleanup.push(reopened.close);
     expect(reopened.nest.identity.publicKey).toBe(key);
     expect(reopened.nest.devicesStore.list()).toHaveLength(1);
-    const result = await fetch(`${reopened.env[ADMIN_URL_ENV]}/swiftnest/api/devices`, { headers: { authorization: `Bearer ${reopened.env[ADMIN_TOKEN_ENV]}` } });
-    expect(await result.json()).toMatchObject([{ online: false, lastSeen: offline.lastSeen, capabilities: offline.capabilities }]);
-    const afterRestart = await fetch(`${reopened.env[ADMIN_URL_ENV]}/swiftnest/control/devices`, { headers: { authorization: `Bearer ${reopened.env[ADMIN_TOKEN_ENV]}` } }).then(r => r.json());
+    const result = await fetch(`${reopened.env[ADMIN_URL_ENV]}/swiftnest/api/devices`, {
+      headers: { authorization: `Bearer ${reopened.env[ADMIN_TOKEN_ENV]}` },
+    });
+    expect(await result.json()).toMatchObject([
+      { online: false, lastSeen: offline.lastSeen, capabilities: offline.capabilities },
+    ]);
+    const afterRestart = await fetch(`${reopened.env[ADMIN_URL_ENV]}/swiftnest/control/devices`, {
+      headers: { authorization: `Bearer ${reopened.env[ADMIN_TOKEN_ENV]}` },
+    }).then((r) => r.json());
     expect(afterRestart.tools).toEqual(beforeRestart.tools);
-    expect(afterRestart.tools).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'device__test__files_read', risk: 'read' })]));
+    expect(afterRestart.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'device__test__files_read', risk: 'read' })]),
+    );
     await reopened.nest.revoke('test');
     expect(reopened.nest.devicesStore.list()).toEqual([]);
   });
@@ -105,20 +163,42 @@ describe('server device hub', () => {
 
 it('migrates E1 offline tool names without requiring a Perch reconnect or changing lastSeen', async () => {
   const { home, config, hub } = await setup();
-  const perch = new Perch({ device: 'legacy' }); cleanup.push(() => perch.close());
+  const perch = new Perch({ device: 'legacy' });
+  cleanup.push(() => perch.close());
   const lastSeen = '2026-10-30T12:00:00.000Z';
   await hub.nest.devicesStore.add({ device: 'legacy', publicKey: perch.identity.publicKey, pairedAt: lastSeen });
   await hub.close();
-  await writeFile(join(home, 'devices/seen.json'), JSON.stringify({ legacy: {
-    device: 'legacy', online: true, paired: true, fingerprint: perch.identity.fingerprint, lastSeen,
-    capabilities: [{ id: 'files', version: '1.0.0', tools: ['read'] }],
-  } }));
-  const reopened = await startDevices(config); cleanup.push(reopened.close);
+  await writeFile(
+    join(home, 'devices/seen.json'),
+    JSON.stringify({
+      legacy: {
+        device: 'legacy',
+        online: true,
+        paired: true,
+        fingerprint: perch.identity.fingerprint,
+        lastSeen,
+        capabilities: [{ id: 'files', version: '1.0.0', tools: ['read'] }],
+      },
+    }),
+  );
+  const reopened = await startDevices(config);
+  cleanup.push(reopened.close);
   const headers = { authorization: `Bearer ${reopened.env[ADMIN_TOKEN_ENV]}` };
   const url = `${reopened.env[ADMIN_URL_ENV]}/swiftnest/control/devices`;
-  const snapshot = await fetch(url, { headers }).then(r => r.json());
-  expect(snapshot).toMatchObject({ devices: [{ slug: 'legacy', online: false, lastSeen }], tools: [{ name: 'device__legacy__files_read', risk: 'sensitive' }] });
-  const result = await fetch(`${url}/call`, { method: 'POST', headers, body: JSON.stringify({ name: 'device__legacy__files_read', args: {} }) });
+  const snapshot = await fetch(url, { headers }).then((r) => r.json());
+  expect(snapshot).toMatchObject({
+    devices: [{ slug: 'legacy', online: false, lastSeen }],
+    tools: [{ name: 'device__legacy__files_read', risk: 'sensitive' }],
+  });
+  const result = await fetch(`${url}/call`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name: 'device__legacy__files_read', args: {} }),
+  });
   expect(result.status).toBe(409);
-  expect(await result.json()).toMatchObject({ error: `device legacy is offline (last seen ${lastSeen})`, code: expect.any(String), hint: expect.any(String) });
+  expect(await result.json()).toMatchObject({
+    error: `device legacy is offline (last seen ${lastSeen})`,
+    code: expect.any(String),
+    hint: expect.any(String),
+  });
 });

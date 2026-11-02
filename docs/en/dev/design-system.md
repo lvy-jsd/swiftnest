@@ -21,13 +21,13 @@ Every rule below should be checkable: tokens live in `client/src/design/tokens.t
 
 There are exactly five. A new screen picks one; it does not invent a sixth.
 
-| Skeleton | Use | Header | Body |
-|---|---|---|---|
-| Hub | Home: chats, bots, devices | Large title, avatar button on the right | Grouped list of cards |
-| Detail | One chat, one bot, one device | Back, title + subtitle, one trailing action | Content fills the width |
-| List | Search results, history, plugins | Back, title, search field | Virtualized rows |
-| Form | Settings, pairing, bot editor | Back, title, Save (primary) | Groups of fields |
-| Sheet | Confirmations, approvals, pickers | Grabber, title | Short content, actions at the bottom |
+| Skeleton | Use                               | Header                                      | Body                                 |
+| -------- | --------------------------------- | ------------------------------------------- | ------------------------------------ |
+| Hub      | Home: chats, bots, devices        | Large title, avatar button on the right     | Grouped list of cards                |
+| Detail   | One chat, one bot, one device     | Back, title + subtitle, one trailing action | Content fills the width              |
+| List     | Search results, history, plugins  | Back, title, search field                   | Virtualized rows                     |
+| Form     | Settings, pairing, bot editor     | Back, title, Save (primary)                 | Groups of fields                     |
+| Sheet    | Confirmations, approvals, pickers | Grabber, title                              | Short content, actions at the bottom |
 
 ## 3. Layout
 

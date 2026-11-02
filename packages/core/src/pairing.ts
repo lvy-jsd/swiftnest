@@ -6,11 +6,11 @@
  * man in the middle could guess a 6-digit code offline from what it relays. So both people then compare short
  * fingerprints — the Nest shows the device's, the device shows the Nest's — and both must say yes.
  */
-import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { SwiftnestFailure } from "./errors.js";
-import { fingerprintOf } from "./identity.js";
+import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { SwiftnestFailure } from './errors.js';
+import { fingerprintOf } from './identity.js';
 
 export interface PairedDevice {
   device: string;
@@ -22,10 +22,17 @@ export interface PairedDevice {
   kind: 'desktop' | 'android';
 }
 
-export type PairingRecord = Omit<PairedDevice, 'slug' | 'name' | 'kind'> & Partial<Pick<PairedDevice, 'slug' | 'name' | 'kind'>>;
+export type PairingRecord = Omit<PairedDevice, 'slug' | 'name' | 'kind'> &
+  Partial<Pick<PairedDevice, 'slug' | 'name' | 'kind'>>;
 
 export function deviceSlug(name: string, used: Iterable<string> = []): string {
-  const base = name.normalize('NFKD').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'device';
+  const base =
+    name
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24) || 'device';
   const taken = new Set(used);
   let slug = base;
   for (let n = 2; taken.has(slug); n++) {
@@ -46,10 +53,17 @@ export interface DeviceStore {
 export class MemoryDeviceStore implements DeviceStore {
   protected entries = new Map<string, PairedDevice>();
   private listeners = new Set<() => void>();
-  onChange(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
-  protected changed() { for (const fn of this.listeners) fn(); }
+  onChange(fn: () => void) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+  protected changed() {
+    for (const fn of this.listeners) fn();
+  }
   list() {
-    return [...this.entries.values()].map(d => ({ ...d }));
+    return [...this.entries.values()].map((d) => ({ ...d }));
   }
   get(device: string) {
     const entry = this.entries.get(device);
@@ -57,10 +71,21 @@ export class MemoryDeviceStore implements DeviceStore {
   }
   async add(entry: PairingRecord) {
     const previous = this.entries.get(entry.device);
-    const used = this.list().filter(d => d.device !== entry.device).map(d => d.slug!);
+    const used = this.list()
+      .filter((d) => d.device !== entry.device)
+      .map((d) => d.slug!);
     const requested = entry.slug;
-    const slug = previous?.slug ?? (requested && /^[a-z0-9_-]{1,24}$/.test(requested) && !used.includes(requested) ? requested : deviceSlug(entry.name ?? entry.device, used));
-    this.entries.set(entry.device, { ...entry, slug, name: entry.name ?? previous?.name ?? entry.device, kind: entry.kind ?? previous?.kind ?? 'desktop' });
+    const slug =
+      previous?.slug ??
+      (requested && /^[a-z0-9_-]{1,24}$/.test(requested) && !used.includes(requested)
+        ? requested
+        : deviceSlug(entry.name ?? entry.device, used));
+    this.entries.set(entry.device, {
+      ...entry,
+      slug,
+      name: entry.name ?? previous?.name ?? entry.device,
+      kind: entry.kind ?? previous?.kind ?? 'desktop',
+    });
     this.changed();
   }
   async remove(device: string) {
@@ -80,22 +105,32 @@ export class JsonDeviceStore extends MemoryDeviceStore {
   static async open(path: string): Promise<JsonDeviceStore> {
     const store = new JsonDeviceStore(path);
     try {
-      const raw = JSON.parse(await readFile(path, "utf8")) as { devices?: PairingRecord[] };
+      const raw = JSON.parse(await readFile(path, 'utf8')) as { devices?: PairingRecord[] };
       // Reserve valid existing slugs before assigning namespaces to legacy records.
       const records = raw.devices ?? [];
-      const reserved = new Set(records.map(d => d.slug).filter((s): s is string => !!s && /^[a-z0-9_-]{1,24}$/.test(s)));
+      const reserved = new Set(
+        records.map((d) => d.slug).filter((s): s is string => !!s && /^[a-z0-9_-]{1,24}$/.test(s)),
+      );
       const assigned = new Set<string>();
       let migrated = false;
       for (const d of records) {
-        const slug = d.slug && /^[a-z0-9_-]{1,24}$/.test(d.slug) && !assigned.has(d.slug) ? d.slug : deviceSlug(d.name ?? d.device, [...reserved, ...assigned]);
+        const slug =
+          d.slug && /^[a-z0-9_-]{1,24}$/.test(d.slug) && !assigned.has(d.slug)
+            ? d.slug
+            : deviceSlug(d.name ?? d.device, [...reserved, ...assigned]);
         assigned.add(slug);
-        const entry = { ...d, slug, name: d.name ?? d.device, kind: d.kind ?? 'desktop' as const };
+        const entry = { ...d, slug, name: d.name ?? d.device, kind: d.kind ?? ('desktop' as const) };
         store.entries.set(d.device, entry);
         migrated ||= JSON.stringify(entry) !== JSON.stringify(d);
       }
       if (migrated) await store.save();
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw new SwiftnestFailure("STORE_CORRUPT", `Cannot read the paired devices file ${path}.`, "Fix or delete the file; deleting it means pairing every device again.");
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT')
+        throw new SwiftnestFailure(
+          'STORE_CORRUPT',
+          `Cannot read the paired devices file ${path}.`,
+          'Fix or delete the file; deleting it means pairing every device again.',
+        );
     }
     return store;
   }
@@ -112,7 +147,7 @@ export class JsonDeviceStore extends MemoryDeviceStore {
   }
 
   private save(): Promise<void> {
-    const data = JSON.stringify({ devices: this.list() }, null, 2) + "\n";
+    const data = JSON.stringify({ devices: this.list() }, null, 2) + '\n';
     const saved = this.writes.then(async () => {
       await mkdir(dirname(this.path), { recursive: true });
       const tmp = `${this.path}.tmp`;
@@ -126,7 +161,7 @@ export class JsonDeviceStore extends MemoryDeviceStore {
 
 /** HMAC the device sends instead of the code: bound to this session's handshake transcript. */
 export function pairingProof(code: string, transcriptHash: Buffer): string {
-  return createHmac("sha256", code).update("swiftnest/pair/v1\0").update(transcriptHash).digest("base64url");
+  return createHmac('sha256', code).update('swiftnest/pair/v1\0').update(transcriptHash).digest('base64url');
 }
 
 export interface PairingCandidate {
@@ -160,7 +195,7 @@ export class PairingManager {
 
   /** New one-time code; any earlier code stops working. */
   start(): { code: string; expiresAt: string } {
-    const value = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    const value = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = this.now() + this.ttlMs;
     this.code = { value, expiresAt, attempts: 0 };
     return { code: value, expiresAt: new Date(expiresAt).toISOString() };
@@ -193,7 +228,11 @@ export class PairingManager {
   }
 
   /** Ask the owner; `answer` resolves with their decision (false after `timeoutMs` or on withdraw). */
-  offer(device: string, publicKey: string, timeoutMs = 5 * 60_000): { candidate: PairingCandidate; answer: Promise<boolean> } {
+  offer(
+    device: string,
+    publicKey: string,
+    timeoutMs = 5 * 60_000,
+  ): { candidate: PairingCandidate; answer: Promise<boolean> } {
     const id = `p${++this.seq}`;
     const candidate: PairingCandidate = { id, device, publicKey, fingerprint: fingerprintOf(publicKey) };
     let timer: NodeJS.Timeout;
@@ -230,7 +269,9 @@ export class PairingManager {
 
   onChange(fn: () => void): () => void {
     this.changes.add(fn);
-    return () => { this.changes.delete(fn); };
+    return () => {
+      this.changes.delete(fn);
+    };
   }
 
   onCandidate(fn: (c: PairingCandidate) => void): () => void {

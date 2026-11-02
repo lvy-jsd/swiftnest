@@ -30,8 +30,8 @@ jobs:
       - name: e2e (real DSH kernel, fake model, browser)
         run: pnpm vitest run server packages client
         env:
-          SWIFTNEST_E2E: '1'
-          SWIFTNEST_WEB_E2E: '1'
+          SWIFTNEST_E2E: "1"
+          SWIFTNEST_WEB_E2E: "1"
 
   # The device core (Shell, files, screen, transfers). Tests run the real
   # bubblewrap sandbox, so the runner must allow unprivileged user namespaces.

@@ -40,9 +40,9 @@ swiftnest perch --name laptop --pair 123456 --nest ws://192.168.1.10:7711/swiftn
 
 Then **confirm a fingerprint on each side**:
 
-| Where | Shows | What you do |
-|---|---|---|
-| Laptop | the Nest's fingerprint | compare with what `swiftnest pair` shows; answer `y` if they match |
+| Where                                  | Shows                    | What you do                                                             |
+| -------------------------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| Laptop                                 | the Nest's fingerprint   | compare with what `swiftnest pair` shows; answer `y` if they match      |
 | Server (the `swiftnest pair` terminal) | the laptop's fingerprint | compare with what the laptop printed at start; answer `y` if they match |
 
 Why both: the code proves the owner allowed it, but a 6-digit code can be guessed offline by someone in the middle; matching fingerprints prove nobody is.
@@ -58,6 +58,7 @@ On the server (when the agent runs on the same machine as the Nest):
 - **Claude Code**: `claude mcp add --transport http swiftnest http://127.0.0.1:7710/mcp`
 - **Cursor, DSH and other HTTP MCP clients**: `http://127.0.0.1:7710/mcp`
 - **Claude Desktop**: in `claude_desktop_config.json`
+
   ```json
   "swiftnest": { "command": "npx", "args": ["-y", "mcp-remote", "http://127.0.0.1:7710/mcp"] }
   ```
@@ -91,12 +92,12 @@ swiftnest revoke laptop               # disconnect now and forget it; it has to 
 
 ## When something goes wrong
 
-| What you see | Why, and what to do |
-|---|---|
-| The laptop keeps "looking for the Nest" | a firewall drops mDNS: add `--nest ws://<server address>:7711/swiftnest` |
-| `NOT_PAIRED` | the device was never paired, or was revoked: run `swiftnest pair` again |
-| `NEST_KEY_CHANGED` | the Nest at that address is not the one you paired with (reinstalled, or someone impersonating it): check, then pair again |
-| `PAIRING_CLOSED` | the Nest is not pairing right now: run `swiftnest pair` first and use the code within 5 minutes |
-| `NEST_NOT_RUNNING` | `swiftnest pair` and friends cannot find a running Nest: start `swiftnest nest` first |
+| What you see                            | Why, and what to do                                                                                                        |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| The laptop keeps "looking for the Nest" | a firewall drops mDNS: add `--nest ws://<server address>:7711/swiftnest`                                                   |
+| `NOT_PAIRED`                            | the device was never paired, or was revoked: run `swiftnest pair` again                                                    |
+| `NEST_KEY_CHANGED`                      | the Nest at that address is not the one you paired with (reinstalled, or someone impersonating it): check, then pair again |
+| `PAIRING_CLOSED`                        | the Nest is not pairing right now: run `swiftnest pair` first and use the code within 5 minutes                            |
+| `NEST_NOT_RUNNING`                      | `swiftnest pair` and friends cannot find a running Nest: start `swiftnest nest` first                                      |
 
 For the Node-free desktop App flow, see [Control this computer](./control-this-computer). The central Server hosts the Nest; the App hosts only its local Perch.

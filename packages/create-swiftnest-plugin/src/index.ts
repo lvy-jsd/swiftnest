@@ -4,30 +4,32 @@
  * Copies the capability template, renames it, and pins @swiftnest/sdk to the current release.
  */
 import { translateMessage, localizedError } from '@swiftnest/protocol';
-import { cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { cp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
-export const SDK_VERSION = "^0.0.1";
+export const SDK_VERSION = '^0.0.1';
 
 /** Template location: shipped inside this package when published, or the monorepo's templates/ during development. */
 export async function templateDir(): Promise<string> {
   const here = dirname(fileURLToPath(import.meta.url));
-  for (const p of [join(here, "..", "template"), join(here, "..", "..", "..", "templates", "capability")]) {
+  for (const p of [join(here, '..', 'template'), join(here, '..', '..', '..', 'templates', 'capability')]) {
     try {
-      if ((await stat(join(p, "package.json"))).isFile()) return p;
+      if ((await stat(join(p, 'package.json'))).isFile()) return p;
     } catch {
       /* try next */
     }
   }
-  throw new Error("capability template not found");
+  throw new Error('capability template not found');
 }
 
 export function pluginName(dir: string, explicit?: string): string {
   if (explicit) return explicit;
-  const base = basename(resolve(dir)).toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  return base.startsWith("swiftnest-plugin-") ? base : `swiftnest-plugin-${base}`;
+  const base = basename(resolve(dir))
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-');
+  return base.startsWith('swiftnest-plugin-') ? base : `swiftnest-plugin-${base}`;
 }
 
 export async function createPlugin(dir: string, name: string): Promise<string> {
@@ -35,42 +37,55 @@ export async function createPlugin(dir: string, name: string): Promise<string> {
   try {
     if ((await readdir(target)).length) throw new Error(`${target} is not empty`);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
   const src = await templateDir();
-  await cp(src, target, { recursive: true, filter: (p) => !/(^|\/)(node_modules|dist)(\/|$)|tsbuildinfo$/.test(p.slice(src.length)) });
-  const pkgPath = join(target, "package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+  await cp(src, target, {
+    recursive: true,
+    filter: (p) => !/(^|\/)(node_modules|dist)(\/|$)|tsbuildinfo$/.test(p.slice(src.length)),
+  });
+  const pkgPath = join(target, 'package.json');
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
   pkg.name = name;
   delete pkg.private;
-  pkg.dependencies["@swiftnest/sdk"] = SDK_VERSION;
-  await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  pkg.dependencies['@swiftnest/sdk'] = SDK_VERSION;
+  await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
   // Standalone tsconfig (the template's extends the monorepo base).
   await writeFile(
-    join(target, "tsconfig.json"),
+    join(target, 'tsconfig.json'),
     JSON.stringify(
       {
         compilerOptions: {
-          target: "es2024", module: "nodenext", moduleResolution: "nodenext", strict: true, declaration: true,
-          outDir: "dist", rootDir: "src", skipLibCheck: true, types: ["node"],
+          target: 'es2024',
+          module: 'nodenext',
+          moduleResolution: 'nodenext',
+          strict: true,
+          declaration: true,
+          outDir: 'dist',
+          rootDir: 'src',
+          skipLibCheck: true,
+          types: ['node'],
         },
-        include: ["src"],
+        include: ['src'],
       },
       null,
       2,
-    ) + "\n",
+    ) + '\n',
   );
-  const index = join(target, "src", "index.ts");
-  await writeFile(index, (await readFile(index, "utf8")).replace(/swiftnest-plugin-hello/g, name));
-  await rm(join(target, "tsconfig.tsbuildinfo"), { force: true });
+  const index = join(target, 'src', 'index.ts');
+  await writeFile(index, (await readFile(index, 'utf8')).replace(/swiftnest-plugin-hello/g, name));
+  await rm(join(target, 'tsconfig.tsbuildinfo'), { force: true });
   return target;
 }
 
 async function main() {
-  const { values, positionals } = parseArgs({ allowPositionals: true, options: { name: { type: "string" }, lang: { type: "string" } } });
-  const zh = (values.lang ?? process.env.SWIFTNEST_LANG ?? "zh-CN") !== "en";
-  process.env.SWIFTNEST_LANG = zh ? "zh-CN" : "en";
-  const dir = positionals[0] ?? "swiftnest-plugin-hello";
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: { name: { type: 'string' }, lang: { type: 'string' } },
+  });
+  const zh = (values.lang ?? process.env.SWIFTNEST_LANG ?? 'zh-CN') !== 'en';
+  process.env.SWIFTNEST_LANG = zh ? 'zh-CN' : 'en';
+  const dir = positionals[0] ?? 'swiftnest-plugin-hello';
   const name = pluginName(dir, values.name);
   const target = await createPlugin(dir, name);
   process.stdout.write(
@@ -81,5 +96,11 @@ async function main() {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await main(); } catch (error) { const failure = localizedError(error); console.error(`[${failure.code}] ${failure.message}\n${failure.hint}`); process.exitCode = 1; }
+  try {
+    await main();
+  } catch (error) {
+    const failure = localizedError(error);
+    console.error(`[${failure.code}] ${failure.message}\n${failure.hint}`);
+    process.exitCode = 1;
+  }
 }

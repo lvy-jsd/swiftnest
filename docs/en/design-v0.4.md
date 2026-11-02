@@ -58,17 +58,17 @@ A new package, `packages/mesh` (Rust, published as `swiftnest-mesh`), is the hea
 
 ### 3.2 Responsibilities
 
-| Module | Responsibility |
-|---|---|
-| Node | libp2p node: identity (Ed25519), listen addresses, peer store |
-| Transports | QUIC (default), TCP, WebSocket, WebRTC; automatic selection by environment |
-| NAT traversal | Hole punching, AutoNAT (who can reach whom), relay fallback |
-| Relay | Connect through a relay peer when direct connection fails; the relay is a node that runs the relay role |
-| Encryption | Noise (libp2p default) on the transport; the v0.3 Ed25519+X25519+AES-GCM channel is reused for the app-level session between two nodes |
-| Messaging | Agent ↔ agent messages: text, structured JSON, events; ordered, reliable per stream |
-| File transfer | Chunked, resumable, with per-chunk checksums; a file is a named artifact with a content hash |
-| Task delegation | Send a task to another node's agent; track its state; retrieve the result |
-| Discovery | A2A agent cards: each node advertises the agents it hosts and their capabilities |
+| Module          | Responsibility                                                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Node            | libp2p node: identity (Ed25519), listen addresses, peer store                                                                          |
+| Transports      | QUIC (default), TCP, WebSocket, WebRTC; automatic selection by environment                                                             |
+| NAT traversal   | Hole punching, AutoNAT (who can reach whom), relay fallback                                                                            |
+| Relay           | Connect through a relay peer when direct connection fails; the relay is a node that runs the relay role                                |
+| Encryption      | Noise (libp2p default) on the transport; the v0.3 Ed25519+X25519+AES-GCM channel is reused for the app-level session between two nodes |
+| Messaging       | Agent ↔ agent messages: text, structured JSON, events; ordered, reliable per stream                                                    |
+| File transfer   | Chunked, resumable, with per-chunk checksums; a file is a named artifact with a content hash                                           |
+| Task delegation | Send a task to another node's agent; track its state; retrieve the result                                                              |
+| Discovery       | A2A agent cards: each node advertises the agents it hosts and their capabilities                                                       |
 
 ### 3.3 The Socket Protocol (TS ↔ Rust)
 
@@ -131,12 +131,12 @@ This means Swiftnest agents are interoperable with any other A2A agent (LangGrap
 
 The mesh tries channels in priority order, exactly as v0.3's link plugins do:
 
-| Channel | When it works | Transport |
-|---|---|---|
-| **Direct (LAN)** | Both nodes on the same network | QUIC / TCP, hole-punched |
-| **Direct (WAN)** | Both nodes reachable (port open, or hole punch succeeds) | QUIC |
-| **Relay** | Direct fails (symmetric NAT, firewall) | Through a relay node |
-| **Headscale** | Both nodes on the same Tailscale network | QUIC over the Tailscale subnet |
+| Channel          | When it works                                            | Transport                      |
+| ---------------- | -------------------------------------------------------- | ------------------------------ |
+| **Direct (LAN)** | Both nodes on the same network                           | QUIC / TCP, hole-punched       |
+| **Direct (WAN)** | Both nodes reachable (port open, or hole punch succeeds) | QUIC                           |
+| **Relay**        | Direct fails (symmetric NAT, firewall)                   | Through a relay node           |
+| **Headscale**    | Both nodes on the same Tailscale network                 | QUIC over the Tailscale subnet |
 
 The Rust core handles all of this transparently: it tries direct, falls back to relay, and (in M3) uses Headscale. The TS layer and the agents never see the difference — a message is a message, a file is a file, regardless of which channel carried it.
 
@@ -155,15 +155,15 @@ The mesh reuses v0.3's security model, extended to nodes:
 
 ## 8. Technology Choices (v0.4 additions)
 
-| Aspect | Choice | Why |
-|---|---|---|
-| Mesh language | Rust | libp2p, quinn, Noise are first-class in Rust; memory safety for many streams |
-| P2P stack | rust-libp2p | Transports, NAT traversal, relay, roaming, multiplexing — the whole "any network, multiple channels" requirement |
-| Transport | QUIC (quinn) default, TCP/WebSocket/WebRTC fallback | Fast, reliable, multiplexed; works in browsers and on mobile |
-| Encryption | Noise (transport) + Ed25519/X25519/AES-GCM (app) | libp2p default + the proven v0.3 scheme |
-| Discovery | A2A agent cards | The open standard for agent interoperability |
-| TS ↔ Rust | Local Unix socket, line-delimited JSON | The proven sidecar pattern from dsh-tool-manager |
-| Relay | A node running the relay role (self-hosted) | No dependency on a third-party service; any node can be a relay |
+| Aspect        | Choice                                              | Why                                                                                                              |
+| ------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Mesh language | Rust                                                | libp2p, quinn, Noise are first-class in Rust; memory safety for many streams                                     |
+| P2P stack     | rust-libp2p                                         | Transports, NAT traversal, relay, roaming, multiplexing — the whole "any network, multiple channels" requirement |
+| Transport     | QUIC (quinn) default, TCP/WebSocket/WebRTC fallback | Fast, reliable, multiplexed; works in browsers and on mobile                                                     |
+| Encryption    | Noise (transport) + Ed25519/X25519/AES-GCM (app)    | libp2p default + the proven v0.3 scheme                                                                          |
+| Discovery     | A2A agent cards                                     | The open standard for agent interoperability                                                                     |
+| TS ↔ Rust     | Local Unix socket, line-delimited JSON              | The proven sidecar pattern from dsh-tool-manager                                                                 |
+| Relay         | A node running the relay role (self-hosted)         | No dependency on a third-party service; any node can be a relay                                                  |
 
 ## 9. Repository Structure (v0.4 additions)
 
@@ -193,28 +193,28 @@ swiftnest/
 
 The v0.3 roadmap (M0–M6) is kept for the device layer. The mesh layer gets its own milestones, interleaved:
 
-| Milestone | Content | Acceptance |
-|---|---|---|
-| **M0** ✅ | Device core (v0.3) | (as before) |
-| **M1** ✅ | Device first connection (v0.3) | (as before) |
-| **M1.5** | Device: DSH plugin + public relay. **Mesh: foundation** — the Rust `mesh` package builds, a libp2p node with QUIC+TCP, two nodes on a LAN connect directly, exchange agent cards, send a text message over the socket | Two nodes on a LAN: agent A sends a message to agent B; B receives it; the audit log records it |
-| **M2** | Device: full security. **Mesh: NAT traversal + relay + file transfer** — hole punching, AutoNAT, relay fallback; chunked resumable file transfer; task delegation | Two nodes on different networks (one behind NAT) exchange a message and a 10 MB file through the relay; a delegated task runs on the remote node and returns its result |
-| **M3** | Device: Headscale. **Mesh: Headscale channel + A2A interop** — the mesh uses the Tailscale subnet as a channel; Swiftnest agents interoperate with external A2A agents | A node on the Tailscale network reaches another node directly; a Swiftnest agent delegates a task to an external A2A agent |
-| **M4** | Migrate inference host (device layer) | (as before) |
-| **M5** | Desktop + notifications (device layer). **Mesh: mobile node** — a node on a phone joins the mesh over WebRTC | A phone node receives messages and files while on cellular |
-| **M6** | Open-source release v0.1 (device + mesh) | A new user sets up two nodes and gets agent-to-agent messaging working within 15 minutes |
+| Milestone | Content                                                                                                                                                                                                               | Acceptance                                                                                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0** ✅ | Device core (v0.3)                                                                                                                                                                                                    | (as before)                                                                                                                                                             |
+| **M1** ✅ | Device first connection (v0.3)                                                                                                                                                                                        | (as before)                                                                                                                                                             |
+| **M1.5**  | Device: DSH plugin + public relay. **Mesh: foundation** — the Rust `mesh` package builds, a libp2p node with QUIC+TCP, two nodes on a LAN connect directly, exchange agent cards, send a text message over the socket | Two nodes on a LAN: agent A sends a message to agent B; B receives it; the audit log records it                                                                         |
+| **M2**    | Device: full security. **Mesh: NAT traversal + relay + file transfer** — hole punching, AutoNAT, relay fallback; chunked resumable file transfer; task delegation                                                     | Two nodes on different networks (one behind NAT) exchange a message and a 10 MB file through the relay; a delegated task runs on the remote node and returns its result |
+| **M3**    | Device: Headscale. **Mesh: Headscale channel + A2A interop** — the mesh uses the Tailscale subnet as a channel; Swiftnest agents interoperate with external A2A agents                                                | A node on the Tailscale network reaches another node directly; a Swiftnest agent delegates a task to an external A2A agent                                              |
+| **M4**    | Migrate inference host (device layer)                                                                                                                                                                                 | (as before)                                                                                                                                                             |
+| **M5**    | Desktop + notifications (device layer). **Mesh: mobile node** — a node on a phone joins the mesh over WebRTC                                                                                                          | A phone node receives messages and files while on cellular                                                                                                              |
+| **M6**    | Open-source release v0.1 (device + mesh)                                                                                                                                                                              | A new user sets up two nodes and gets agent-to-agent messaging working within 15 minutes                                                                                |
 
 ## 11. Relationship to Existing Code
 
-| Existing (v0.3) | In v0.4 |
-|---|---|
-| `core` (TS): Nest/Perch/Plugin, channel, pairing, policy, audit | **Kept unchanged.** It is the device capability layer. |
-| `protocol` (TS) | **Kept.** Gains mesh message types. |
-| `link-lan` / `link-relay` / `link-headscale` | **Kept** as the device layer's links (Perch → Nest). The mesh has its own channels in Rust. |
-| `cap-shell` / `cap-files` | **Kept.** Device capabilities. |
-| `surface-mcp` | **Extended** with `mesh.*` tools. |
-| `cli` | **Extended** with mesh commands (`swiftnest mesh peers / send / sendfile / delegate`). |
-| — | **New**: `packages/mesh` (Rust), `plugins/mesh-surface` (TS). |
+| Existing (v0.3)                                                 | In v0.4                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `core` (TS): Nest/Perch/Plugin, channel, pairing, policy, audit | **Kept unchanged.** It is the device capability layer.                                      |
+| `protocol` (TS)                                                 | **Kept.** Gains mesh message types.                                                         |
+| `link-lan` / `link-relay` / `link-headscale`                    | **Kept** as the device layer's links (Perch → Nest). The mesh has its own channels in Rust. |
+| `cap-shell` / `cap-files`                                       | **Kept.** Device capabilities.                                                              |
+| `surface-mcp`                                                   | **Extended** with `mesh.*` tools.                                                           |
+| `cli`                                                           | **Extended** with mesh commands (`swiftnest mesh peers / send / sendfile / delegate`).      |
+| —                                                               | **New**: `packages/mesh` (Rust), `plugins/mesh-surface` (TS).                               |
 
 Nothing in the existing device layer is rewritten. The mesh is a new layer that reuses the identity, pairing, and audit model.
 
@@ -227,11 +227,11 @@ Nothing in the existing device layer is rewritten. The mesh is a new layer that 
 
 ## 13. Decision Log (v0.4)
 
-| # | Question | Decision | Date |
-|---|---|---|---|
-| 5 | New goal | Add an agent-to-agent communication mesh on top of the device capability layer; keep the device layer | 2026-10-26 |
-| 6 | Mesh language | Rust (libp2p, quinn, Noise), as a sidecar to the TS layer | 2026-10-26 |
-| 7 | P2P stack | rust-libp2p (transports, NAT traversal, relay, roaming) | 2026-10-26 |
-| 8 | Discovery | A2A agent cards (the open standard for agent interoperability) | 2026-10-26 |
-| 9 | TS ↔ Rust | Local Unix socket, line-delimited JSON (the dsh-tool-manager sidecar pattern) | 2026-10-26 |
-| 10 | Device layer | Kept unchanged; the mesh reuses its identity, pairing, and audit model | 2026-10-26 |
+| #   | Question      | Decision                                                                                              | Date       |
+| --- | ------------- | ----------------------------------------------------------------------------------------------------- | ---------- |
+| 5   | New goal      | Add an agent-to-agent communication mesh on top of the device capability layer; keep the device layer | 2026-10-26 |
+| 6   | Mesh language | Rust (libp2p, quinn, Noise), as a sidecar to the TS layer                                             | 2026-10-26 |
+| 7   | P2P stack     | rust-libp2p (transports, NAT traversal, relay, roaming)                                               | 2026-10-26 |
+| 8   | Discovery     | A2A agent cards (the open standard for agent interoperability)                                        | 2026-10-26 |
+| 9   | TS ↔ Rust     | Local Unix socket, line-delimited JSON (the dsh-tool-manager sidecar pattern)                         | 2026-10-26 |
+| 10  | Device layer  | Kept unchanged; the mesh reuses its identity, pairing, and audit model                                | 2026-10-26 |

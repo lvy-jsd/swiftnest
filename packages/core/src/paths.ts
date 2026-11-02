@@ -7,22 +7,40 @@
  * Every path is resolved to its real location (symlinks followed) before it is checked, so a link cannot lead out
  * of an allowed folder.
  */
-import { realpath } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 /** Relative to the home directory. A path equal to or under one of these is never touched. */
 export const SECRET_PATHS = [
-  ".ssh", ".gnupg", ".password-store", ".netrc", ".pgpass", ".git-credentials",
-  ".aws", ".azure", ".config/gcloud", ".kube", ".docker/config.json",
-  ".npmrc", ".pypirc", ".cargo/credentials", ".cargo/credentials.toml", ".config/gh",
-  ".local/share/keyrings", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/BraveSoftware",
-  ".local/state/swiftnest", ".config/swiftnest",
+  '.ssh',
+  '.gnupg',
+  '.password-store',
+  '.netrc',
+  '.pgpass',
+  '.git-credentials',
+  '.aws',
+  '.azure',
+  '.config/gcloud',
+  '.kube',
+  '.docker/config.json',
+  '.npmrc',
+  '.pypirc',
+  '.cargo/credentials',
+  '.cargo/credentials.toml',
+  '.config/gh',
+  '.local/share/keyrings',
+  '.mozilla',
+  '.config/google-chrome',
+  '.config/chromium',
+  '.config/BraveSoftware',
+  '.local/state/swiftnest',
+  '.config/swiftnest',
 ];
 
 /** Expand a leading `~` to the home directory. */
 export function expandHome(p: string): string {
-  return p === "~" ? homedir() : p.startsWith("~/") ? join(homedir(), p.slice(2)) : p;
+  return p === '~' ? homedir() : p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
 }
 
 /** True when `child` is `parent` or lives under it. */
@@ -35,7 +53,7 @@ export async function realish(p: string): Promise<string> {
   try {
     return await realpath(p);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     const parent = dirname(p);
     if (parent === p) return p;
     return join(await realish(parent), basename(p));
@@ -70,7 +88,7 @@ export class PathGuard {
   private realSecretsCache?: Promise<string[]>;
 
   constructor(opts: PathGuardOptions = {}) {
-    this.roots = (opts.roots?.length ? opts.roots : ["~"]).map((r) => resolve(expandHome(r)));
+    this.roots = (opts.roots?.length ? opts.roots : ['~']).map((r) => resolve(expandHome(r)));
     this.secrets = [
       ...SECRET_PATHS.map((s) => join(homedir(), s)),
       ...(opts.deny ?? []).map((d) => resolve(expandHome(d))),

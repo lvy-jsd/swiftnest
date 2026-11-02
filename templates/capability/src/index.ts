@@ -2,25 +2,25 @@
  * A minimal Swiftnest capability plugin. Rename it, then replace the `greet` tool with your own.
  * Guide: docs/en/guide/write-a-plugin.md (中文：docs/zh/guide/write-a-plugin.md) in the Swiftnest repository.
  */
-import { definePlugin, defaultLanguage, translateMessage, type Capability } from "@swiftnest/sdk";
+import { definePlugin, defaultLanguage, translateMessage, type Capability } from '@swiftnest/sdk';
 
-export function helloCapability(greeting = defaultLanguage() === "en" ? "Hello" : "你好"): Capability {
+export function helloCapability(greeting = defaultLanguage() === 'en' ? 'Hello' : '你好'): Capability {
   return {
     manifest: {
-      id: "hello",
-      version: "0.0.1",
-      title: { en: "Hello", zh: "打招呼" },
+      id: 'hello',
+      version: '0.0.1',
+      title: { en: 'Hello', zh: '打招呼' },
       tools: [
         {
-          name: "greet",
-          description: { en: "Greet someone by name.", zh: "按名字跟人打招呼。" },
+          name: 'greet',
+          description: { en: 'Greet someone by name.', zh: '按名字跟人打招呼。' },
           inputSchema: {
-            type: "object",
-            properties: { name: { type: "string", description: translateMessage("Who to greet") } },
-            required: ["name"],
+            type: 'object',
+            properties: { name: { type: 'string', description: translateMessage('Who to greet') } },
+            required: ['name'],
           },
           // read: only observes, so the default policy runs it without asking.
-          risk: "read",
+          risk: 'read',
         },
       ],
     },
@@ -31,12 +31,12 @@ export function helloCapability(greeting = defaultLanguage() === "en" ? "Hello" 
 }
 
 export default definePlugin({
-  name: "swiftnest-plugin-hello",
-  kind: "capability",
+  name: 'swiftnest-plugin-hello',
+  kind: 'capability',
   apiVersion: 1,
-  runsOn: "perch",
+  runsOn: 'perch',
   setup(ctx) {
-    if (ctx.role !== "perch") return;
-    ctx.provideCapability(helloCapability(typeof ctx.config.greeting === "string" ? ctx.config.greeting : undefined));
+    if (ctx.role !== 'perch') return;
+    ctx.provideCapability(helloCapability(typeof ctx.config.greeting === 'string' ? ctx.config.greeting : undefined));
   },
 });

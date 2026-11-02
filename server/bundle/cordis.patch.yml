@@ -2,7 +2,7 @@
 # Rows only add; they never replace DSH's own rows or its Web UI.
 - insert:
     - id: swiftnest-core
-      name: '@swiftnest/server-bundle/core'
+      name: "@swiftnest/server-bundle/core"
       config:
         version: !!js process.env.SWIFTNEST_VERSION
         modelBaseUrl: !!js process.env.SWIFTNEST_MODEL_BASE_URL
@@ -10,7 +10,7 @@
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN
     - id: swiftnest-devices
-      name: '@swiftnest/server-bundle/native-devices'
+      name: "@swiftnest/server-bundle/native-devices"
       config:
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN

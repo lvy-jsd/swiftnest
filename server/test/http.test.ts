@@ -9,7 +9,9 @@ describe('readBody', () => {
   it('keeps a multi-byte character that is split across chunks', async () => {
     const bytes = Buffer.from('{"text":"设备"}');
     const split = bytes.indexOf(Buffer.from('设')) + 1;
-    expect(await readBody(request(bytes.subarray(0, split), bytes.subarray(split)), 1024, 'too large')).toBe('{"text":"设备"}');
+    expect(await readBody(request(bytes.subarray(0, split), bytes.subarray(split)), 1024, 'too large')).toBe(
+      '{"text":"设备"}',
+    );
   });
 
   it('stops at the limit with a 413', async () => {
@@ -22,7 +24,9 @@ describe('readBody', () => {
 
 describe('readJsonObject', () => {
   it.each(['not json', '[1,2]', 'null', '"text"'])('rejects %s with a 400', async (body) => {
-    const failure = await readJsonObject(request(Buffer.from(body)), 1024, 'too large').catch((error: unknown) => error);
+    const failure = await readJsonObject(request(Buffer.from(body)), 1024, 'too large').catch(
+      (error: unknown) => error,
+    );
     expect(failure).toBeInstanceOf(HttpError);
     expect(failure).toMatchObject({ status: 400 });
   });

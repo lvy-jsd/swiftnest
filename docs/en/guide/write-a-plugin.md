@@ -18,17 +18,17 @@ The template is a minimal "hello" capability; the test invokes it on a simulated
 `src/index.ts` has two parts:
 
 ```ts
-export function helloCapability(greeting = "Hello"): Capability {
+export function helloCapability(greeting = 'Hello'): Capability {
   return {
     manifest: {
-      id: "hello",                       // capability id, the middle segment of the tool name
-      title: { en: "Hello", zh: "打招呼" },
+      id: 'hello', // capability id, the middle segment of the tool name
+      title: { en: 'Hello', zh: '打招呼' },
       tools: [
         {
-          name: "greet",                 // last segment of the tool name
-          description: { en: "Greet someone by name.", zh: "按名字跟人打招呼。" },
-          inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
-          risk: "read",                  // read-only: allowed by default
+          name: 'greet', // last segment of the tool name
+          description: { en: 'Greet someone by name.', zh: '按名字跟人打招呼。' },
+          inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+          risk: 'read', // read-only: allowed by default
         },
       ],
     },
@@ -39,12 +39,12 @@ export function helloCapability(greeting = "Hello"): Capability {
 }
 
 export default definePlugin({
-  name: "swiftnest-plugin-weather",
-  kind: "capability",
+  name: 'swiftnest-plugin-weather',
+  kind: 'capability',
   apiVersion: 1,
-  runsOn: "perch",                       // capability plugins run on devices
+  runsOn: 'perch', // capability plugins run on devices
   setup(ctx) {
-    if (ctx.role !== "perch") return;
+    if (ctx.role !== 'perch') return;
     ctx.provideCapability(helloCapability(/* ctx.config holds user configuration */));
   },
 });
@@ -68,9 +68,9 @@ Replace `greet` with your own tool. A few conventions:
 `test/plugin.test.ts` uses the SDK's `createTestNest` to spin up an in-memory server and device:
 
 ```ts
-const t = await createTestNest({ devices: [{ name: "sim", plugins: [plugin] }] });
-const task = await t.call("sim__hello__greet", { name: "Swift" });
-expect(task.result?.text).toBe("Hello, Swift!");
+const t = await createTestNest({ devices: [{ name: 'sim', plugins: [plugin] }] });
+const task = await t.call('sim__hello__greet', { name: 'Swift' });
+expect(task.result?.text).toBe('Hello, Swift!');
 ```
 
 For tools that require approval, use `t.call(name, args, { approve: true })` in tests to simulate the owner approving.

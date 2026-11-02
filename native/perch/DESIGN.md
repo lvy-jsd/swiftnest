@@ -135,13 +135,13 @@ direct transport candidates, monitor-picker UI and H.264/WebRTC remain follow-up
 
 ## Backend validation boundary
 
-| Backend | Evidence | Still unverified |
-| --- | --- | --- |
-| wlroots on headless labwc/pixman | Real screen capture, approved agent pointer input, encrypted live frames, owner take-over/input/handback/local Stop; Chromium LivePanel at 390 px with screenshots of both control states | Physical desktop/phone performance, virtual keyboard behavior, other wlroots compositors including niri, fractional/rotated/multiple displays |
-| GNOME/KDE ScreenCast + RemoteDesktop portal/PipeWire | Linux compilation and Clippy only | Portal chooser/session lifecycle, real PipeWire frames and input on GNOME or KDE |
-| X11 XGetImage + xdotool/XTest | Linux compilation and Clippy only | An actual X11 session, capture and input |
-| Windows GDI + SendInput | Source implementation only; previous cross-check failed because the target standard library was absent | Windows compilation and runtime; DXGI is future work |
-| macOS | Explicitly unsupported; screen/input not advertised | Backend implementation |
+| Backend                                              | Evidence                                                                                                                                                                                  | Still unverified                                                                                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| wlroots on headless labwc/pixman                     | Real screen capture, approved agent pointer input, encrypted live frames, owner take-over/input/handback/local Stop; Chromium LivePanel at 390 px with screenshots of both control states | Physical desktop/phone performance, virtual keyboard behavior, other wlroots compositors including niri, fractional/rotated/multiple displays |
+| GNOME/KDE ScreenCast + RemoteDesktop portal/PipeWire | Linux compilation and Clippy only                                                                                                                                                         | Portal chooser/session lifecycle, real PipeWire frames and input on GNOME or KDE                                                              |
+| X11 XGetImage + xdotool/XTest                        | Linux compilation and Clippy only                                                                                                                                                         | An actual X11 session, capture and input                                                                                                      |
+| Windows GDI + SendInput                              | Source implementation only; previous cross-check failed because the target standard library was absent                                                                                    | Windows compilation and runtime; DXGI is future work                                                                                          |
+| macOS                                                | Explicitly unsupported; screen/input not advertised                                                                                                                                       | Backend implementation                                                                                                                        |
 
 Playwright uses a real isolated labwc framebuffer and the actual Rust/crypto/relay/browser decoder.
 Its owner-session admission is a test fixture, not a signed DSH login; signed-session/chat behavior has

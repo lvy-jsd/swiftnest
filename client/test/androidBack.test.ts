@@ -8,7 +8,7 @@ describe('Android system back', () => {
   it('lets app navigation consume back before exiting, and unregisters on cleanup', async () => {
     let onBack: (() => void) | undefined;
     const unregister = vi.fn();
-    vi.mocked(onBackButtonPress).mockImplementation(async handler => {
+    vi.mocked(onBackButtonPress).mockImplementation(async (handler) => {
       onBack = () => handler({ canGoBack: true });
       return { plugin: 'app', event: 'back-button', channelId: 0, unregister };
     });

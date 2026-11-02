@@ -35,17 +35,17 @@
 Noise/TLS 1.3，以及 AutoNAT、打洞和中继。QUIC 使用 quinn。Rust 适合同时处理大量消息和文件流。
 这些是技术选型目标，平台可用性仍需各自验证。
 
-| 模块 | 职责 |
-| --- | --- |
-| Node | Ed25519 身份、监听地址和节点存储 |
-| Transports | 默认 QUIC，按环境选择 TCP、WebSocket、WebRTC |
-| NAT traversal | AutoNAT、打洞，失败后转中继 |
-| Relay | 由启用中继角色的节点转发 |
-| Encryption | 传输层 Noise，应用会话复用 Ed25519/X25519/AES-GCM 模型 |
-| Messaging | 可靠、有序的文本、JSON 和事件 |
-| File transfer | 分块、续传、逐块校验和内容哈希 |
-| Task delegation | 远端任务提交、状态追踪和结果获取 |
-| Discovery | 发布、交换 A2A agent card |
+| 模块            | 职责                                                   |
+| --------------- | ------------------------------------------------------ |
+| Node            | Ed25519 身份、监听地址和节点存储                       |
+| Transports      | 默认 QUIC，按环境选择 TCP、WebSocket、WebRTC           |
+| NAT traversal   | AutoNAT、打洞，失败后转中继                            |
+| Relay           | 由启用中继角色的节点转发                               |
+| Encryption      | 传输层 Noise，应用会话复用 Ed25519/X25519/AES-GCM 模型 |
+| Messaging       | 可靠、有序的文本、JSON 和事件                          |
+| File transfer   | 分块、续传、逐块校验和内容哈希                         |
+| Task delegation | 远端任务提交、状态追踪和结果获取                       |
+| Discovery       | 发布、交换 A2A agent card                              |
 
 本地 Unix socket 权限为 600，仅所有者可访问。每行一个 JSON 命令，按顺序返回结果；
 subscribe 后同一连接还会推送带 event 字段的事件。示例：
@@ -106,15 +106,15 @@ AutoNAT 判断可达性，打洞失败后经自托管中继；Headscale/Tailscal
 
 ## 8. 技术选择
 
-| 领域 | 选择与原因 |
-| --- | --- |
-| 网格语言 | Rust，支持并发和内存安全 |
-| P2P | rust-libp2p，统一传输、穿透和中继 |
-| 默认传输 | quinn QUIC，按环境退回 TCP/WebSocket/WebRTC |
-| 加密 | Noise 与应用层 Ed25519/X25519/AES-GCM |
-| 发现 | A2A agent card |
-| TS/Rust 边界 | 本地 Unix socket，每行 JSON |
-| 中继 | 自托管节点，可选公共服务 |
+| 领域         | 选择与原因                                  |
+| ------------ | ------------------------------------------- |
+| 网格语言     | Rust，支持并发和内存安全                    |
+| P2P          | rust-libp2p，统一传输、穿透和中继           |
+| 默认传输     | quinn QUIC，按环境退回 TCP/WebSocket/WebRTC |
+| 加密         | Noise 与应用层 Ed25519/X25519/AES-GCM       |
+| 发现         | A2A agent card                              |
+| TS/Rust 边界 | 本地 Unix socket，每行 JSON                 |
+| 中继         | 自托管节点，可选公共服务                    |
 
 ## 9. 仓库结构
 
@@ -124,15 +124,15 @@ AutoNAT 判断可达性，打洞失败后经自托管中继；Headscale/Tailscal
 
 ## 10. 路线图
 
-| 阶段 | 内容和验收 |
-| --- | --- |
-| M0、M1 | 保留已完成的设备核心和首次连接工作 |
-| M1.5 | Rust 核心、QUIC/TCP、局域网节点直连，交换 card 和文本，写审计 |
-| M2 | NAT 穿透、中继、分块续传、任务委托；跨网络传消息和 10 MB 文件并返回任务结果 |
-| M3 | Headscale 通道和 A2A 互操作；委托给外部 A2A 智能体 |
-| M4 | 迁移推理主机的设备层 |
-| M5 | 桌面通知及移动节点；手机在蜂窝网络接收消息和文件 |
-| M6 | 设备和网格一起发布 v0.1，新用户十五分钟内完成两节点通信 |
+| 阶段   | 内容和验收                                                                  |
+| ------ | --------------------------------------------------------------------------- |
+| M0、M1 | 保留已完成的设备核心和首次连接工作                                          |
+| M1.5   | Rust 核心、QUIC/TCP、局域网节点直连，交换 card 和文本，写审计               |
+| M2     | NAT 穿透、中继、分块续传、任务委托；跨网络传消息和 10 MB 文件并返回任务结果 |
+| M3     | Headscale 通道和 A2A 互操作；委托给外部 A2A 智能体                          |
+| M4     | 迁移推理主机的设备层                                                        |
+| M5     | 桌面通知及移动节点；手机在蜂窝网络接收消息和文件                            |
+| M6     | 设备和网格一起发布 v0.1，新用户十五分钟内完成两节点通信                     |
 
 ## 11. 与现有代码的关系
 

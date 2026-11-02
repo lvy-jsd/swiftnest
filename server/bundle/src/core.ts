@@ -5,12 +5,12 @@
  * `GET /swiftnest/health` answers without authentication and reveals nothing
  * private: versions and whether the configured model endpoint answers.
  */
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { deviceProxy, liveUpgrade, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
 
-export const name = "swiftnest-core";
-export const inject = ["webServer", "connection"];
+export const name = 'swiftnest-core';
+export const inject = ['webServer', 'connection'];
 
 export interface CoreConfig {
   version?: string;
@@ -21,14 +21,20 @@ export interface CoreConfig {
 }
 
 interface WebRoute {
-  kind: "exact" | "prefix";
+  kind: 'exact' | 'prefix';
   path: string;
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
 }
 
 interface CoreContext {
   connection?: DeviceConnection;
-  webServer: { register(route: WebRoute): () => void; registerUpgrade(route: { path: string; handler(req: IncomingMessage, socket: import("node:stream").Duplex, head: Buffer): void }): () => void };
+  webServer: {
+    register(route: WebRoute): () => void;
+    registerUpgrade(route: {
+      path: string;
+      handler(req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer): void;
+    }): () => void;
+  };
   effect(fn: () => () => void, label?: string): void;
 }
 
@@ -42,10 +48,13 @@ export interface Health {
 /** How long the health route waits for the model endpoint before reporting it unreachable. */
 const MODEL_PROBE_TIMEOUT_MS = 2000;
 
-export async function probeModel(baseUrl: string | undefined, fetchImpl: typeof fetch = fetch): Promise<boolean | null> {
+export async function probeModel(
+  baseUrl: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean | null> {
   if (!baseUrl) return null;
   try {
-    const res = await fetchImpl(`${baseUrl.replace(/\/$/, "")}/models`, {
+    const res = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/models`, {
       signal: AbortSignal.timeout(MODEL_PROBE_TIMEOUT_MS),
     });
     // Some OpenAI-compatible gateways do not implement /models; any answer below 500 means the server is up.
@@ -58,7 +67,7 @@ export async function probeModel(baseUrl: string | undefined, fetchImpl: typeof 
 export async function health(config: CoreConfig, dshVersion: string, fetchImpl?: typeof fetch): Promise<Health> {
   return {
     ok: true,
-    swiftnest: config.version ?? "dev",
+    swiftnest: config.version ?? 'dev',
     dsh: dshVersion,
     model: { configured: Boolean(config.modelBaseUrl), reachable: await probeModel(config.modelBaseUrl, fetchImpl) },
   };
@@ -69,27 +78,36 @@ export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
     if (!ctx.connection) throw new Error('Devices require owner session admission');
     const handler = deviceProxy(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
     const live = liveUpgrade(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
-    ctx.effect(() => { const off = ctx.webServer.registerUpgrade({path:'/swiftnest/api/devices/live',handler:live.handler}); return () => { off(); live.close(); }; }, 'swiftnest-core: live');
-    ctx.effect(() => ctx.webServer.register({ kind: 'prefix' , path: '/swiftnest/api/devices', handler }), 'swiftnest-core: devices');
+    ctx.effect(() => {
+      const off = ctx.webServer.registerUpgrade({ path: '/swiftnest/api/devices/live', handler: live.handler });
+      return () => {
+        off();
+        live.close();
+      };
+    }, 'swiftnest-core: live');
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'prefix', path: '/swiftnest/api/devices', handler }),
+      'swiftnest-core: devices',
+    );
   }
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/app', handler }), 'swiftnest-core: /app');
-  const dshVersion = process.env.SWIFTNEST_DSH_VERSION ?? "unknown";
+  const dshVersion = process.env.SWIFTNEST_DSH_VERSION ?? 'unknown';
   ctx.effect(
     () =>
       ctx.webServer.register({
-        kind: "exact",
-        path: "/swiftnest/health",
+        kind: 'exact',
+        path: '/swiftnest/health',
         handler: async (req, res) => {
-          if (req.method !== "GET") {
+          if (req.method !== 'GET') {
             res.writeHead(405).end();
             return;
           }
           const body = JSON.stringify(await health(config, dshVersion));
-          res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }).end(body);
+          res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(body);
         },
       }),
-    "swiftnest-core: /swiftnest/health",
+    'swiftnest-core: /swiftnest/health',
   );
 }

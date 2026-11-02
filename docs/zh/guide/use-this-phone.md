@@ -14,14 +14,14 @@
 
 ## 助手能做什么
 
-| 能力 | 工具 | 是否需要你批准 |
-|---|---|---|
-| 看屏幕内容（文字、按钮及位置） | `ui_ui_tree` | 不需要 |
-| 屏幕尺寸、截屏 | `screen_screen_info`、`screen_screen_capture` | 不需要 |
-| 点按、滑动、输入文字、按返回/主屏幕等键 | `input_input_tap` 等 | 每次都要 |
-| 列出应用 / 打开应用 | `apps_apps_list` / `apps_apps_open` | 列出不需要，打开要 |
-| 发通知 / 读通知 | `notify_notify_post` / `notify_notify_list` | 都要（读通知算敏感操作） |
-| 收发文件 | `files_*`、传输 | 写入要 |
+| 能力                                    | 工具                                          | 是否需要你批准           |
+| --------------------------------------- | --------------------------------------------- | ------------------------ |
+| 看屏幕内容（文字、按钮及位置）          | `ui_ui_tree`                                  | 不需要                   |
+| 屏幕尺寸、截屏                          | `screen_screen_info`、`screen_screen_capture` | 不需要                   |
+| 点按、滑动、输入文字、按返回/主屏幕等键 | `input_input_tap` 等                          | 每次都要                 |
+| 列出应用 / 打开应用                     | `apps_apps_list` / `apps_apps_open`           | 列出不需要，打开要       |
+| 发通知 / 读通知                         | `notify_notify_post` / `notify_notify_list`   | 都要（读通知算敏感操作） |
+| 收发文件                                | `files_*`、传输                               | 写入要                   |
 
 完整工具名是 `device__<设备 slug>__<能力>_<工具>`，例如 `device__phone-1d45d9c51479__input_input_tap`。
 

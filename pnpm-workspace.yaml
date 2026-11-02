@@ -11,9 +11,9 @@ packages:
 allowBuilds:
   esbuild: true
   # DSH's subprocess helper repairs an executable bit at install; DSH needs it.
-  '@deepseek-ai/dsh-subprocess-local': true
+  "@deepseek-ai/dsh-subprocess-local": true
   # Optional native or codegen steps DSH does not need for Swiftnest's profile.
-  '@google/genai': false
+  "@google/genai": false
   koffi: false
   node-pty: false
   protobufjs: false

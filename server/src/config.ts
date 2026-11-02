@@ -4,10 +4,10 @@ import { ServerFailure } from './i18n.js';
  * environment overrides for containers. Defaults are for a stranger's machine,
  * never for a particular deployment.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { parse } from "yaml";
+import { readFileSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { parse } from 'yaml';
 
 export interface ModelConfig {
   /** OpenAI-compatible base URL, including `/v1`. */
@@ -23,7 +23,7 @@ export interface ModelConfig {
 }
 
 export interface ServerConfig {
-  lang?: "zh-CN" | "en";
+  lang?: 'zh-CN' | 'en';
   /** Everything Swiftnest owns lives here; DSH's home is `<home>/dsh`. */
   home: string;
   /** One concrete local IP address (DSH refuses wildcards). */
@@ -41,21 +41,21 @@ export interface ServerConfig {
 }
 
 export const DEFAULT_PORT = 3077;
-export const DEFAULT_PERSONA = "你是 Swiftnest 中的助手，由 {{model}} 模型驱动。默认使用简体中文，按用户选择切换语言。";
+export const DEFAULT_PERSONA = '你是 Swiftnest 中的助手，由 {{model}} 模型驱动。默认使用简体中文，按用户选择切换语言。';
 
 export function defaultHome(env: NodeJS.ProcessEnv = process.env): string {
-  const base = env.XDG_DATA_HOME || join(homedir(), ".local", "share");
-  return join(base, "swiftnest");
+  const base = env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+  return join(base, 'swiftnest');
 }
 
 /** Ollama's OpenAI-compatible endpoint is the default local model server. */
 export const DEFAULT_MODEL: ModelConfig = {
-  baseUrl: "http://127.0.0.1:11434/v1",
-  id: "qwen3",
-  name: "本地模型",
+  baseUrl: 'http://127.0.0.1:11434/v1',
+  id: 'qwen3',
+  name: '本地模型',
   contextWindow: 32768,
   maxTokens: 8192,
-  apiKeyEnv: "SWIFTNEST_MODEL_API_KEY",
+  apiKeyEnv: 'SWIFTNEST_MODEL_API_KEY',
 };
 
 type Partial2<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
@@ -64,27 +64,35 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
   let fromFile: Partial2<ServerConfig> = {};
   if (file) {
     if (!existsSync(file)) throw new ServerFailure(`config file not found: ${file}`);
-    fromFile = (parse(readFileSync(file, "utf8")) ?? {}) as Partial2<ServerConfig>;
+    fromFile = (parse(readFileSync(file, 'utf8')) ?? {}) as Partial2<ServerConfig>;
   }
-  const num = (v: string | undefined) => (v === undefined || v === "" ? undefined : Number(v));
+  const num = (v: string | undefined) => (v === undefined || v === '' ? undefined : Number(v));
   const appDist = env.SWIFTNEST_APP_DIST || fromFile.appDist;
   const config: ServerConfig = {
-    lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === "en" ? "en" : "zh-CN",
+    lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'en' : 'zh-CN',
     home: resolve(env.SWIFTNEST_HOME ?? fromFile.home ?? defaultHome(env)),
-    host: env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
+    host: env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
     port: num(env.SWIFTNEST_PORT) ?? fromFile.port ?? DEFAULT_PORT,
     appDist: appDist ? resolve(appDist) : undefined,
-    persona: env.SWIFTNEST_PERSONA ?? fromFile.persona ?? ((env.SWIFTNEST_LANG ?? fromFile.lang) === "en" ? "You are a helpful assistant in Swiftnest, powered by the {{model}} model." : DEFAULT_PERSONA),
+    persona:
+      env.SWIFTNEST_PERSONA ??
+      fromFile.persona ??
+      ((env.SWIFTNEST_LANG ?? fromFile.lang) === 'en'
+        ? 'You are a helpful assistant in Swiftnest, powered by the {{model}} model.'
+        : DEFAULT_PERSONA),
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName || undefined,
     devices: {
-      host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
+      host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
-      mdns: env.SWIFTNEST_DEVICES_MDNS === undefined ? fromFile.devices?.mdns ?? true : env.SWIFTNEST_DEVICES_MDNS !== "false",
+      mdns:
+        env.SWIFTNEST_DEVICES_MDNS === undefined
+          ? (fromFile.devices?.mdns ?? true)
+          : env.SWIFTNEST_DEVICES_MDNS !== 'false',
     },
     files: { quotaBytes: num(env.SWIFTNEST_FILES_QUOTA_BYTES) ?? fromFile.files?.quotaBytes ?? 100 * 1024 ** 3 },
     model: {
       ...DEFAULT_MODEL,
-      name: (env.SWIFTNEST_LANG ?? fromFile.lang) === "en" ? "Local model" : DEFAULT_MODEL.name,
+      name: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'Local model' : DEFAULT_MODEL.name,
       ...fromFile.model,
       ...(env.SWIFTNEST_MODEL_BASE_URL ? { baseUrl: env.SWIFTNEST_MODEL_BASE_URL } : {}),
       ...(env.SWIFTNEST_MODEL_ID ? { id: env.SWIFTNEST_MODEL_ID } : {}),
@@ -95,16 +103,19 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
-  if(config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0)) throw new ServerFailure("files.quotaBytes must be a nonnegative safe integer");
-  if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535) throw new ServerFailure("devices.port must be an integer 0-65535");
-  if (typeof config.devices.host !== "string" || !config.devices.host) throw new ServerFailure("devices.host must be an address");
-  if (typeof config.devices.mdns !== "boolean") throw new ServerFailure("devices.mdns must be a boolean");
-  if (typeof config.persona !== "string") throw new ServerFailure("persona must be a string");
+  if (config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0))
+    throw new ServerFailure('files.quotaBytes must be a nonnegative safe integer');
+  if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535)
+    throw new ServerFailure('devices.port must be an integer 0-65535');
+  if (typeof config.devices.host !== 'string' || !config.devices.host)
+    throw new ServerFailure('devices.host must be an address');
+  if (typeof config.devices.mdns !== 'boolean') throw new ServerFailure('devices.mdns must be a boolean');
+  if (typeof config.persona !== 'string') throw new ServerFailure('persona must be a string');
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) {
     throw new ServerFailure(`port must be an integer 0-65535, got ${config.port}`);
   }
-  if (config.host === "0.0.0.0" || config.host === "::") {
-    throw new ServerFailure("host must be one concrete address (for example your LAN IP), not a wildcard");
+  if (config.host === '0.0.0.0' || config.host === '::') {
+    throw new ServerFailure('host must be one concrete address (for example your LAN IP), not a wildcard');
   }
   try {
     new URL(config.model.baseUrl);

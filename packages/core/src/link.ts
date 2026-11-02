@@ -2,9 +2,9 @@
  * The Nest's view of a connected Perch. Link plugins (LAN, relay, Headscale…) each provide one of these per device;
  * the in-process `memoryLink` here powers the playground, tests and single-machine ("no Nest") setups.
  */
-import type { CapabilityManifest, InvokeRequest, InvokeResult, Risk } from "@swiftnest/protocol";
-import type { z } from "zod";
-import type { Perch } from "./perch.js";
+import type { CapabilityManifest, InvokeRequest, InvokeResult, Risk } from '@swiftnest/protocol';
+import type { z } from 'zod';
+import type { Perch } from './perch.js';
 
 export interface PerchConnection {
   readonly device: string;
@@ -15,9 +15,9 @@ export interface PerchConnection {
   readonly via: string;
   capabilities(): CapabilityManifest[];
   classify(capability: string, tool: string, args: Record<string, unknown>): Promise<{ risk: Risk; reason?: string }>;
-  invoke(req: Omit<z.infer<typeof InvokeRequest>, "type">): Promise<z.infer<typeof InvokeResult>>;
-  openOwnerStream?(options: { maxDimension: number; displayId: string }): Promise<import("./streams.js").StreamOffer>;
-  openFileStream?(options: import("./streams.js").FileStreamOptions): Promise<import("./streams.js").StreamOffer>;
+  invoke(req: Omit<z.infer<typeof InvokeRequest>, 'type'>): Promise<z.infer<typeof InvokeResult>>;
+  openOwnerStream?(options: { maxDimension: number; displayId: string }): Promise<import('./streams.js').StreamOffer>;
+  openFileStream?(options: import('./streams.js').FileStreamOptions): Promise<import('./streams.js').StreamOffer>;
   cancel(taskId: string): void;
   onCapabilitiesChanged(fn: () => void): () => void;
   onClose(fn: () => void): () => void;
@@ -30,7 +30,7 @@ export function memoryLink(perch: Perch): PerchConnection {
   return {
     device: perch.device,
     publicKey: perch.identity.publicKey,
-    via: "memory",
+    via: 'memory',
     capabilities: () => perch.capabilities(),
     classify: async (c, t, a) => perch.classify(c, t, a),
     invoke: (req) => perch.invoke(req),
