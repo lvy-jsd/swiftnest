@@ -7,9 +7,10 @@ Swiftnest Server runs on an always-on machine and holds your conversations, bots
 built-in modules as a DSH bundle (`server/bundle`). DSH's own Web UI keeps working on the same port, and third-party
 DSH plugins still install into it.
 
-Status: phase 0 chat. It boots the kernel, configures one OpenAI-compatible model, serves
-`GET /swiftnest/health` and the Swiftnest web App at `/app/`, and supports URL pairing for web and desktop.
-Teams, memory, per-device credentials and Android packaging come later.
+The server hosts the Nest and a pinned DSH kernel, serves the App at `/app/` and health at
+`/swiftnest/health`, and routes agent tools to paired Perches. The App handles device pairing, fingerprint
+confirmation, revocation and risky-call approvals. Device-side desktop/Android integration comes separately.
+See [Devices](../docs/en/guide/devices.md) for pairing, approvals and the typed API.
 
 ## Run it
 
@@ -50,6 +51,9 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `home` | `SWIFTNEST_HOME` | `$XDG_DATA_HOME/swiftnest` |
 | `host` (one concrete IP, never `0.0.0.0`) | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |
+| `devices.host` | `SWIFTNEST_DEVICES_HOST` | server `host` |
+| `devices.port` | `SWIFTNEST_DEVICES_PORT` | `7711` |
+| `devices.mdns` | `SWIFTNEST_DEVICES_MDNS` | `true` (`false` disables) |
 | `appDist` | `SWIFTNEST_APP_DIST` | installed `@swiftnest/app/dist`, otherwise unavailable |
 | `persona` (string) | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
@@ -57,6 +61,10 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `model.name`, `model.contextWindow`, `model.maxTokens` | | `Local model`, `32768`, `8192` |
 | `model.apiKeyEnv` (name of the key variable) | | `SWIFTNEST_MODEL_API_KEY` |
 | Node binary for the kernel | `SWIFTNEST_KERNEL_NODE` | the Node running Swiftnest |
+
+The persistent Nest identity, paired devices, last-seen metadata and raw-argument audit live in
+`<home>/devices/`. The loopback admin and MCP listeners have separate random per-process credentials,
+passed to DSH through environment variables; generated patches contain no bearer value.
 
 DSH's data lives in `<home>/dsh`. Swiftnest regenerates the `swiftnest` profile on every start; put your own DSH
 patch rows in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which is applied last and never overwritten.

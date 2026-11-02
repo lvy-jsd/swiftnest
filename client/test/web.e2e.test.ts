@@ -3,7 +3,7 @@ import { chromium } from '@playwright/test';
 import type { Browser } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,9 @@ import { expect, it } from 'vitest';
 import { loadConfig } from '../../server/src/config';
 import { startKernel } from '../../server/src/kernel';
 import type { RunningKernel } from '../../server/src/kernel';
+import { Perch } from '@swiftnest/core';
+import { runLanPerch } from '@swiftnest/link-lan';
+import files from '@swiftnest/cap-files';
 import { webAppUrl } from '../../server/src/pairing';
 
 it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat → stream → queue → reply → reopen', async context => {
@@ -22,6 +25,8 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
   const dist = fileURLToPath(new URL('../dist/', import.meta.url));
   let home: string | undefined;
   let kernel: RunningKernel | undefined;
+  let perch: Perch | undefined;
+  let perchRun: ReturnType<typeof runLanPerch> | undefined;
   const logs: string[] = [];
   const diagnostics: string[] = [];
   let page: import('@playwright/test').Page | undefined;
@@ -49,7 +54,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     // A real non-loopback address exercises the insecure-context LAN path.
     const host = Object.values(networkInterfaces()).flat().find(address => address?.family === 'IPv4' && !address.internal)?.address ?? '127.0.0.1';
     kernel = await startKernel(loadConfig(undefined, {
-      SWIFTNEST_HOME: home, SWIFTNEST_HOST: host, SWIFTNEST_PORT: '0', SWIFTNEST_APP_DIST: dist,
+      SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: "0", SWIFTNEST_DEVICES_MDNS: "false", SWIFTNEST_HOST: host, SWIFTNEST_PORT: '0', SWIFTNEST_APP_DIST: dist,
       SWIFTNEST_MODEL_ID: 'fake', SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
     }), { readyTimeoutMs: 90_000, onLine: line => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) });
     page = await browser.newPage({ locale: 'en-US', viewport: { width: 1100, height: 800 } });
@@ -82,12 +87,57 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     await page.getByRole('button', { name: 'Go back' }).click();
     await page.getByRole('main').locator('a[href^="#/chats/"]').first().click();
     await expect.poll(() => transcript.locator('p').filter({ hasText: /^Hello from Swiftnest\.$/ }).count()).toBe(2);
+    // Device management and owner approvals through the real same-origin proxy, at phone width.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Go back' }).click();
+    await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click();
+    await page.getByRole('button', { name: 'Pair a device', exact: true }).click();
+    const pairingCard = page.getByRole('article', { name: 'Pair a device' });
+    await pairingCard.locator('output').waitFor();
+    const code = (await pairingCard.locator('output').innerText()).trim();
+    const address = (await pairingCard.locator('code').first().innerText()).trim();
+    const shared = join(home!, 'shared'); await mkdir(shared);
+    perch = await new Perch({ device: 'browser-device' }).use(files, { roots: [shared] });
+    perchRun = runLanPerch(perch, { url: address, reconnect: false, pairing: { code, confirm: async () => true } });
+    await page.getByText(perch.identity.fingerprint, { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Fingerprint matches' }).click();
+    await page.getByRole('heading', { name: 'browser-device', exact: true }).waitFor();
+    await page.getByText('Online · lan', { exact: true }).waitFor();
+    expect(await page.getByRole('list', { name: 'Devices', exact: true }).innerText()).toContain('files');
+    const args = { path: join(shared, 'approved.txt'), content: 'Approved from phone-width App' };
+    const write = await kernel.devices.nest.call('browser-device__files__write', args, { id: 'browser-test', name: 'Browser requester' });
+    const approvalList = page.getByRole('list', { name: 'Waiting for approval', exact: true });
+    await approvalList.getByText('Browser requester', { exact: false }).waitFor();
+    expect(await approvalList.innerText()).toContain(args.content);
+    await approvalList.getByRole('button', { name: 'Review request', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Review request' }).getByRole('button', { name: 'Approve', exact: true }).click();
+    await expect.poll(() => kernel!.devices.nest.tasks.get(write.id)?.state).toBe('succeeded');
+    expect(await readFile(args.path, 'utf8')).toBe(args.content);
+    await page.getByRole('dialog', { name: 'Review request' }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Go back' }).click();
+    await page.getByRole('main').locator('a[href^="#/chats/"]').first().click();
+    const denied = await kernel.devices.nest.call('browser-device__files__write', { ...args, content: 'Do not write' }, { id: 'browser-test' });
+    await page.getByRole('button', { name: 'Waiting for approval · 1', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Review request' }).getByRole('button', { name: 'Deny', exact: true }).click();
+    await expect.poll(() => kernel!.devices.nest.tasks.get(denied.id)?.state).toBe('denied');
+    expect(await readFile(args.path, 'utf8')).toBe(args.content);
+    await page.getByRole('dialog', { name: 'Review request' }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Go back' }).click();
+    await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click();
+    await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
+    const revoke = page.getByRole('dialog', { name: 'Revoke device' });
+    await revoke.waitFor();
+    expect(kernel.devices.nest.devicesStore.list()).toHaveLength(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await revoke.getByRole('button', { name: 'Revoke device', exact: true }).click();
+    await page.getByText('No paired devices yet.', { exact: true }).waitFor();
     expect(errors).toEqual([]);
     await page.close();
   } catch (error) {
     const body = await page?.locator('body').innerText().catch(() => 'No page');
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n${diagnostics.join('\n')}\n${body}\n${logs.slice(-30).join('\n')}`.replace(/token(?:=|%3D)[^&\s]+/gi, 'token=REDACTED'));
   } finally {
+    perchRun?.stop(); await perchRun?.finished; await perch?.close();
     await browser.close(); await kernel?.stop();
     await new Promise<void>(resolve => model.close(() => resolve()));
     if (home) await rm(home, { recursive: true, force: true });

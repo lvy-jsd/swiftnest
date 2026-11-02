@@ -1,3 +1,5 @@
+import type { Device, DeviceApproval, DeviceAuditEntry, DevicePairing, DevicePairingCandidate, DeviceEvent, DeviceSubscription } from './devices.js';
+export type * from './devices.js';
 import type { SessionFollowFrame, SessionListValue, SessionCreateValue, SessionPromptValue } from '@deepseek-ai/dsh-api-session-controller/types';
 import type { RemoteEventDownlinkFrame } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import { mapFrame } from './events.js';
@@ -71,6 +73,68 @@ export class SwiftnestClient {
     if (!response.ok) throw new ApiError('http-error', `Health returned HTTP ${response.status}`);
     return await response.json() as Health;
   }
+  listDevices(): Promise<Device[]> { return this.deviceRequest(''); }
+  createDevicePairing(): Promise<DevicePairing> { return this.deviceRequest('/pairing', 'POST'); }
+  listDevicePairings(): Promise<DevicePairingCandidate[]> { return this.deviceRequest('/pairing'); }
+  confirmDevicePairing(id: string, accept: boolean): Promise<{ id: string }> {
+    return this.deviceRequest(`/pairing/${encodeURIComponent(id)}/${accept ? 'approve' : 'deny'}`, 'POST');
+  }
+  revokeDevice(device: string): Promise<{ device: string }> { return this.deviceRequest(`/revoke/${encodeURIComponent(device)}`, 'POST'); }
+  listDeviceApprovals(): Promise<DeviceApproval[]> { return this.deviceRequest('/approvals'); }
+  answerDeviceApproval(id: string, accept: boolean): Promise<DeviceApproval> {
+    return this.deviceRequest(`/approvals/${encodeURIComponent(id)}/${accept ? 'approve' : 'deny'}`, 'POST');
+  }
+  deviceAudit(limit = 100): Promise<DeviceAuditEntry[]> { return this.deviceRequest(`/audit?limit=${encodeURIComponent(limit)}`); }
+
+  /** Fetch-based SSE works with browser cookies and the native/manual-cookie carrier. */
+  async watchDevices(options: { signal?: AbortSignal } = {}): Promise<DeviceSubscription> {
+    this.assertConnected();
+    const abort = new AbortController();
+    const signal = AbortSignal.any([abort.signal, this.lifetime.signal, ...(options.signal ? [options.signal] : [])]);
+    const inbox = new Inbox<DeviceEvent>(() => abort.abort());
+    const onAbort = () => inbox.close();
+    signal.addEventListener('abort', onAbort, { once: true });
+    try {
+      signal.throwIfAborted();
+      const response = await this.doFetch(this.url('swiftnest/api/devices/events'), { credentials: 'include', headers: this.headers(), signal });
+      if (!response.ok || !response.body) throw new ApiError('http-error', `Device events returned HTTP ${response.status}`);
+      void (async () => {
+        const reader = response.body!.getReader();
+        const cancel = () => { void reader.cancel().catch(() => {}); };
+        signal.addEventListener('abort', cancel, { once: true });
+        if (signal.aborted) cancel();
+        try {
+          const decoder = new TextDecoder();
+          let buffer = '';
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
+            if (buffer.length > 65536) throw new ApiError('protocol-error', 'Device event exceeds size limit');
+            let end: number;
+            while ((end = buffer.indexOf('\n\n')) >= 0) {
+              const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2);
+              const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+              if (!data) continue;
+              const event = JSON.parse(data) as DeviceEvent;
+              if (!['devices-changed', 'approval-pending', 'approvals-changed', 'pairing-changed'].includes(event.type)) throw new ApiError('protocol-error', 'Unknown device event');
+              inbox.push(event);
+            }
+          }
+          inbox.end();
+        } catch (error) { if (!signal.aborted) inbox.end(error instanceof Error ? error : new Error(String(error))); }
+        finally { signal.removeEventListener('abort', cancel); signal.removeEventListener('abort', onAbort); reader.releaseLock(); abort.abort(); }
+      })();
+      return inbox;
+    } catch (error) { signal.removeEventListener('abort', onAbort); abort.abort(); throw error; }
+  }
+  private async deviceRequest<T>(path: string, method = 'GET'): Promise<T> {
+    this.assertConnected();
+    const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method });
+    if (!response.ok) throw new ApiError(response.status === 409 ? 'device-conflict' : 'http-error', `Device API returned HTTP ${response.status}`);
+    return await response.json() as T;
+  }
+
   async listSessions(): Promise<SessionSummary[]> {
     const result = await this.rpc<SessionListValue>('session/list', { _request: {} });
     return result.items.map(s => {

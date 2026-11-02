@@ -22,6 +22,7 @@ export default defineConfig({
             items: [
               { text: "Quick start", link: "/en/guide/quickstart" },
               { text: "Two machines", link: "/en/guide/two-machines" },
+              { text: "Devices", link: "/en/guide/devices" },
               { text: "Concepts", link: "/en/guide/concepts" },
               { text: "Write your first plugin", link: "/en/guide/write-a-plugin" },
             ],
@@ -45,6 +46,7 @@ export default defineConfig({
             items: [
               { text: "快速开始", link: "/zh/guide/quickstart" },
               { text: "两台机器", link: "/zh/guide/two-machines" },
+              { text: "设备", link: "/zh/guide/devices" },
               { text: "核心概念", link: "/zh/guide/concepts" },
               { text: "写第一个插件", link: "/zh/guide/write-a-plugin" },
             ],

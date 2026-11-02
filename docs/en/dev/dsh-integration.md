@@ -97,8 +97,8 @@ default and a configured persona.
 ## Decisions for phase 0
 
 1. **Server = profile, not fork.** `@swiftnest/server` creates/updates a profile named `swiftnest` whose bundles
-   are `@deepseek-ai/dsh-web-app` and our `@swiftnest/server-bundle`, writes our patch layer (model config from
-   the Swiftnest config file), and boots it in-process through `profile-boot`. DSH's own Web UI keeps working on
+   are `@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app` and our `@swiftnest/server-bundle`, writes our patch layer
+   (model config from the Swiftnest config file), and boots it in a child process. DSH's own Web UI keeps working on
    the same port, which is the compatibility promise.
 2. **Built-in modules are Cordis plugins in `@swiftnest/server-bundle`.** Phase 0 ships one: `swiftnest-core`,
    which registers `GET /swiftnest/health` (version, DSH version, model reachability) on `ctx.webServer`.
@@ -208,3 +208,24 @@ fence as a workaround. Native carrier permissions/configuration belong to App in
 - Workspace install explicitly permits the DSH subprocess helper's executable-bit repair, while marking
   other unused dependency scripts disabled, as required by pnpm 12. The fixed chat model needs none of
   those optional builds. `pnpm build`, `pnpm test`, and the opt-in kernel suite are the B1 checks.
+
+
+## Server device hub (E1)
+
+The Swiftnest parent owns the Nest, its persistent identity/device store/audit, the LAN link and two
+loopback HTTP listeners. The generated profile inserts `@deepseek-ai/dsh-mcp-client` with
+`serverName: devices`, Streamable HTTP and reconnect enabled. Its Authorization header is an unevaluated
+`!!js` environment expression: neither generated configuration nor kernel persistence contains the
+per-process bearer value (checked in the real-kernel test).
+
+The bundle injects `connection` and calls `connection.admit(req)` for `/swiftnest/api/devices/*`, retaining
+the native Host/Origin/session fence and requiring `peer.principal.kind === 'owner'`. It streams authorized
+requests to the parent's loopback admin listener using a separate environment credential, forwarding no
+browser cookies, request bodies or caller-supplied authorization. The admin endpoint owns pairing,
+fingerprint decisions, revocation, task decisions, audit and SSE invalidations. MCP has no approval tool.
+
+Verified against the pinned kernel: MCP `tools/list_changed` adds/removes tools in the same conversation,
+new conversations see current tools, and the kernel is never restarted. Acceptance also pairs a real Node
+Perch over link-lan with cap-files, lets the fake model read a file, waits for App approval before writing,
+and checks both audit results. The Chromium flow exercises device management and approval/denial at 390 px.
+See [Devices](../guide/devices.md) for configuration and the API contract.

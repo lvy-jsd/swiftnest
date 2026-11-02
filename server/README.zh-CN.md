@@ -5,7 +5,16 @@
 Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和记忆。它内嵌锁定版本的
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH，MIT）作为内核，Swiftnest 自己的内置模块以 DSH bundle 的形式加载（`server/bundle`）。DSH 自带的 Web UI 在同一端口照常可用，第三方 DSH 插件也照样能装。
 
-状态：阶段 0 聊天。可以启动内核、配置 OpenAI 兼容模型，提供 `GET /swiftnest/health`、`/app/` 网页应用及网页/桌面链接配对。团队、记忆、每设备凭据和 Android 打包留待后续。
+可以启动内核、配置 OpenAI 兼容模型，提供 `GET /swiftnest/health`、`/app/` 网页应用及网页/桌面链接配对。团队、记忆和 Android 打包留待后续。
+
+服务器同时托管 Nest 和 DSH kernel，将智能体的工具调用转发到已配对的 Perch。App 的设备页支持生成配对码、
+核对指纹、撤销设备和审批高风险请求；聊天页也可查看审批。桌面和 Android 设备端集成另行实现。
+详细步骤及 API 见[设备指南](../docs/zh/guide/devices.md)。
+
+设备监听配置：`devices.host` 默认跟随服务器地址，`devices.port` 默认 `7711`，`devices.mdns` 默认 `true`。
+对应环境变量为 `SWIFTNEST_DEVICES_HOST`、`SWIFTNEST_DEVICES_PORT`、`SWIFTNEST_DEVICES_MDNS`（`false` 关闭发现）。
+身份、配对、最近在线信息和原始参数审计保存在 `<home>/devices/`。本机管理通道和 MCP 使用独立的随机进程密钥，
+通过环境变量传递给 DSH；生成的 patch 不保存 bearer 密钥值。
 
 ## 运行
 

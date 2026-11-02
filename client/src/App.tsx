@@ -1,3 +1,4 @@
+import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent, PointerEvent } from 'react';
 import type { SessionSummary } from '@swiftnest/api';
@@ -139,6 +140,7 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
   }
   return <DetailPage title={sessions.find(s => s.sessionId === sessionId)?.title || t('untitledChat')} subtitle={root || t(status)} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}><Options size={24} /></Button>}>
     <ConnectionStatus />
+    <DeviceApprovals compact />
     <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
     <div className="composer-area glass">{state.waiting && <Thinking />}<p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p><form className="composer" onSubmit={send}>
       <textarea aria-label={t('composer')} placeholder={t('composer')} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
@@ -146,7 +148,8 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
     </form></div>
   </DetailPage>;
 }
-export function App() {
+export function App() { return <DeviceHubProvider><AppContent /></DeviceHubProvider>; }
+function AppContent() {
   const { t } = useI18n();
   const { reducedMotion } = useTheme();
   const { store, sessions, status } = useConnection();
@@ -158,6 +161,7 @@ export function App() {
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const chatId = chatFromHash(hash);
   const pairing = hash.startsWith('#/pair');
+  const devicesPage = hash.startsWith('#/devices');
   const Settings = icons.settings, Avatar = icons.avatar;
   const visibleChats = sessions.filter(item => (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const back = () => { window.location.hash = '/'; };
@@ -194,12 +198,15 @@ export function App() {
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>
     <aside className="sidebar"><div className="sidebar__brand"><strong>{t('appName')}</strong><Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Settings size={24} /></Button></div>
       <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>
+      <a className="devices-link" href="#/devices">{t("devices")}</a>
       <nav aria-label={t('chatNavigation')}><VirtualList items={sessions} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} selected={item.sessionId === chatId} />} /></nav>
     </aside>
     <main id="main-content" className="main-content" tabIndex={-1} onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={endSwipe} onPointerCancel={() => { swipe.current = null; setSwipeOffset(0); }}>
-      <div key={chatId ?? (pairing ? 'pair' : 'hub')} className="route-view" data-direction={chatId ? 'forward' : 'back'} style={swipeOffset && !reducedMotion ? { transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties : undefined}>
-        {pairing ? <PairPage onBack={back} /> : chatId ? <ChatDetail key={`${chatId}:${status}`} sessionId={chatId} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t('chats')} subtitle={t('chatsSubtitle')} action={<Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
+      <div key={chatId ?? (pairing ? 'pair' : devicesPage ? 'devices' : 'hub')} className="route-view" data-direction={chatId ? 'forward' : 'back'} style={swipeOffset && !reducedMotion ? { transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties : undefined}>
+        {devicesPage ? <DevicesPage onBack={back} /> : pairing ? <PairPage onBack={back} /> : chatId ? <ChatDetail key={`${chatId}:${status}`} sessionId={chatId} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t('chats')} subtitle={t('chatsSubtitle')} action={<Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
           <ConnectionStatus />
+          <a className="devices-link" href="#/devices">{t("devices")}</a>
+          <DeviceApprovals compact />
           {status === 'connected' && <Button variant="primary" disabled={creating} onClick={() => void newChat()}>{t('newChat')}</Button>}
           <label className="search-field"><input type="search" value={query} placeholder={t('search')} aria-label={t('search')} onChange={event => setQuery(event.target.value)} /></label>
           {visibleChats.length ? <VirtualList items={visibleChats} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} />} /> : <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>}

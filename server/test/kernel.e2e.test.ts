@@ -36,7 +36,7 @@ describe.skipIf(!enabled)("Swiftnest Server kernel (e2e)", () => {
     writeFileSync(join(dist, 'index.html'), '<html>App shell</html>');
     writeFileSync(join(dist, 'assets', 'app-12345678.js'), 'export {};');
     const config = loadConfig(undefined, {
-      SWIFTNEST_HOME: home,
+      SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: "0", SWIFTNEST_DEVICES_MDNS: "false",
       SWIFTNEST_APP_DIST: dist,
       SWIFTNEST_PORT: "0",
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,

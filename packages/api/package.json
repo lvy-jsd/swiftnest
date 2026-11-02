@@ -23,5 +23,8 @@
     "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
     "ws": "^8.21.3",
     "@types/ws": "^8.18.1"
+  },
+  "dependencies": {
+    "@swiftnest/protocol": "workspace:*"
   }
 }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { loadConfig } from "../src/config.js";
-import { BUNDLES, PROVIDER_ID, presetPersonaPatch, profileDir, writeProfile } from "../src/profile.js";
+import { BUNDLES, devicesMcpPatch, PROVIDER_ID, presetPersonaPatch, profileDir, writeProfile } from "../src/profile.js";
 import { parseReadyLine, resolveAppDist } from "../src/kernel.js";
 import { pairingUrl, webAppUrl } from "../src/pairing.js";
 
@@ -162,4 +162,13 @@ describe("kernel output and pairing", () => {
     expect(resolveAppDist(id => { expect(id).toBe('@swiftnest/app/package.json'); return '/installed/app/package.json'; })).toBe('/installed/app/dist');
     expect(resolveAppDist(() => { throw new Error('not installed'); })).toBeUndefined();
   });
+});
+
+
+it('generates an MCP row with a deferred credential and reconnect enabled', () => {
+  const rows = parse(devicesMcpPatch('http://127.0.0.1:4567/mcp'), { customTags });
+  expect(rows).toEqual([{ insert: [{ id: 'swiftnest-devices-mcp', name: '@deepseek-ai/dsh-mcp-client', config: {
+    serverName: 'devices', transport: 'streamable-http', url: 'http://127.0.0.1:4567/mcp', reconnect: { enabled: true },
+    headers: { Authorization: '"Bearer " + process.env.SWIFTNEST_DEVICES_MCP_TOKEN' },
+  } }] }]);
 });

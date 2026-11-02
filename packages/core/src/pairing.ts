@@ -99,6 +99,7 @@ export class PairingManager {
   private code: { value: string; expiresAt: number; attempts: number } | undefined;
   private candidates = new Map<string, { candidate: PairingCandidate; decide: (accept: boolean) => void }>();
   private listeners = new Set<(c: PairingCandidate) => void>();
+  private changes = new Set<() => void>();
   private seq = 0;
   private ttlMs: number;
   private maxAttempts: number;
@@ -154,11 +155,13 @@ export class PairingManager {
         clearTimeout(timer);
         if (!this.candidates.delete(id)) return;
         resolve(accept);
+        for (const fn of this.changes) fn();
       };
       timer = setTimeout(() => decide(false), timeoutMs);
       this.candidates.set(id, { candidate, decide });
     });
     for (const fn of this.listeners) fn(candidate);
+    for (const fn of this.changes) fn();
     return { candidate, answer };
   }
 
@@ -176,6 +179,11 @@ export class PairingManager {
     if (!entry) return false;
     entry.decide(accept);
     return true;
+  }
+
+  onChange(fn: () => void): () => void {
+    this.changes.add(fn);
+    return () => { this.changes.delete(fn); };
   }
 
   onCandidate(fn: (c: PairingCandidate) => void): () => void {

@@ -7,3 +7,5 @@
         version: !!js process.env.SWIFTNEST_VERSION
         modelBaseUrl: !!js process.env.SWIFTNEST_MODEL_BASE_URL
         appDist: !!js process.env.SWIFTNEST_APP_DIST
+        devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
+        devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN

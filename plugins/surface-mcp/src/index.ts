@@ -6,7 +6,7 @@
  *   and the agent follows up with swiftnest__task_wait / task_status / task_cancel (design §4.2).
  * - There is deliberately NO approve tool: an agent must never be able to approve its own request.
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -21,6 +21,8 @@ export interface McpSurfaceOptions {
   /** Language of tool descriptions shown to agents (default "en"). */
   lang?: "en" | "zh";
   serverName?: string;
+  /** Optional bearer credential, checked on every HTTP request including SSE. */
+  bearerToken?: string;
 }
 
 const META = {
@@ -154,7 +156,15 @@ export async function serveMcpHttp(nest: Nest, opts: McpSurfaceOptions & { host?
     });
 
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
-    if (!req.url?.startsWith("/mcp")) {
+    if (opts.bearerToken) {
+      const expected = Buffer.from(`Bearer ${opts.bearerToken}`);
+      const given = Buffer.from(req.headers.authorization ?? "");
+      if (given.length !== expected.length || !timingSafeEqual(expected, given)) {
+        res.writeHead(401).end();
+        return;
+      }
+    }
+    if (new URL(req.url ?? "/", "http://localhost").pathname !== "/mcp") {
       res.writeHead(404, { "content-type": "text/plain" }).end("Swiftnest MCP endpoint is at /mcp\n");
       return;
     }
@@ -208,7 +218,9 @@ export async function serveMcpHttp(nest: Nest, opts: McpSurfaceOptions & { host?
       offTools();
       for (const { transport } of sessions.values()) await transport.close().catch(() => {});
       sessions.clear();
-      await new Promise<void>((r) => http.close(() => r()));
+      const closed = new Promise<void>((r) => http.close(() => r()));
+      http.closeAllConnections();
+      await closed;
     },
   };
 }

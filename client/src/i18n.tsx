@@ -2,6 +2,16 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
 
 export const en = {
+  devices: "Devices", devicesHelp: "Your paired devices and requests waiting for you.",
+  pairDevice: "Pair a device", pairingCode: "Pairing code", pairingExpired: "Code expired. Create a new code.",
+  dialAddress: "Device address", nestFingerprint: "Server fingerprint", expires: "Expires",
+  compareFingerprints: "Compare fingerprints on both screens before confirming.",
+  confirmDevice: "Confirm device", fingerprintMatches: "Fingerprint matches", noDevices: "No paired devices yet.",
+  online: "Online", offline: "Offline", capabilities: "Capabilities", lastSeen: "Last seen", none: "None",
+  revokeDevice: "Revoke device", revokeHelp: "Disconnect this device and remove its pairing. It must pair again to reconnect.",
+  cancel: "Cancel", pendingApprovals: "Waiting for approval", reviewApproval: "Review request", requestedBy: "Requested by",
+  risk: "Risk", read: "Read", write: "Write", exec: "Execute", sensitive: "Sensitive", approve: "Approve", deny: "Deny",
+  devicesFailed: "Could not update devices or complete the action. Check the connection and retry.",
   appName: "Swiftnest", chats: "Chats", chatsSubtitle: "A little room for your next idea.",
   chatNavigation: "Choose a chat", openPreferences: "Open preferences", preferences: "Preferences",
   close: "Close", back: "Go back", search: "Search chats", noChats: "No chats found. Try another search.",
@@ -27,6 +37,16 @@ export const en = {
 export type StringKey = keyof typeof en;
 export type Locale = "en" | "zh-CN";
 export const zhCN: Record<StringKey, string> = {
+  devices: "设备", devicesHelp: "已配对的设备与等待你确认的请求。",
+  pairDevice: "配对设备", pairingCode: "配对码", pairingExpired: "配对码已过期，请生成新码。",
+  dialAddress: "设备连接地址", nestFingerprint: "服务器指纹", expires: "有效期至",
+  compareFingerprints: "请核对两端屏幕上的指纹后再确认。",
+  confirmDevice: "确认设备", fingerprintMatches: "指纹一致", noDevices: "还没有配对设备。",
+  online: "在线", offline: "离线", capabilities: "能力", lastSeen: "最近在线", none: "无",
+  revokeDevice: "撤销设备", revokeHelp: "断开此设备并移除配对，重新连接需要再次配对。",
+  cancel: "取消", pendingApprovals: "等待审批", reviewApproval: "查看请求", requestedBy: "请求方",
+  risk: "风险", read: "读取", write: "写入", exec: "执行", sensitive: "敏感操作", approve: "批准", deny: "拒绝",
+  devicesFailed: "无法更新设备或完成操作，请检查连接后重试。",
   appName: "Swiftnest", chats: "聊天", chatsSubtitle: "为下一个想法留一点空间。",
   chatNavigation: "选择聊天", openPreferences: "打开偏好设置", preferences: "偏好设置",
   close: "关闭", back: "返回", search: "搜索聊天", noChats: "未找到聊天，请换个关键词。",

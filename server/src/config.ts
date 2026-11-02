@@ -32,6 +32,7 @@ export interface ServerConfig {
   /** Default persona for DSH's system prompt and agent presets; supports {{model}}. */
   persona: string;
   model: ModelConfig;
+  devices: { host: string; port: number; mdns: boolean };
 }
 
 export const DEFAULT_PORT = 3077;
@@ -68,6 +69,11 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     port: num(env.SWIFTNEST_PORT) ?? fromFile.port ?? DEFAULT_PORT,
     appDist: appDist ? resolve(appDist) : undefined,
     persona: env.SWIFTNEST_PERSONA ?? fromFile.persona ?? DEFAULT_PERSONA,
+    devices: {
+      host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
+      port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
+      mdns: env.SWIFTNEST_DEVICES_MDNS === undefined ? fromFile.devices?.mdns ?? true : env.SWIFTNEST_DEVICES_MDNS !== "false",
+    },
     model: {
       ...DEFAULT_MODEL,
       ...fromFile.model,
@@ -80,6 +86,9 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535) throw new Error("devices.port must be an integer 0-65535");
+  if (typeof config.devices.host !== "string" || !config.devices.host) throw new Error("devices.host must be an address");
+  if (typeof config.devices.mdns !== "boolean") throw new Error("devices.mdns must be a boolean");
   if (typeof config.persona !== "string") throw new Error("persona must be a string");
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) {
     throw new Error(`port must be an integer 0-65535, got ${config.port}`);

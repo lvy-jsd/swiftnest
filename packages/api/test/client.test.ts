@@ -23,7 +23,7 @@ class Socket implements ApiWebSocket {
   interaction(value: unknown): void { this.frame(this.sent.find(f => f.endpoint === '$events').streamId, value); }
 }
 
-function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean; legacyHeaders?: boolean } = {}) {
+function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean; legacyHeaders?: boolean; devices?: (url: string, init: RequestInit) => Response } = {}) {
   let socket!: Socket;
   const calls: { url: string; init: RequestInit; body?: any }[] = [];
   const doFetch = vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -38,6 +38,7 @@ function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boo
       if (options.legacyHeaders) Object.defineProperty(response.headers, 'getSetCookie', { value: undefined });
       return response;
     }
+    if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
     const value = body?.method === 'session/create' ? { sessionId: 'session-1' }
       : body?.method === 'session/list' ? { items: [{ sessionId: 'session-1', updatedAt: 100, running: false, blank: true, projections: { values: { title: 'Test' } } }] }
       : { accepted: true };
@@ -149,5 +150,56 @@ describe('independent API client', () => {
     h.factory.mockImplementation(() => { const s = new Socket(); s.send = () => {}; return s; });
     await expect(h.client.connect(pairing)).rejects.toMatchObject({ code: 'timeout' });
     expect(h.factory.mock.results[0]?.value.readyState).toBe(3);
+  });
+});
+
+
+describe('device API client', () => {
+  it('uses session cookies, preserves mounts, encodes identifiers and sends explicit decisions', async () => {
+    const h = harness({ devices: () => Response.json({ ok: true }) });
+    await h.client.connect(pairing);
+    try {
+      await h.client.listDevices(); await h.client.createDevicePairing(); await h.client.listDevicePairings();
+      await h.client.confirmDevicePairing('p/1', false); await h.client.revokeDevice('my device');
+      await h.client.listDeviceApprovals(); await h.client.answerDeviceApproval('task/1', true); await h.client.answerDeviceApproval('task/2', false); await h.client.deviceAudit(10);
+      expect(h.calls.slice(1).map(c => [c.url.replace('https://server.test/mount/swiftnest/api/devices', ''), c.init.method])).toEqual([
+        ['', 'GET'], ['/pairing', 'POST'], ['/pairing', 'GET'], ['/pairing/p%2F1/deny', 'POST'], ['/revoke/my%20device', 'POST'],
+        ['/approvals', 'GET'], ['/approvals/task%2F1/approve', 'POST'], ['/approvals/task%2F2/deny', 'POST'], ['/audit?limit=10', 'GET'],
+      ]);
+      for (const call of h.calls.slice(1)) expect(call.init).toMatchObject({ credentials: 'include', headers: { cookie: 'dsh_api=secret' } });
+    } finally { h.client.close(); }
+  });
+  it('keeps browser cookies in the jar and reports stale decisions as conflicts', async () => {
+    const h = harness({ browser: true, devices: () => new Response('{}', { status: 409 }) });
+    await h.client.connect(pairing);
+    try {
+      await expect(h.client.answerDeviceApproval('expired', true)).rejects.toMatchObject({ code: 'device-conflict' });
+      expect(h.calls.at(-1)?.init.headers).not.toHaveProperty('cookie');
+    } finally { h.client.close(); }
+  });
+  it('parses split SSE frames and cancels a pending reader on abort or client close', async () => {
+    let output!: ReadableStreamDefaultController<Uint8Array>;
+    let cancelled = false;
+    const h = harness({ devices: () => new Response(new ReadableStream({ start(c) { output = c; }, cancel() { cancelled = true; } }), { headers: { 'content-type': 'text/event-stream' } }) });
+    await h.client.connect(pairing);
+    const abort = new AbortController();
+    try {
+      const stream = await h.client.watchDevices({ signal: abort.signal });
+      const enc = new TextEncoder();
+      output.enqueue(enc.encode(': heartbeat\r\n\r\ndata: {"type":"approval-'));
+      output.enqueue(enc.encode('pending"}\r\n\r\n'));
+      expect((await stream.next()).value).toEqual({ type: 'approval-pending' });
+      const next = stream.next(); abort.abort();
+      expect(await next).toMatchObject({ done: true });
+      await expect.poll(() => cancelled).toBe(true);
+      const second = await h.client.watchDevices(); const pending = second.next();
+      h.client.close(); expect(await pending).toMatchObject({ done: true });
+    } finally { h.client.close(); }
+  });
+  it('does not expose device API calls before session authentication', async () => {
+    const client = new SwiftnestClient();
+    await expect(client.listDevices()).rejects.toMatchObject({ code: 'not-connected' });
+    await expect(client.watchDevices()).rejects.toMatchObject({ code: 'not-connected' });
+    client.close();
   });
 });

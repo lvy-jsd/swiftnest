@@ -1,6 +1,27 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
-  "include": ["src"],
-  "references": [{ "path": "bundle" }]
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "bundle"
+    },
+    {
+      "path": "../packages/core"
+    },
+    {
+      "path": "../packages/api"
+    },
+    {
+      "path": "../plugins/link-lan"
+    },
+    {
+      "path": "../plugins/surface-mcp"
+    }
+  ]
 }

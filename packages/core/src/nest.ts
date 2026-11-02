@@ -113,7 +113,7 @@ export class Nest {
     const entry = this.conns.get(device);
     entry?.conn.close("REVOKED", "This device was revoked on the Nest.");
     this.detach(device);
-    if (removed || entry) this.logger.info(`revoked ${device}`);
+    if (removed || entry) { this.logger.info(`revoked ${device}`); this.changed(); }
     return removed || Boolean(entry);
   }
 
