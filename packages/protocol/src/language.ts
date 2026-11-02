@@ -32,8 +32,8 @@ export function translateMessage(text: string, lang: Language = defaultLanguage(
 export function errorCode(text: string): string {
   const item = patterns.find(item => item.re.test(text));
   const codes: Partial<Record<keyof typeof messageEn, string>> = {
-    TEXT_50:'UNKNOWN_DEVICE', TEXT_51:'TRANSFERS_STOPPED', TEXT_56:'UNKNOWN_TRANSFER', TEXT_59:'SOURCE_CHANGED', TEXT_60:'DISCONNECTED', TEXT_61:'TRANSFER_STALLED',
-    TEXT_94:'ARGS_TOO_LARGE', TEXT_95:'UNKNOWN_TOOL', TEXT_96:'BAD_ARGS', TEXT_97:'DEVICE_OFFLINE', TEXT_98:'REQUEST_TOO_LARGE', TEXT_99:'NOT_FOUND', TEXT_100:'NOT_FOUND', TEXT_101:'BAD_LIMIT', TEXT_102:'DEVICE_OFFLINE', TEXT_103:'NOT_PENDING', TEXT_105:'DEVICE_API_FAILED',
+    unknownPairedDevice:'UNKNOWN_DEVICE', transfersStopped:'TRANSFERS_STOPPED', unknownTransfer:'UNKNOWN_TRANSFER', sourceChangedStartNewTransfer:'SOURCE_CHANGED', linkDropped:'DISCONNECTED', transferStalled:'TRANSFER_STALLED',
+    deviceArgumentsTooLarge:'ARGS_TOO_LARGE', unknownDeviceTool:'UNKNOWN_TOOL', expectedObjectArguments:'BAD_ARGS', deviceOfflineLastSeen:'DEVICE_OFFLINE', transferRequestTooLarge:'REQUEST_TOO_LARGE', unknownTransferRoute:'NOT_FOUND', notFound:'NOT_FOUND', limitMust11000:'BAD_LIMIT', deviceOffline:'DEVICE_OFFLINE', approvalNoLongerPending:'NOT_PENDING', deviceApiFailed:'DEVICE_API_FAILED',
     unauthorized:'UNAUTHORIZED', forbidden:'FORBIDDEN', invalidLanguage:'INVALID_LANGUAGE', languageSize:'REQUEST_TOO_LARGE', method:'METHOD_NOT_ALLOWED',
   };
   return item ? codes[item.key] ?? `SWIFTNEST_${item.key.toUpperCase()}` : 'SWIFTNEST_FAILED';
