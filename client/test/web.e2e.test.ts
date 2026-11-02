@@ -1,6 +1,5 @@
 /** Build first. Opt-in; no downloads and no external model credentials. */
-import { chromium } from '@playwright/test';
-import type { Browser } from '@playwright/test';
+import { launchChromium } from './browser';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm, readFile, mkdir } from 'node:fs/promises';
@@ -17,11 +16,8 @@ import { runLanPerch } from '@swiftnest/link-lan';
 import files from '@swiftnest/cap-files';
 import { webAppUrl } from '../../server/src/pairing';
 
-it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat → stream → queue → reply → reopen', async context => {
-  let browser: Browser;
-  try {
-    browser = await chromium.launch({ headless: true, ...(process.env.SWIFTNEST_CHROMIUM ? { executablePath: process.env.SWIFTNEST_CHROMIUM } : {}), args: ['--no-sandbox', '--no-proxy-server'] });
-  } catch { context.skip(true, 'Chromium unavailable; install a Playwright browser or set SWIFTNEST_CHROMIUM.'); return; }
+it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat → stream → queue → reply → reopen', async () => {
+  const browser = await launchChromium();
   const dist = fileURLToPath(new URL('../dist/', import.meta.url));
   let home: string | undefined;
   let kernel: RunningKernel | undefined;

@@ -1,5 +1,5 @@
 /** Native UI bridge contract test. Rust↔Nest behavior is exercised separately by native/perch/test. */
-import { chromium } from '@playwright/test';
+import { launchChromium } from './browser';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -7,10 +7,8 @@ import { join, resolve, extname, sep } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { expect, it } from 'vitest';
 
-it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge consent, folder picker, bilingual phone layout, disable/unpair, Android/web hidden', async context => {
-  let browser;
-  try { browser = await chromium.launch({ headless:true, ...(process.env.SWIFTNEST_CHROMIUM ? { executablePath:process.env.SWIFTNEST_CHROMIUM } : {}), args:['--no-sandbox','--no-proxy-server'] }); }
-  catch { context.skip(true,'Chromium unavailable; set SWIFTNEST_CHROMIUM'); return; }
+it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge consent, folder picker, bilingual phone layout, disable/unpair, Android/web hidden', async () => {
+  const browser = await launchChromium();
   const dist=resolve(fileURLToPath(new URL('../dist/',import.meta.url)));
   const server=createServer(async (req,res)=>{
     try {

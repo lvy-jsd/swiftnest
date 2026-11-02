@@ -23,10 +23,15 @@ jobs:
       - run: pnpm lint:i18n
       - run: pnpm test
       - run: pnpm docs:build
-      - name: e2e (real DSH kernel, fake model)
+      - name: Build the web App and install Chromium for browser e2e
+        run: |
+          pnpm --filter ./client build:web
+          pnpm --filter ./client exec playwright install --with-deps chromium
+      - name: e2e (real DSH kernel, fake model, browser)
         run: pnpm vitest run server packages client
         env:
           SWIFTNEST_E2E: '1'
+          SWIFTNEST_WEB_E2E: '1'
 
   # The device core (Shell, files, screen, transfers). Tests run the real
   # bubblewrap sandbox, so the runner must allow unprivileged user namespaces.

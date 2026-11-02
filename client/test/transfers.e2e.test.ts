@@ -1,5 +1,5 @@
 import { createServer } from "vite";
-import { chromium } from "@playwright/test";
+import { launchChromium } from "./browser";
 import { expect, it } from "vitest";
 import { resolve } from "node:path";
 
@@ -41,13 +41,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== "1")(
       ],
     });
     await server.listen();
-    const browser = await chromium.launch({
-      headless: true,
-      ...(process.env.SWIFTNEST_CHROMIUM
-        ? { executablePath: process.env.SWIFTNEST_CHROMIUM }
-        : {}),
-      args: ["--no-sandbox", "--no-proxy-server"],
-    });
+    const browser = await launchChromium();
     try {
       for (const lang of ["en", "zh-CN"]) {
         const page = await browser.newPage({
