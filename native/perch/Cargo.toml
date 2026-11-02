@@ -16,6 +16,7 @@ futures-util = { version = "0.3", features = ["sink"] }
 hkdf = "0.12"
 hmac = "0.12"
 libc = "0.2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 rand = "0.8"
 regex = "1"
 # tokio-tungstenite deliberately does not choose a rustls crypto provider.
@@ -29,3 +30,13 @@ tokio-util = { version = "0.7", features = ["rt"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 zeroize = "1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Graphics_Gdi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_HiDpi"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+x11rb = { version = "0.13", features = ["xtest", "randr"] }

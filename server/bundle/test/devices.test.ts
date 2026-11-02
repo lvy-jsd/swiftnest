@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { afterEach, expect, it, vi } from 'vitest';
-import { deviceProxy } from '../src/devices.js';
+import { deviceProxy,liveTransportAllowed } from '../src/devices.js';
 
 const close: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const fn of close.splice(0).reverse()) await fn(); });
@@ -39,4 +39,11 @@ it('uses owner admission and forwards only the parent credential and allowed rou
 });
 it('refuses a non-loopback admin URL', () => {
   expect(() => deviceProxy({ admit: () => ({ rejection: 401 }) }, 'http://other.test', 'secret')).toThrow('loopback');
+});
+
+it('requires TLS for remote live transport and ignores untrusted forwarded protocol headers',()=>{
+  const request=(remoteAddress:string,encrypted=false)=>({socket:{remoteAddress,encrypted}} as any);
+  expect(liveTransportAllowed(request('192.168.1.2'))).toBe(false);
+  expect(liveTransportAllowed(request('192.168.1.2',true))).toBe(true);
+  expect(liveTransportAllowed(request('127.0.0.1'))).toBe(true);
 });

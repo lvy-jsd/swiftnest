@@ -3,6 +3,7 @@
  * routes tool calls through policy → approval → device, and writes the audit log. Surfaces (MCP endpoint, web panel,
  * DSH…) are plugins that talk to this class.
  */
+import { StreamRegistry } from "./streams.js";
 import { EventEmitter } from "node:events";
 import { parseQualifiedToolName, qualifiedToolName, type ClientRef, type ToolDescriptor } from "@swiftnest/protocol";
 import { MemoryAuditLog, type AuditLog } from "./audit.js";
@@ -43,6 +44,7 @@ export interface DeviceInfo {
 }
 
 export class Nest {
+  readonly streams = new StreamRegistry();
   readonly identity: Identity;
   readonly audit: AuditLog;
   readonly policy: Policy;
@@ -126,6 +128,12 @@ export class Nest {
     }));
   }
 
+  openOwnerStream(device: string, options: { maxDimension: number; displayId: string }) {
+    const conn = this.conns.get(device)?.conn;
+    if (!conn?.openOwnerStream) throw new SwiftnestFailure('STREAM_UNAVAILABLE', 'Device does not support live view');
+    return conn.openOwnerStream(options);
+  }
+
   /** Every tool of every online device, named for agents. */
   tools(): ExposedTool[] {
     const out: ExposedTool[] = [];
@@ -157,6 +165,7 @@ export class Nest {
       conn.close();
       this.detach(device);
     }
+    this.streams.closeAll();
     await this.host.disposeAll();
   }
 

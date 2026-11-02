@@ -6,8 +6,8 @@ import { Button } from './components/Button';
 import { Card } from './components/Card';
 import { SheetPage } from './components/pages';
 
-export type PerchSettings = { name: string; slug: string; enabled: boolean; background: boolean; roots: string[]; url: string; nestKey: string | null };
-export type PerchSnapshot = { settings: PerchSettings; phase: string; fingerprint: string; nestFingerprint: string | null; confirmationPending: boolean; error: { code: string } | null; desktop: boolean };
+export type PerchSettings = { name: string; slug: string; enabled: boolean; background: boolean; allowLiveView?: boolean; roots: string[]; url: string; nestKey: string | null };
+export type PerchSnapshot = { settings: PerchSettings; phase: string; fingerprint: string; nestFingerprint: string | null; confirmationPending: boolean; error: { code: string } | null; desktop: boolean; watching?: boolean; ownerControl?: boolean };
 export function perchAddress(root: string): string {
   try { const url = new URL(root); url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'; url.port = '7711'; url.pathname = '/swiftnest'; url.search = ''; url.hash = ''; return url.href; }
   catch { return ''; }
@@ -59,6 +59,9 @@ export function ThisDevice() {
       if (event.target.checked) void save({ ...draft, enabled: true });
       else void act(async () => { await native('perch_disable'); setDraft(previous => previous ? { ...previous, enabled: false } : previous); });
     }} /></label>
+    <label className="switch-field">{t('allowLiveView')}<input type="checkbox" checked={!!draft.allowLiveView} disabled={busy} onChange={event => void save({ ...draft, allowLiveView: event.target.checked })} /></label>
+    <p>{t('allowLiveViewHelp')}</p>
+    {snapshot.watching && <div role="status" className="desktop-watching"><p>{t(snapshot.ownerControl ? 'desktopControlled' : 'desktopWatching')}</p><Button onClick={() => void act(async () => { await native('perch_stop_view'); setDraft(previous => previous ? { ...previous, allowLiveView: false } : previous); })}>{t('stopLiveView')}</Button></div>}
     <p role="status" className={snapshot.phase === 'online' ? 'device-online' : undefined}>{t(phase)}</p>
     {(failed || snapshot.error) && <p role="alert">{t('deviceActionFailed')}{snapshot.error ? ` (${snapshot.error.code})` : ''}</p>}
     <label className="field">{t('deviceDisplayName')}<input value={draft.name} maxLength={128} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>

@@ -15,6 +15,7 @@ export class NativeSocket implements ApiWebSocket {
       this.socket = socket;
       this.unlisten = socket.addListener(message => {
         if (message.type === 'Text') this.emit('message', { data: message.data });
+        else if (message.type === 'Binary') this.emit('message', { data: new Uint8Array(message.data) });
         else if (message.type === 'Close') this.close();
       });
       this.readyState = 1;
@@ -35,10 +36,10 @@ export class NativeSocket implements ApiWebSocket {
       listener(event as never);
     }
   }
-  send(data: string): void {
+  send(data: string | Uint8Array<ArrayBuffer>): void {
     if (this.readyState !== 1) throw new Error('Socket is closed');
     // Preserve RPC/stream ordering even though the plugin sends asynchronously.
-    this.writes = this.writes.then(async () => { if (this.readyState === 1) await this.socket!.send(data); }).catch(() => this.fail());
+    this.writes = this.writes.then(async () => { if (this.readyState === 1) await this.socket!.send(typeof data === 'string' ? data : Array.from(data)); }).catch(() => this.fail());
   }
   private fail() { if (this.readyState !== 3) { this.emit('error', {}); this.close(); } }
   close(): void {

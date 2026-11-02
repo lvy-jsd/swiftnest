@@ -104,4 +104,23 @@ describe('connection store', () => {
     expect(store.client).toBeUndefined();
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it('keeps chat connected when a live-view socket closes or fails', async () => {
+    const sockets: EventTarget[] = [];
+    let active: ClientOptions = {};
+    const close = vi.fn();
+    const store = new ConnectionStore(async () => ({ createWebSocket: () => {
+      const socket = new EventTarget();sockets.push(socket);return socket as unknown as ApiWebSocket;
+    } }), options => {
+      active = options;
+      return { connect: async () => { options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} }); }, listSessions: async () => [], close } as unknown as SwiftnestClient;
+    });
+    expect(await store.pair(url)).toBe(true);
+    active.createWebSocket!('ws://127.0.0.1:3077/swiftnest/api/devices/live?id=test', { headers: {} });
+    sockets[1]!.dispatchEvent(new Event('error'));sockets[1]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot().status).toBe('connected');expect(close).not.toHaveBeenCalled();
+    sockets[0]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'connectionLost' });
+    expect(close).toHaveBeenCalledOnce();
+  });
 });

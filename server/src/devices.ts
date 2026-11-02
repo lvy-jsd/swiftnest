@@ -5,7 +5,8 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy, fingerprintOf, type ExposedTool } from '@swiftnest/core';
-import { serveLan } from '@swiftnest/link-lan';
+import { WebSocketServer } from 'ws';
+import { binaryPeer, serveLan } from '@swiftnest/link-lan';
 import { serveMcpHttp } from '@swiftnest/surface-mcp';
 import type { Device, DeviceEvent } from '@swiftnest/api';
 import type { ServerConfig } from './config.js';
@@ -167,6 +168,14 @@ export async function startDevices(config: ServerConfig) {
           return;
         }
       }
+      if (req.method === 'POST' && path === '/live') {
+        const device = list().find(d => d.device === url.searchParams.get('device'));
+        if (!device?.paired || !device.online) return void json(res, 409, { error: 'Device is offline' });
+        const maxDimension = Number(url.searchParams.get('maxDimension') ?? 1280);
+        const displayId = url.searchParams.get('displayId') ?? '';
+        try { return void json(res, 200, await nest.openOwnerStream(device.device, { maxDimension, displayId })); }
+        catch (error) { return void json(res, 409, { error: String(error) }); }
+      }
       if (req.method === 'POST') {
         // No user-supplied arguments are needed: decisions are explicit URL actions.
         if (path === '/pairing') {
@@ -191,6 +200,13 @@ export async function startDevices(config: ServerConfig) {
       json(res, 404, { error: 'Not found' });
     })().catch(error => { nest.logger.error('device API failed', error); if (!res.headersSent) json(res, 500, { error: 'Device API failed' }); else res.destroy(); });
   });
+  const bulk = new WebSocketServer({ noServer: true, maxPayload: 65536 });
+  admin.on('upgrade', (req, socket, head) => {
+    const expected = Buffer.from(`Bearer ${adminToken}`), given = Buffer.from(req.headers.authorization ?? '');
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (expected.length !== given.length || !timingSafeEqual(expected, given) || req.headers.origin || url.pathname !== `${PREFIX}/live`) return socket.destroy();
+    bulk.handleUpgrade(req, socket, head, ws => { nest.streams.attachOwner(url.searchParams.get('id') ?? '', binaryPeer(ws)); });
+  });
   let closing: Promise<void> | undefined;
   const close = (): Promise<void> => closing ??= (async () => {
     offTasks(); offPairing(); offStore?.();
@@ -198,6 +214,8 @@ export async function startDevices(config: ServerConfig) {
     for (const p of nest.pairing.pending()) nest.pairing.confirm(p.id, false);
     for (const t of nest.tasks.list()) if (['pending_approval', 'queued', 'running'].includes(t.state)) await nest.tasks.cancel(t.id);
     for (const res of streams) res.end();
+    for (const ws of bulk.clients) ws.terminate();
+    bulk.close();
     const done = new Promise<void>(resolve => admin.close(() => resolve()));
     admin.closeAllConnections();
     await done;

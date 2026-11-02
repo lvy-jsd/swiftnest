@@ -28,6 +28,9 @@ export const Name = z
   .string()
   .regex(/^[a-z][a-z0-9-]{0,31}$/, "use 1–32 lowercase letters, digits or dashes, starting with a letter");
 
+/** Tool components may include single underscores; double underscores delimit qualified names. */
+export const ToolName = z.string().regex(/^[a-z](?!.*__)[a-z0-9_-]{0,31}$/);
+
 /**
  * Tool names exposed to agents are `<device>__<capability>__<tool>`.
  * Double underscores, not dots: OpenAI / Anthropic function names only allow [A-Za-z0-9_-].
@@ -40,7 +43,7 @@ export function qualifiedToolName(device: string, capability: string, tool: stri
 
 export function parseQualifiedToolName(name: string): { device: string; capability: string; tool: string } | null {
   const parts = name.split(TOOL_SEPARATOR);
-  if (parts.length !== 3 || parts.some((p) => !Name.safeParse(p).success)) return null;
+  if (parts.length !== 3 || parts.some((p, i) => !(i === 2 ? ToolName.safeParse(p).success : Name.safeParse(p).success))) return null;
   const [device, capability, tool] = parts as [string, string, string];
   return { device, capability, tool };
 }
@@ -55,7 +58,7 @@ export const Risk = z.enum(["read", "write", "exec", "sensitive"]);
 export type Risk = z.infer<typeof Risk>;
 
 export const ToolDescriptor = z.object({
-  name: Name,
+  name: ToolName,
   title: LocalizedText.optional(),
   description: LocalizedText,
   /** JSON Schema of the arguments object. */
@@ -122,7 +125,7 @@ export const TaskSnapshot = z.object({
   id: z.string(),
   device: Name,
   capability: Name,
-  tool: Name,
+  tool: ToolName,
   args: z.record(z.string(), z.unknown()),
   client: ClientRef,
   state: TaskState,
@@ -163,13 +166,14 @@ export const PerchHello = z.object({
   kind: z.enum(['desktop', 'android']).optional(),
   /** Human-readable label; the protocol device identity and agent slug stay stable. */
   name: z.string().min(1).max(128).optional(),
+  extensions: z.array(z.string()).optional(),
   capabilities: z.array(CapabilityManifest),
 });
 export const InvokeRequest = z.object({
   type: z.literal("invoke"),
   taskId: z.string(),
   capability: Name,
-  tool: Name,
+  tool: ToolName,
   args: z.record(z.string(), z.unknown()),
   timeoutMs: z.number().int().positive(),
 });
@@ -186,7 +190,7 @@ export const ClassifyRequest = z.object({
   type: z.literal("classify"),
   requestId: z.string(),
   capability: Name,
-  tool: Name,
+  tool: ToolName,
   args: z.record(z.string(), z.unknown()),
 });
 export const ClassifyResult = z.object({
@@ -215,8 +219,11 @@ export const PairStatus = z.object({
 /** Perch → Nest: the person at the device says the Nest fingerprint matches (or not). */
 export const PairConfirm = z.object({ type: z.literal("pair_confirm"), accept: z.boolean() });
 
+export const StreamOpen = z.object({ type: z.literal('stream_open'), id: z.string().regex(/^[a-f0-9]{32}$/), purpose: z.enum(['screen', 'file']), direction: z.literal('duplex'), transportCandidates: z.tuple([z.literal('websocket-relay-v1')]), ticket: z.string().max(128), expires: z.number(), maxFrame: z.number().int().min(1024).max(4194304), maxDimension: z.number().int().min(320).max(2560), displayId: z.string().max(128) });
+export const StreamAccept = z.object({ type: z.literal('stream_accept'), id: z.string() });
+export const StreamClose = z.object({ type: z.literal('stream_close'), id: z.string(), reason: z.string().max(256) });
 export const LinkMessage = z.discriminatedUnion("type", [
-  PerchHello,
+  PerchHello, StreamOpen, StreamAccept, StreamClose,
   InvokeRequest,
   InvokeResult,
   CancelRequest,

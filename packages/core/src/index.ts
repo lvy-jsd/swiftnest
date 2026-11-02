@@ -12,3 +12,5 @@ export * from "./plugin.js";
 export * from "./policy.js";
 export * from "./remote.js";
 export * from "./tasks.js";
+
+export * from "./streams.js";

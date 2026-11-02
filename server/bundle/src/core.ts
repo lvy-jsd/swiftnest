@@ -6,7 +6,7 @@
  * private: versions and whether the configured model endpoint answers.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { deviceProxy, type DeviceConnection } from './devices.js';
+import { deviceProxy, liveUpgrade, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
 
 export const name = "swiftnest-core";
@@ -28,7 +28,7 @@ interface WebRoute {
 
 interface CoreContext {
   connection?: DeviceConnection;
-  webServer: { register(route: WebRoute): () => void };
+  webServer: { register(route: WebRoute): () => void; registerUpgrade(route: { path: string; handler(req: IncomingMessage, socket: import("node:stream").Duplex, head: Buffer): void }): () => void };
   effect(fn: () => () => void, label?: string): void;
 }
 
@@ -68,7 +68,9 @@ export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
   if (config.devicesAdminUrl && config.devicesAdminToken) {
     if (!ctx.connection) throw new Error('Devices require owner session admission');
     const handler = deviceProxy(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
-    ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/swiftnest/api/devices', handler }), 'swiftnest-core: devices');
+    const live = liveUpgrade(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
+    ctx.effect(() => { const off = ctx.webServer.registerUpgrade({path:'/swiftnest/api/devices/live',handler:live.handler}); return () => { off(); live.close(); }; }, 'swiftnest-core: live');
+    ctx.effect(() => ctx.webServer.register({ kind: 'prefix' , path: '/swiftnest/api/devices', handler }), 'swiftnest-core: devices');
   }
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.

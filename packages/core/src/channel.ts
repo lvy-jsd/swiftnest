@@ -43,6 +43,8 @@ export interface SecureChannel {
   readonly peerPublicKey: string;
   /** Hash of the handshake transcript: binds pairing proofs to this exact session. */
   readonly transcriptHash: Buffer;
+  /** Private exporter, never sent on the control wire. */
+  streamRoot: Buffer;
   send(message: unknown): void;
   onMessage(fn: (message: unknown) => void): () => void;
   onClose(fn: (reason?: string) => void): () => void;
@@ -86,7 +88,7 @@ function transcript(hs1: string, hs2: string): Buffer {
 function deriveKeys(privateKey: KeyObject, peerEph: string, th: Buffer) {
   const shared = diffieHellman({ privateKey, publicKey: x25519Key(peerEph) });
   const okm = Buffer.from(hkdfSync("sha256", shared, th, "swiftnest/keys/v1", 64));
-  return { i2r: okm.subarray(0, 32), r2i: okm.subarray(32, 64) };
+  return { i2r: okm.subarray(0, 32), r2i: okm.subarray(32, 64), streamRoot: Buffer.from(hkdfSync("sha256", shared, th, "swiftnest/streams/v1", 32)) };
 }
 
 function authPayload(role: "perch" | "nest", th: Buffer) {
@@ -177,7 +179,7 @@ const isKey = (s: unknown) => typeof s === "string" && Buffer.from(s, "base64url
 /**
  * The encrypted session once keys exist. Messages are JSON; the first one each way must be `auth`.
  */
-function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recvKey: Buffer, peerPublicKey: string, th: Buffer): SecureChannel & { firstMessage(timeoutMs: number): Promise<unknown> } {
+function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recvKey: Buffer, peerPublicKey: string, th: Buffer, streamRoot: Buffer): SecureChannel & { firstMessage(timeoutMs: number): Promise<unknown> } {
   let sendCounter = 0n;
   let recvCounter = 0n;
   let closed = false;
@@ -226,6 +228,7 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
   return {
     peerPublicKey,
     transcriptHash: th,
+    streamRoot,
     send(message) {
       if (closed) throw new SwiftnestFailure("CHANNEL_CLOSED", "The connection is closed.", undefined, true);
       const cipher = createCipheriv("aes-256-gcm", sendKey, nonceOf(sendCounter));
@@ -303,7 +306,7 @@ export async function initiateChannel(t: FrameTransport, o: InitiateOptions): Pr
   }
   const th = transcript(hs1Raw, hs2Raw);
   const keys = deriveKeys(eph.privateKey, hs2.eph, th);
-  const session = encryptedSession(t, inbox, keys.i2r, keys.r2i, hs2.id, th);
+  const session = encryptedSession(t, inbox, keys.i2r, keys.r2i, hs2.id, th, keys.streamRoot);
   await exchangeAuth(session, o.identity, "perch", "nest", hs2.id, th, timeoutMs);
   return session;
 }
@@ -341,7 +344,7 @@ export async function acceptChannel(t: FrameTransport, o: AcceptOptions): Promis
   const hs2Raw = JSON.stringify(hs2);
   const th = transcript(hs1Raw, hs2Raw);
   const keys = deriveKeys(eph.privateKey, hello.eph, th);
-  const session = encryptedSession(t, inbox, keys.r2i, keys.i2r, hello.id, th);
+  const session = encryptedSession(t, inbox, keys.r2i, keys.i2r, hello.id, th, keys.streamRoot);
   t.send(hs2Raw);
   await exchangeAuth(session, o.identity, "nest", "perch", hello.id, th, timeoutMs);
   return { channel: session, hello };

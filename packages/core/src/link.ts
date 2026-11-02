@@ -14,6 +14,7 @@ export interface PerchConnection {
   capabilities(): CapabilityManifest[];
   classify(capability: string, tool: string, args: Record<string, unknown>): Promise<{ risk: Risk; reason?: string }>;
   invoke(req: Omit<z.infer<typeof InvokeRequest>, "type">): Promise<z.infer<typeof InvokeResult>>;
+  openOwnerStream?(options: { maxDimension: number; displayId: string }): Promise<import("./streams.js").StreamOffer>;
   cancel(taskId: string): void;
   onCapabilitiesChanged(fn: () => void): () => void;
   onClose(fn: () => void): () => void;

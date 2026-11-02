@@ -49,25 +49,101 @@ fails closed for shell. File tools and the Rust protocol are portable. No platfo
 unconfined command. Unix cancellation kills the whole process group and the sandbox PID namespace.
 Runtime/library files are necessarily readable in the shell sandbox; user data outside the roots is not.
 
-## E2b / E2c stream multiplexing (reserved, not implemented)
+## E2b streams (implemented) / E2c reuse
 
-Logical stream 0 is the existing encrypted JSON control connection. Future live video and resumable file
-transfer use **separate binary WebSocket connections per stream**, rather than filling this socket's
-send queue with video or file chunks. A physical single ordered socket cannot eliminate head-of-line
-blocking merely by attaching stream ids. This separation keeps cancellation and tool replies responsive.
+Peers opt in with hello `extensions: ["streams-v1"]`; legacy v1 peers never receive stream messages.
+The Nest sends encrypted `stream_open` (random 128-bit hex id, purpose, duplex direction, transport candidates, limits, display, expiry and
+one-use ticket), Perch responds with `stream_accept` or `stream_close`. Either side can close at any
+time; parent disconnect/revocation closes every child stream. The device dials a separate binary
+WebSocket on its saved parent URL, using `?stream=id&ticket=...`. This version negotiates the existing
+Nest relay transport; direct App-to-device candidate discovery is a follow-up.
 
-A future opt-in protocol negotiation introduces stream-open/accept/close control messages with a random
-stream id, purpose (`screen` or `file`), direction, limits and transport candidates (LAN-direct first,
-server relay otherwise). Old v1 peers never receive these messages. Each binary connection must mutually
-authenticate, bind its stream id and parent transcript using an expiring one-use HMAC ticket, and derive
-separate directional AEAD keys/counters with HKDF domain separation. Relay transport never terminates
-end-to-end encryption. No stream id or unencrypted frame is sufficient authorization.
+A private exporter is HKDF-SHA256(shared X25519, salt=parent transcript,
+info=`swiftnest/streams/v1`, 32). The ticket is HMAC-SHA256(exporter,
+`swiftnest/ticket/v1\0{id}\0{expiresMillis}`); the registry consumes it once, with a 15-second deadline.
+Per-stream directional keys are HKDF-SHA256(exporter, salt=parent transcript,
+info=`swiftnest/stream/v1/{id}`, 64): first 32 bytes device-to-viewer, second 32 viewer-to-device.
+The owner-only HTTP API returns only that stream's keys. App admission uses the devices API's signed
+owner session and Host/Origin checks; the bundle forwards only its private loopback admin bearer.
+Agents cannot reach stream creation or socket admission through native tools/MCP. The Nest is a trusted
+key distributor but both relay hops forward opaque ciphertext; neither relay decrypts video/input
+records. This does not provide secrecy against the trusted Nest process.
 
-Binary records will carry version, stream id, sequence/offset, length, flags and authenticated payload;
-size/window quotas and bounded per-stream queues prevent memory exhaustion. Video drops obsolete frames
-instead of blocking. File chunks use acknowledged offsets plus per-chunk and final content hashes;
-resumption is bound to the paired identities and transfer metadata, never a host-supplied arbitrary path.
-Device capabilities get a host-provided stream registry alongside their invoke context. Control remains
-independent of bulk scheduling. Take-over will be a host-owned input gate: owner input pauses agent input
-before any queued input is injected. These are design reservations only; no capture, input, stream,
-transfer, relay or take-over implementation is included in E2a.
+### HTTPS outside loopback
+
+The App API requires an `https:` server URL outside `localhost`, `127.0.0.1` and `[::1]`, including
+when using the native HTTP/WebSocket carrier. The live-offer HTTP response contains the stream's
+directional AES keys. Sending that response over LAN HTTP would expose those keys and the owner
+session to an observer; encrypted binary records alone would then offer no protection. Browser
+`crypto.subtle` also requires a secure context (HTTPS, with loopback permitted for development).
+The native WebView's secure context does not protect an HTTP request to a remote server.
+
+The bundle rejects remote non-TLS live-offer requests with HTTP 426 and rejects their socket upgrades.
+It accepts a TLS socket or a loopback peer, allowing TLS termination at a trusted local reverse proxy;
+it never treats `X-Forwarded-Proto` as proof of TLS. That proxy must enforce HTTPS/WSS on its public
+listener and preserve the kernel's Host/Origin admission requirements. The loopback exception cannot
+detect an incorrectly configured proxy that publicly exposes HTTP. These tests exercise loopback and
+the TLS admission predicate; they do not validate a deployed TLS proxy/certificate setup.
+
+Records are `[version:u8=1][id:16][sequence:u64 BE][flag:u8][length:u32 BE][ciphertext][GCM tag:16]`.
+All 30 header bytes are authenticated AAD; the nonce is four zero bytes plus the sequence. Directions
+start at zero, and replay, counter exhaustion, wrong id/length/tag terminate the stream. Flag 1 is
+`metadataLength:u32 BE + JSON metadata + JPEG`; flag 2 is owner JSON (ready, frame_ack, takeover,
+handback or input), flag 3 is host control status/error. The device waits for an encrypted owner ready
+before capturing. No plaintext record or stream id grants input authority.
+
+Limits: 4 MiB payload, 64 KiB owner WebSocket messages, 32 streams globally, one viewer per parent,
+15 seconds to attach and one-hour viewer leases. Relays close above an 8 MiB buffered high-water mark.
+Native captures are serialized across tools/live view, and only one acknowledged video frame is in flight; stale capture opportunities
+are skipped. Already-encrypted frames are never dropped (that would skip a sequence). The App keeps two
+latest updates and bounded crypto/input work queues. RTT acknowledgements adapt JPEG quality 35–80
+and frame intervals 80–1000 ms; capture CPU cost also limits achieved fps. Unchanged pixel hashes are
+not transmitted. H.264/WebRTC is the intended future video transport.
+
+The shared registry/negotiation/AEAD framing reserves purpose `file` for E2c. E2b accepts only `screen`
+in the native producer. File transfer must add acked offsets, chunk/final hashes, identity-bound resume
+metadata, path approval and reliable bounded scheduling before enabling that purpose. It must not use
+video's stale-frame semantics. Bulk I/O remains independent of JSON cancellation and task replies.
+
+## Screen/input ownership and privacy
+
+The host must call `set_indicator_ready(true)` after installing observation UI. The App uses a working
+tray as this prerequisite; otherwise screen/input are not advertised. Only Linux and Windows advertise
+them. `allowLiveView` is a separately persisted, default-false setting, checked alongside device enable
+and host readiness. The tray changes to red and emits a start notification while observing; the local
+page reports observation/take-over. Local Stop disables the live permission, cancels the stream and
+backend, and requires another opt-in. Disable/unpair/exit cancel and drain the parent as before.
+
+Agent screen tools have read risk and return base64 PNG/JPEG plus image size, crop, scale and a host
+capture id in structured data. Screen content is untrusted. Input has exec risk. Host-saved capture
+geometry maps screenshot coordinates back to native display pixels and is checked against current
+display geometry; callers cannot supply a scale to bypass it. The host-owned gate publishes owner mode
+before draining an existing injection; every queued agent injection checks the gate inside its native
+injection lock. Owner input requires owner mode and is available only inside the authenticated stream.
+Handback/disconnect/stream failure releases mode; rejected agent actions are not replayed.
+
+Linux discovers protocols per current session: grim 1.5 implements wlr/ext capture, Rust uses
+output-bound zwlr_virtual_pointer_v1 and wtype uses zwp_virtual_keyboard_v1. xdg-output provides logical
+geometry/fractional scale. Missing virtual-input/capture protocols select ScreenCast + RemoteDesktop
+portals, with an explicit OS chooser, a nonpersistent session and one bounded latest PipeWire/GStreamer
+RGB frame. Portal coordinates describe the normalized logical stream. X11 uses XGetImage and
+xdotool/XTest; Windows uses GDI and SendInput, with DPI-aware coordinates. Helper programs run as argv,
+never through a shell. macOS screen/input is unsupported. See VALIDATION.md for actual backend evidence;
+compilation is not evidence of GNOME/KDE, Windows, niri or phone-hardware behavior. Linux helper bundling,
+direct transport candidates, monitor-picker UI and H.264/WebRTC remain follow-ups.
+
+## Backend validation boundary
+
+| Backend | Evidence | Still unverified |
+| --- | --- | --- |
+| wlroots on headless labwc/pixman | Real screen capture, approved agent pointer input, encrypted live frames, owner take-over/input/handback/local Stop; Chromium LivePanel at 390 px with screenshots of both control states | Physical desktop/phone performance, virtual keyboard behavior, other wlroots compositors including niri, fractional/rotated/multiple displays |
+| GNOME/KDE ScreenCast + RemoteDesktop portal/PipeWire | Linux compilation and Clippy only | Portal chooser/session lifecycle, real PipeWire frames and input on GNOME or KDE |
+| X11 XGetImage + xdotool/XTest | Linux compilation and Clippy only | An actual X11 session, capture and input |
+| Windows GDI + SendInput | Source implementation only; previous cross-check failed because the target standard library was absent | Windows compilation and runtime; DXGI is future work |
+| macOS | Explicitly unsupported; screen/input not advertised | Backend implementation |
+
+Playwright uses a real isolated labwc framebuffer and the actual Rust/crypto/relay/browser decoder.
+Its owner-session admission is a test fixture, not a signed DSH login; signed-session/chat behavior has
+separate kernel e2es. Browser gesture fixtures cover English/Chinese and desktop layout. Neither those
+tests nor Linux compilation establishes Android WebView, tray-menu/notification or other OS acceptance.
+See [VALIDATION.md](./VALIDATION.md) for commands, results and screenshot locations.

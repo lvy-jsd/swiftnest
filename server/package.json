@@ -27,14 +27,14 @@
     "@swiftnest/core": "workspace:*",
     "@swiftnest/link-lan": "workspace:*",
     "@swiftnest/surface-mcp": "workspace:*",
-    "@swiftnest/api": "workspace:*"
+    "@swiftnest/api": "workspace:*",
+    "ws": "^8.22.0"
   },
   "optionalDependencies": {
     "@swiftnest/app": "workspace:*"
   },
   "devDependencies": {
     "@swiftnest/cap-files": "workspace:*",
-    "ws": "^8.22.0",
     "@types/ws": "^8.18.2"
   }
 }

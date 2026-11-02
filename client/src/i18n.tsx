@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
 
 export const en = {
+  liveTlsRequired: "Connect to the server using HTTPS to open live view.",
+  liveView: "Live view", takeOver: "Take over", handBack: "Hand back", ivyControl: "Ivy is in control", youControl: "You are in control", livePaused: "Paused", closeLiveView: "Close", remoteDesktop: "Remote desktop", liveConnecting: "Connecting…", remoteKeyboard: "Keyboard", resetView: "Fit screen", liveViewFailed: "Live view failed. Check Allow live view on the computer, then reopen.", liveInputFailed: "Input failed. Check the computer and try again.", allowLiveView: "Allow live view", allowLiveViewHelp: "Allow your owner App to watch the desktop and take over input. Off by default.", stopLiveView: "Stop live view", desktopWatching: "Your desktop is being viewed", desktopControlled: "You are controlling this desktop remotely",
   thisDevice: "This device", thisDeviceHelp: "Share this computer with Ivy through your server.",
   letIvyControl: "Let Ivy control this computer", deviceStopped: "Stopped", deviceDisplayName: "Device display name",
   deviceServerAddress: "Device server address", deviceAddressHelp: "Use the device address shown by the server Devices page; its port may differ from the chat server.",
@@ -47,6 +49,8 @@ export const en = {
 export type StringKey = keyof typeof en;
 export type Locale = "en" | "zh-CN";
 export const zhCN: Record<StringKey, string> = {
+  liveTlsRequired: "请通过 HTTPS 连接服务器，再打开实时画面。",
+  liveView: "实时画面", takeOver: "接管控制", handBack: "交还给小艾", ivyControl: "小艾正在控制", youControl: "你正在控制", livePaused: "已暂停", closeLiveView: "关闭", remoteDesktop: "远程桌面", liveConnecting: "正在连接…", remoteKeyboard: "键盘", resetView: "适应屏幕", liveViewFailed: "实时画面连接失败。请检查电脑的“允许实时画面”，然后重新打开。", liveInputFailed: "输入失败。请检查电脑后重试。", allowLiveView: "允许实时画面", allowLiveViewHelp: "允许你的手机查看桌面并接管输入，默认关闭。", stopLiveView: "停止实时画面", desktopWatching: "正在共享桌面画面", desktopControlled: "你正在远程控制这台电脑",
   thisDevice: "此设备", thisDeviceHelp: "通过服务器，让 Ivy 使用这台电脑。",
   letIvyControl: "允许 Ivy 控制这台电脑", deviceStopped: "已停止", deviceDisplayName: "设备显示名称",
   deviceServerAddress: "设备服务器地址", deviceAddressHelp: "请使用服务器“设备”页面显示的设备连接地址，其端口可能与聊天服务器不同。",
