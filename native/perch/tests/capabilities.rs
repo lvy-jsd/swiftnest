@@ -325,12 +325,17 @@ async fn shell_sandbox_output_and_cancellation() {
             fs::read_to_string(root.join("stolen")).unwrap_or_default(),
             "private"
         );
-        // Read classification cannot grant writes through program-specific flags (e.g. sort -o).
-        shell
-            .invoke("run", json!({"command":"sort -o sneaky a.txt"}), ctx())
-            .await
-            .unwrap();
-        assert!(!root.join("sneaky").exists());
+        // `sort -o` asks for approval now; once approved, the sandbox still keeps its writes
+        // inside the shared folders, even when the path hides in a flag the guard cannot see.
+        let sneaky = format!("sort -o{} a.txt", outside.join("sneaky").display());
+        assert_eq!(
+            shell.classify("run", &json!({ "command": sneaky })).risk,
+            Risk::Exec
+        );
+        let _ = shell
+            .invoke("run", json!({ "command": sneaky }), ctx())
+            .await;
+        assert!(!outside.join("sneaky").exists());
         let c = ctx();
         let cancel = c.cancel.clone();
         let work = shell.invoke("run", json!({"command":"sleep 2; echo late > late"}), c);
