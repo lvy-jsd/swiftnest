@@ -7,83 +7,93 @@ use async_trait::async_trait;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::OnceLock,
+    sync::{LazyLock, OnceLock},
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
     process::Command,
 };
 
-pub const READ_ONLY: &[&str] = &[
-    "echo", "pwd", "whoami", "id", "hostname", "uname", "date", "uptime", "ls", "cat", "head",
-    "tail", "wc", "df", "du", "free", "ps", "which", "file", "stat", "grep", "sort", "uniq",
-    "true", "nproc", "lscpu",
-];
-pub const DESTRUCTIVE: &[&str] = &[
-    "rm",
-    "rmdir",
-    "dd",
-    "shred",
-    "mkfs",
-    "fdisk",
-    "parted",
-    "wipefs",
-    "shutdown",
-    "reboot",
-    "poweroff",
-    "halt",
-    "kill",
-    "killall",
-    "pkill",
-    "sudo",
-    "su",
-    "doas",
-    "chmod",
-    "chown",
-    "chattr",
-    "mount",
-    "umount",
-    "iptables",
-    "nft",
-    "systemctl",
-    "crontab",
-    "passwd",
-    "useradd",
-    "userdel",
-];
-const FILE_READING: &[&str] = &[
-    "cat",
-    "head",
-    "tail",
-    "less",
-    "more",
-    "wc",
-    "grep",
-    "egrep",
-    "fgrep",
-    "file",
-    "stat",
-    "ls",
-    "du",
-    "find",
-    "sort",
-    "uniq",
-    "diff",
-    "cmp",
-    "md5sum",
-    "sha1sum",
-    "sha256sum",
-    "cksum",
-    "od",
-    "xxd",
-    "strings",
-    "base64",
-    "readlink",
-    "realpath",
-];
+/// The shell rules shared with `@swiftnest/cap-shell`, so both classifiers stay in step.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Rules {
+    read_only: Vec<String>,
+    destructive: Vec<String>,
+    file_reading: Vec<String>,
+    shell_operators: String,
+    find_writes: Vec<String>,
+    writing_invocations: HashMap<String, WritingRule>,
+}
+/// What makes an otherwise read-only program write: flags that write, and limits on its positionals.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WritingRule {
+    #[serde(default)]
+    short_flags: String,
+    #[serde(default)]
+    long_flags: Vec<String>,
+    #[serde(default)]
+    value_flags: Vec<String>,
+    max_positionals: Option<usize>,
+    positional_prefix: Option<String>,
+    reason: String,
+}
+static RULES: LazyLock<Rules> = LazyLock::new(|| {
+    serde_json::from_str(include_str!(
+        "../../../plugins/cap-shell/src/shell-rules.json"
+    ))
+    .expect("shell-rules.json")
+});
+/// Programs that run without approval when they only read inside the shared folders.
+pub static READ_ONLY: LazyLock<Vec<&'static str>> =
+    LazyLock::new(|| RULES.read_only.iter().map(String::as_str).collect());
+fn listed(list: &[String], item: &str) -> bool {
+    list.iter().any(|x| x == item)
+}
 const MAX_OUTPUT: usize = 64 * 1024;
+/// Positional arguments, skipping the value that follows each flag in `value_flags`.
+fn positionals<'a>(args: &'a [String], value_flags: &[String]) -> Vec<&'a str> {
+    let mut out = vec![];
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if listed(value_flags, a) {
+            it.next();
+        } else if !a.starts_with('-') || a == "-" {
+            out.push(a.as_str());
+        }
+    }
+    out
+}
+/// Why this invocation of a read-only program writes files, runs programs or changes the system,
+/// or None when it only reads. Doubtful cases count as writes.
+pub fn writing_invocation(program: &str, args: &[String]) -> Option<&'static str> {
+    let rule = RULES.writing_invocations.get(program)?;
+    // Short-flag clusters (`-ro`) are split by the program, so a letter anywhere counts.
+    let short_flag = |a: &str| {
+        a.starts_with('-')
+            && !a.starts_with("--")
+            && rule.short_flags.chars().any(|f| a[1..].contains(f))
+    };
+    let long_flag = |a: &str| {
+        rule.long_flags.iter().any(|n| {
+            a == n
+                || a.strip_prefix(n.as_str())
+                    .is_some_and(|r| r.starts_with('='))
+        })
+    };
+    let rest = positionals(args, &rule.value_flags);
+    let writes = args.iter().any(|a| short_flag(a) || long_flag(a))
+        || rule.max_positionals.is_some_and(|max| rest.len() > max)
+        || rule
+            .positional_prefix
+            .as_deref()
+            .is_some_and(|p| rest.iter().any(|a| !a.starts_with(p)));
+    writes.then_some(rule.reason.as_str())
+}
 pub fn tokenize(command: &str) -> Option<Vec<String>> {
     let mut tokens = vec![];
     let mut cur = String::new();
@@ -131,14 +141,15 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
         let start =
             i == 0 || toks[i - 1].contains([';', '&', '|', '\n']) || t.starts_with([';', '&', '|']);
         let name = basename(t.trim_start_matches([';', '&', '|', '(', '`']));
-        if start && DESTRUCTIVE.contains(&name) {
+        if start && listed(&RULES.destructive, name) {
             return Classification::new(
                 Risk::Sensitive,
                 format!("runs \"{name}\", which can destroy data or change the system"),
             );
         }
     }
-    if DESTRUCTIVE
+    if RULES
+        .destructive
         .iter()
         .any(|d| program.starts_with(&format!("{d}.")))
     {
@@ -150,23 +161,23 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
     if tokens.is_none() || program.is_empty() {
         return Classification::new(Risk::Exec, "could not parse the command");
     }
-    if unquoted.contains([
-        ';', '&', '|', '`', '$', '<', '>', '(', ')', '{', '}', '\n', '\\', '*', '?', '~',
-    ]) {
+    if unquoted.contains(|c| RULES.shell_operators.contains(c)) {
         return Classification::new(
             Risk::Exec,
             "uses shell operators (pipes, redirects, globs or substitutions)",
         );
     }
-    if program == "find"
-        && toks
-            .iter()
-            .any(|t| ["-delete", "-exec", "-execdir", "-ok", "-fprint"].contains(&t.as_str()))
-    {
-        return Classification::new(Risk::Sensitive, "find with -delete/-exec can modify files");
+    if program == "find" && toks.iter().any(|t| listed(&RULES.find_writes, t)) {
+        return Classification::new(
+            Risk::Sensitive,
+            "find with -delete/-exec/-fprint can modify files",
+        );
     }
     if read_only.contains(&program) {
-        if FILE_READING.contains(&program) {
+        if let Some(reason) = writing_invocation(program, &toks[1..]) {
+            return Classification::new(Risk::Exec, reason);
+        }
+        if listed(&RULES.file_reading, program) {
             for arg in toks.iter().skip(1).filter(|t| !t.starts_with('-')) {
                 let c = guard.lexical(Path::new(arg));
                 if c.secret {
@@ -221,7 +232,7 @@ impl Capability for Shell {
             }
             guard.roots.insert(0, c.path);
         }
-        classify_command(args["command"].as_str().unwrap_or(""), READ_ONLY, &guard)
+        classify_command(args["command"].as_str().unwrap_or(""), &READ_ONLY, &guard)
     }
     async fn invoke(&self, tool: &str, args: Value, ctx: InvokeContext) -> Result<ToolResult> {
         if tool != "run" {
@@ -245,7 +256,7 @@ impl Capability for Shell {
         let program = tokens
             .first()
             .ok_or_else(|| Failure::new("BAD_ARGS", "Empty command"))?;
-        if FILE_READING.contains(&basename(program)) {
+        if listed(&RULES.file_reading, basename(program)) {
             for arg in tokens.iter().skip(1).filter(|a| !a.starts_with('-')) {
                 // The sandbox also enforces paths hidden in flags, substitutions and scripts.
                 self.guard.allowed(&cwd.join(arg))?;

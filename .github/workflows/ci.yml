@@ -44,6 +44,26 @@ jobs:
       - run: cargo clippy --all-targets
       - run: cargo test
 
+  # The device core (Shell, files, screen, transfers). Tests run the real
+  # bubblewrap sandbox, so the runner must allow unprivileged user namespaces.
+  perch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-all --ro-bind / / true
+      - run: cargo fmt -p swiftnest-perch --check
+      - run: cargo clippy -p swiftnest-perch --all-targets -- -D warnings
+      - run: cargo test -p swiftnest-perch
+
   native-language:
     runs-on: ubuntu-latest
     steps:

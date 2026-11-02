@@ -62,7 +62,7 @@
   "native_64": "runs \"{program}\", which can destroy data or change the system",
   "native_65": "could not parse the command",
   "native_66": "uses shell operators (pipes, redirects, globs or substitutions)",
-  "native_67": "find with -delete/-exec can modify files",
+  "native_67": "find with -delete/-exec/-fprint can modify files",
   "native_68": "\"{program} {arg}\" reads a protected location ({})",
   "native_69": "\"{program} {arg}\" reads outside the shared folders ({})",
   "native_70": "\"{program}\" is on the read-only list",
@@ -349,5 +349,10 @@
   "delivered": "delivered",
   "resumed": "resumed",
   "started": "started",
-  "invalidLanguage": "Invalid language"
+  "invalidLanguage": "Invalid language",
+  "native_244": "sort -o/--output writes a file and --compress-program runs a program",
+  "native_245": "date -s/--set or a time argument changes the system clock",
+  "native_246": "uniq with a second file writes its output there",
+  "native_247": "hostname with an argument changes the host name",
+  "native_248": "file -C compiles and writes a magic file"
 }

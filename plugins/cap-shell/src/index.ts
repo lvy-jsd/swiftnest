@@ -12,30 +12,63 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, resolve } from "node:path";
 import { definePlugin, PathGuard, SwiftnestFailure, type Capability, type InvokeContext } from "@swiftnest/core";
 import type { Risk } from "@swiftnest/protocol";
+import rules from "./shell-rules.json" with { type: "json" };
 
-export const DEFAULT_READ_ONLY = [
-  "echo", "pwd", "whoami", "id", "hostname", "uname", "date", "uptime", "ls", "cat", "head", "tail", "wc",
-  "df", "du", "free", "ps", "which", "file", "stat", "grep", "sort", "uniq", "true", "nproc", "lscpu",
-];
-export const DESTRUCTIVE = [
-  "rm", "rmdir", "dd", "shred", "mkfs", "fdisk", "parted", "wipefs", "shutdown", "reboot", "poweroff", "halt",
-  "kill", "killall", "pkill", "sudo", "su", "doas", "chmod", "chown", "chattr", "mount", "umount", "iptables",
-  "nft", "systemctl", "crontab", "passwd", "useradd", "userdel",
-];
-const SHELL_OPERATORS = /[;&|`$<>(){}\n\\*?~]/;
+/** What makes an otherwise read-only program write: flags that write, and limits on its positional arguments. */
+interface WritingRule {
+  shortFlags?: string;
+  longFlags?: string[];
+  valueFlags?: string[];
+  maxPositionals?: number;
+  positionalPrefix?: string;
+  reason: string;
+}
+const RULES: {
+  readOnly: string[];
+  destructive: string[];
+  fileReading: string[];
+  shellOperators: string;
+  findWrites: string[];
+  writingInvocations: Record<string, WritingRule>;
+} = rules;
+
+export const DEFAULT_READ_ONLY: readonly string[] = RULES.readOnly;
+export const DESTRUCTIVE: readonly string[] = RULES.destructive;
+const FILE_READING = new Set(RULES.fileReading);
 const MAX_OUTPUT = 64 * 1024;
-
-/** Read-only programs that read file paths from their arguments. For these, a path outside the shared folders or
- * inside a protected location escalates the risk, so `cat` cannot read what cap-files would refuse. */
-const FILE_READING = new Set([
-  "cat", "head", "tail", "less", "more", "wc", "grep", "egrep", "fgrep",
-  "file", "stat", "ls", "du", "find", "sort", "uniq", "diff", "cmp",
-  "md5sum", "sha1sum", "sha256sum", "cksum", "od", "xxd", "strings", "base64", "readlink", "realpath",
-]);
 
 /** The file-like arguments of a command: every token after the program that is not a `-` flag. */
 function fileArgs(tokens: string[]): string[] {
   return tokens.slice(1).filter((t) => !t.startsWith("-"));
+}
+
+/** Positional arguments, skipping the value that follows each flag in `valueFlags`. */
+function positionals(args: string[], valueFlags: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (valueFlags.includes(a)) i++;
+    else if (!a.startsWith("-") || a === "-") out.push(a);
+  }
+  return out;
+}
+
+/**
+ * Why this invocation of a read-only program writes files, runs programs or changes the system, or undefined when it
+ * only reads. Reads run WITHOUT a sandbox, so a miss here is an unapproved write: doubtful cases count as writes.
+ */
+export function writingInvocation(program: string, args: string[]): string | undefined {
+  const rule = RULES.writingInvocations[program];
+  if (!rule) return undefined;
+  // Short-flag clusters (`-ro`) are split by the program, so a letter anywhere in the cluster counts.
+  const shortFlag = (a: string) => /^-[^-]/.test(a) && [...(rule.shortFlags ?? "")].some((f) => a.slice(1).includes(f));
+  const longFlag = (a: string) => (rule.longFlags ?? []).some((n) => a === n || a.startsWith(`${n}=`));
+  const rest = positionals(args, rule.valueFlags ?? []);
+  const writes =
+    args.some((a) => shortFlag(a) || longFlag(a)) ||
+    rest.length > (rule.maxPositionals ?? Infinity) ||
+    (rule.positionalPrefix !== undefined && rest.some((a) => !a.startsWith(rule.positionalPrefix!)));
+  return writes ? rule.reason : undefined;
 }
 
 /** Split a command line on whitespace, honouring simple single/double quotes. Returns null on unbalanced quotes. */
@@ -80,11 +113,13 @@ export function classifyCommand(command: string, readOnly: readonly string[] = D
   if (!destructive && DESTRUCTIVE.find((d) => program.startsWith(`${d}.`))) destructive = program;
   if (destructive) return { risk: "sensitive", reason: `runs "${destructive}", which can destroy data or change the system` };
   if (!tokens || !program) return { risk: "exec", reason: "could not parse the command" };
-  if (SHELL_OPERATORS.test(unquoted)) return { risk: "exec", reason: "uses shell operators (pipes, redirects, globs or substitutions)" };
-  if (program === "find" && tokens.some((t) => ["-delete", "-exec", "-execdir", "-ok", "-fprint"].includes(t))) {
-    return { risk: "sensitive", reason: "find with -delete/-exec can modify files" };
+  if ([...RULES.shellOperators].some((op) => unquoted.includes(op))) return { risk: "exec", reason: "uses shell operators (pipes, redirects, globs or substitutions)" };
+  if (program === "find" && tokens.some((t) => RULES.findWrites.includes(t))) {
+    return { risk: "sensitive", reason: "find with -delete/-exec/-fprint can modify files" };
   }
   if (readOnly.includes(program)) {
+    const writes = writingInvocation(program, tokens.slice(1));
+    if (writes) return { risk: "exec", reason: writes };
     // A read-only command that reads files is only "read" if every path it names is inside the shared folders and not
     // a protected location — the same rule cap-files enforces, so the two capabilities cannot disagree.
     if (guard && FILE_READING.has(program)) {

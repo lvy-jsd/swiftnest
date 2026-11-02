@@ -210,31 +210,14 @@ async fn files_guards_and_risk_cases() {
 fn shell_classification_and_tokenizer_cases() {
     let home = dirs::home_dir().unwrap();
     let guard = PathGuard::new(vec![home], vec![]);
-    for (command, risk) in [
-        ("echo ok", Risk::Read),
-        ("df -h", Risk::Read),
-        ("grep -n \"a b\" file.txt", Risk::Read),
-        ("cat rm.txt", Risk::Read),
-        ("head -n 5 notes.txt", Risk::Read),
-        ("ls | wc -l", Risk::Exec),
-        ("echo hi > out.txt", Risk::Exec),
-        ("ls ~/projects", Risk::Exec),
-        ("python3 script.py", Risk::Exec),
-        ("rm -rf /", Risk::Sensitive),
-        ("ls; rm -rf ~", Risk::Sensitive),
-        ("sudo ls", Risk::Sensitive),
-        ("mkfs.ext4 /dev/sda1", Risk::Sensitive),
-        ("find . -name x -delete", Risk::Sensitive),
-        ("/usr/bin/shutdown now", Risk::Sensitive),
-        ("echo \"unbalanced", Risk::Exec),
-        ("cat .ssh/id_rsa", Risk::Sensitive),
-        ("cat /etc/passwd", Risk::Exec),
-        ("ls -la /tmp", Risk::Exec),
-        ("cat notes.txt", Risk::Read),
-        ("git status", Risk::Exec),
-    ] {
+    // Shared with cap-shell's TypeScript tests, so both classifiers stay in step.
+    let cases: Vec<(String, Risk)> = serde_json::from_str(include_str!(
+        "../../../plugins/cap-shell/test/classification-cases.json"
+    ))
+    .unwrap();
+    for (command, risk) in cases {
         assert_eq!(
-            classify_command(command, READ_ONLY, &guard).risk,
+            classify_command(&command, &READ_ONLY, &guard).risk,
             risk,
             "{command}"
         );
@@ -342,12 +325,17 @@ async fn shell_sandbox_output_and_cancellation() {
             fs::read_to_string(root.join("stolen")).unwrap_or_default(),
             "private"
         );
-        // Read classification cannot grant writes through program-specific flags (e.g. sort -o).
-        shell
-            .invoke("run", json!({"command":"sort -o sneaky a.txt"}), ctx())
-            .await
-            .unwrap();
-        assert!(!root.join("sneaky").exists());
+        // `sort -o` asks for approval now; once approved, the sandbox still keeps its writes
+        // inside the shared folders, even when the path hides in a flag the guard cannot see.
+        let sneaky = format!("sort -o{} a.txt", outside.join("sneaky").display());
+        assert_eq!(
+            shell.classify("run", &json!({ "command": sneaky })).risk,
+            Risk::Exec
+        );
+        let _ = shell
+            .invoke("run", json!({ "command": sneaky }), ctx())
+            .await;
+        assert!(!outside.join("sneaky").exists());
         let c = ctx();
         let cancel = c.cancel.clone();
         let work = shell.invoke("run", json!({"command":"sleep 2; echo late > late"}), c);

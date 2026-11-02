@@ -1,29 +1,15 @@
 import { createTestNest, type TestNest } from "@swiftnest/sdk";
-import { PathGuard } from "@swiftnest/core";
+import { PathGuard, translateMessage } from "@swiftnest/core";
 import { afterEach, describe, expect, it } from "vitest";
+import cases from "./classification-cases.json" with { type: "json" };
+import rules from "../src/shell-rules.json" with { type: "json" };
 import plugin, { classifyCommand, DEFAULT_READ_ONLY, tokenize } from "../src/index.js";
 
 const guard = new PathGuard();
 
 describe("classifyCommand", () => {
-  it.each([
-    ["echo ok", "read"],
-    ["df -h", "read"],
-    ['grep -n "a b" file.txt', "read"],
-    ["cat rm.txt", "read"],
-    ["head -n 5 notes.txt", "read"],
-    ["ls | wc -l", "exec"],
-    ["echo hi > out.txt", "exec"],
-    ["ls ~/projects", "exec"],
-    ["python3 script.py", "exec"],
-    ["rm -rf /", "sensitive"],
-    ["ls; rm -rf ~", "sensitive"],
-    ["sudo ls", "sensitive"],
-    ["mkfs.ext4 /dev/sda1", "sensitive"],
-    ["find . -name x -delete", "sensitive"],
-    ["/usr/bin/shutdown now", "sensitive"],
-    ['echo "unbalanced', "exec"],
-  ])("%s → %s", (cmd, risk) => {
+  // Shared with perch's Rust tests, so both classifiers stay in step.
+  it.each(cases as [string, string][])("%s → %s", (cmd, risk) => {
     expect(classifyCommand(cmd, DEFAULT_READ_ONLY, guard).risk).toBe(risk);
   });
 
@@ -33,18 +19,13 @@ describe("classifyCommand", () => {
     expect(r.reason).toMatch(/protected/);
   });
 
-  it("escalates a read-only command that reads outside the shared folders", () => {
-    expect(classifyCommand("cat /etc/passwd", DEFAULT_READ_ONLY, guard).risk).toBe("exec");
-    expect(classifyCommand("ls -la /tmp", DEFAULT_READ_ONLY, guard).risk).toBe("exec");
-  });
-
-  it("keeps a read-only command inside the shared folders as read", () => {
-    expect(classifyCommand("cat notes.txt", DEFAULT_READ_ONLY, guard).risk).toBe("read");
-  });
-
   it("honours extra read-only programs from config", () => {
     expect(classifyCommand("git status", DEFAULT_READ_ONLY, guard).risk).toBe("exec");
     expect(classifyCommand("git status", ["git"], guard).risk).toBe("read");
+  });
+
+  it("has a Chinese translation for every writing reason", () => {
+    for (const { reason } of Object.values(rules.writingInvocations)) expect(translateMessage(reason, "zh-CN"), reason).not.toBe(reason);
   });
 
   it("tokenizes quotes", () => {
