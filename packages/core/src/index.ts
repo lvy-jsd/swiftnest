@@ -1,3 +1,5 @@
+export { message, translateMessage, translateReason, localizedError, errorCode, language, defaultLanguage, messageEn, messageZh } from '@swiftnest/protocol';
+export type { Language } from '@swiftnest/protocol';
 export * from "./audit.js";
 export * from "./channel.js";
 export * from "./errors.js";

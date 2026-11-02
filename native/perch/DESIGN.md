@@ -1,5 +1,7 @@
 # Perch device core
 
+[简体中文](DESIGN.zh-CN.md)
+
 `swiftnest-perch` is a Node-free library shared by Tauri hosts. The server remains the only Nest.
 `Controller` owns the saved identity/settings, one cancellable connection task and a UI snapshot. The host
 supplies its private data directory and performs fingerprint consent; no capability can grant approval.

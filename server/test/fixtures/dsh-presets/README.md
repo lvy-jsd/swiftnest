@@ -1,3 +1,5 @@
+[简体中文](README.zh-CN.md)
+
 # DSH preset fixtures
 
 The four `*.patch.yml` files are unmodified copies of

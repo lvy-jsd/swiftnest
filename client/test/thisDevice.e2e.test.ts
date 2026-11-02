@@ -25,6 +25,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge co
   try {
     for (const locale of ['en-US','zh-CN']) {
       const page=await browser.newPage({viewport:{width:390,height:844},locale});
+      await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale === 'en-US' ? 'en' : 'zh-CN');
       await page.addInitScript(()=>{
         let value:any={settings:{name:'This computer',slug:'computer-fixed',enabled:false,background:false,roots:[],url:'ws://server:7711/swiftnest',nestKey:null},phase:'stopped',fingerprint:'aaaa-bbbb-cccc-dddd',nestFingerprint:null,confirmationPending:false,error:null,desktop:true};
         (window as any).__deviceTest={calls:[],setDesktop:(desktop:boolean)=>{value.desktop=desktop;}};
@@ -71,6 +72,6 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge co
       await expect.poll(()=>section.count(), { timeout:5000 }).toBe(0);
       await page.close();
     }
-    const web=await browser.newPage();await web.goto(url);expect(await web.locator('.this-device').count()).toBe(0);await web.close();
+    const web=await browser.newPage({locale:"zh-CN"});await web.goto(url);expect(await web.locator('.this-device').count()).toBe(0);await web.close();
   } finally {await browser.close();await new Promise<void>(r=>server.close(()=>r()));}
 },30000);

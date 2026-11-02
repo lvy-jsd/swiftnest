@@ -15,6 +15,7 @@ name = "swiftnest_mesh"
 path = "src/lib.rs"
 
 [dependencies]
+swiftnest-locale = { path = "../../native/locale" }
 libp2p = { version = "0.55", features = [
     "tokio",
     "tcp",

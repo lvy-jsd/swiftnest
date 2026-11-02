@@ -4,7 +4,7 @@ export const inputManifest = {
   "version": "0.0.1",
   "title": {
     "en": "Input",
-    "zh": "\u8f93\u5165"
+    "zh": "输入"
   },
   "permissions": [
     "input.inject"
@@ -12,7 +12,10 @@ export const inputManifest = {
   "tools": [
     {
       "name": "input_click",
-      "description": "Click a screenshot point. Refused while the owner has control.",
+      "description": {
+        "en": "Click a screenshot point. Refused while the owner has control.",
+        "zh": "点击截图中的坐标，所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {
@@ -51,7 +54,10 @@ export const inputManifest = {
     },
     {
       "name": "input_move",
-      "description": "Move to a screenshot point. Refused while the owner has control.",
+      "description": {
+        "en": "Move to a screenshot point. Refused while the owner has control.",
+        "zh": "将指针移至截图坐标，所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {
@@ -83,7 +89,10 @@ export const inputManifest = {
     },
     {
       "name": "input_drag",
-      "description": "Drag between two screenshot points. Refused while the owner has control.",
+      "description": {
+        "en": "Drag between two screenshot points. Refused while the owner has control.",
+        "zh": "在截图中的两点之间拖动，所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {
@@ -123,7 +132,10 @@ export const inputManifest = {
     },
     {
       "name": "input_scroll",
-      "description": "Scroll in pixels. Refused while the owner has control.",
+      "description": {
+        "en": "Scroll in pixels. Refused while the owner has control.",
+        "zh": "按像素滚动，所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {
@@ -150,7 +162,10 @@ export const inputManifest = {
     },
     {
       "name": "input_type",
-      "description": "Type literal text. Refused while the owner has control.",
+      "description": {
+        "en": "Type literal text. Refused while the owner has control.",
+        "zh": "输入文本，所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {
@@ -174,7 +189,10 @@ export const inputManifest = {
     },
     {
       "name": "input_key",
-      "description": "Press a key or combo such as ctrl+c. Refused while the owner has control.",
+      "description": {
+        "en": "Press a key or combo such as ctrl+c. Refused while the owner has control.",
+        "zh": "按下按键或组合键（例如 ctrl+c），所有者接管时拒绝执行。"
+      },
       "risk": "exec",
       "defaultTimeoutMs": 30000,
       "inputSchema": {

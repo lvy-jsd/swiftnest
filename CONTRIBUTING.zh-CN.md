@@ -47,3 +47,12 @@ pnpm test         # 跑全部测试（直接测源码，不用先编译）
 ## 许可证
 
 提交即表示你同意你的贡献以 [Apache-2.0](LICENSE) 授权。
+
+## 语言约定
+
+所有者界面默认简体中文，英文完整可选。新增 App 文案放入 client/src/i18n.tsx；
+服务器和 CLI 的错误、提示放入 packages/protocol/src/messages.ts；Rust 文案放入 native/locale/src/locales。
+已有消息 key 和错误 code 不得重排或改名。每个英文 key 必须有中文和相同占位符。
+运行 `pnpm lint:i18n`、`pnpm test` 与 `cargo test --workspace` 检查。
+UI 内的技术标记需要逐项加入 scripts/i18n-technical-tokens.json 并说明用途，不能把界面文案加入允许列表。
+端到端测试显式选择语言，并保留中文截图。英文文档新增时必须提供对应中文页。

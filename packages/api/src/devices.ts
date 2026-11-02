@@ -35,5 +35,5 @@ export interface Transfer extends TransferRequest {
   id: string; name: string; size: number; offset: number;
   state: 'preparing' | 'approval' | 'waiting' | 'running' | 'paused' | 'complete' | 'failed' | 'cancelled';
   route: 'relay' | 'direct'; speed: number; eta: number | null; updatedAt: number;
-  approvalId?: string; error?: string; hash?: string;
+  approvalId?: string; error?: string; failure?: {code: string; message: string; hint: string}; hash?: string;
 }

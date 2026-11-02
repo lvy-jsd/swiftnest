@@ -32,7 +32,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
     res.once('close', closed);
     try {
       let body: string | undefined;
-      if (req.method === 'POST' && path.pathname === `${prefix}/transfers`) {
+      if (req.method === 'POST' && [`${prefix}/transfers`, `${prefix}/preferences`].includes(path.pathname)) {
         body='';for await(const chunk of req) {body+=chunk;if(Buffer.byteLength(body)>32768){res.writeHead(413).end();return;}}
       }
       const upstream = await fetch(new URL(path.pathname + path.search, target), {

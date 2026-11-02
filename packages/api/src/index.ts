@@ -1,3 +1,5 @@
+export { message, translateMessage, translateReason, localizedError, errorCode, language, defaultLanguage, messageEn, messageZh } from '@swiftnest/protocol';
+export type { Language } from '@swiftnest/protocol';
 import { LiveView } from './live.js';
 export * from './live.js';
 import type { Device, DeviceApproval, DeviceAuditEntry, DevicePairing, DevicePairingCandidate, DeviceEvent, DeviceSubscription } from './devices.js';
@@ -75,6 +77,8 @@ export class SwiftnestClient {
     if (!response.ok) throw new ApiError('http-error', `Health returned HTTP ${response.status}`);
     return await response.json() as Health;
   }
+  getLanguage(): Promise<{ lang: 'zh-CN' | 'en' }> { return this.deviceRequest('/preferences'); }
+  setLanguage(lang: 'zh-CN' | 'en'): Promise<{ lang: 'zh-CN' | 'en' }> { return this.deviceRequest('/preferences', 'POST', undefined, { lang }); }
   listTransfers(): Promise<import('./devices.js').Transfer[]> { return this.deviceRequest('/transfers'); }
   startTransfer(request: import('./devices.js').TransferRequest): Promise<import('./devices.js').Transfer> { return this.deviceRequest('/transfers', 'POST', undefined, request); }
   transferAction(id: string, action: 'pause'|'resume'|'cancel'|'retry'): Promise<import('./devices.js').Transfer> { return this.deviceRequest(`/transfers/${encodeURIComponent(id)}/${action}`, 'POST'); }
@@ -152,7 +156,11 @@ export class SwiftnestClient {
   private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
     this.assertConnected();
     const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method, signal, ...(body === undefined ? {} : {headers:{"content-type":"application/json"},body:JSON.stringify(body)}) });
-    if (!response.ok) throw new ApiError(response.status === 409 ? 'device-conflict' : 'http-error', `Device API returned HTTP ${response.status}`);
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({})) as { code?: string; message?: string; hint?: string };
+      const error = new ApiError(response.status === 409 ? 'device-conflict' : 'http-error', failure.message ?? `Device API returned HTTP ${response.status}`, failure.hint, failure.code);
+      throw error;
+    }
     return await response.json() as T;
   }
 

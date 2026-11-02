@@ -35,6 +35,7 @@ async function fixture() {
   const errors: string[] = [];
   const hub = await startDevices(
     loadConfig(undefined, {
+      SWIFTNEST_LANG: "en",
       SWIFTNEST_HOME: join(home, "server"),
       SWIFTNEST_DEVICES_HOST: "127.0.0.1",
       SWIFTNEST_DEVICES_PORT: "0",

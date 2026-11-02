@@ -1,3 +1,4 @@
+import { ServerFailure } from './i18n.js';
 /**
  * The `swiftnest` DSH profile: DSH's own base and web bundles, then ours, then
  * a patch layer generated from the Swiftnest config. The profile is rewritten
@@ -55,7 +56,7 @@ const presetTags = [{ tag: "tag:yaml.org,2002:js", resolve: (value: string) => v
  */
 export function presetPersonaPatch(source: string, persona: string): string {
   const doc = parseDocument(source, { customTags: presetTags });
-  if (doc.errors.length) throw new Error(`Invalid DSH preset patch: ${doc.errors[0]!.message}`);
+  if (doc.errors.length) throw new ServerFailure(`Invalid DSH preset patch: ${doc.errors[0]!.message}`);
   if (!isSeq(doc.contents)) return "";
   const overrides: string[] = [];
   for (const entry of doc.contents.items) {

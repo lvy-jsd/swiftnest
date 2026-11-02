@@ -166,6 +166,9 @@ importers:
 
   .:
     devDependencies:
+      '@babel/parser':
+        specifier: 7.29.9
+        version: 7.29.9
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
@@ -286,7 +289,11 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
-  packages/create-swiftnest-plugin: {}
+  packages/create-swiftnest-plugin:
+    dependencies:
+      '@swiftnest/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/protocol:
     dependencies:
@@ -407,6 +414,9 @@ importers:
 
   server/bundle:
     dependencies:
+      '@swiftnest/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       ws:
         specifier: ^8.22.0
         version: 8.22.0

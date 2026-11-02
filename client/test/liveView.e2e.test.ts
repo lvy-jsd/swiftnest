@@ -14,11 +14,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E!=='1')('live panel: phone/desktop, en/zh
     const locale=new URL(location.href).searchParams.get('lang')||'en';
     const appRoot=createRoot(document.getElementById('root'));appRoot.render(React.createElement(ThemeProvider,null,React.createElement(I18nProvider,{initialLocale:locale},React.createElement(ConnectionProvider,{store},React.createElement(LivePanel,{device:{device:'test',name:'Laptop'},onClose:()=>{calls.push('dismiss');appRoot.unmount();}})))));
   `;
-  const server=await createServer({root:resolve('client'),server:{host:'127.0.0.1',port:0},plugins:[{name:'live-fixture',configureServer(s){s.middlewares.use('/__live_test',async(req,res)=>{res.setHeader('content-type','text/html');res.end(await s.transformIndexHtml('/__live_test','<html><body><div id="root"></div><script type="module" src="/@vite/client"></script><script type="module" src="/@id/__x00__live-fixture"></script></body></html>'));});},resolveId(id){if(id==='\0live-fixture')return id;},load(id){if(id==='\0live-fixture')return fixture;}}]});
+  const server=await createServer({root:resolve('client'),cacheDir:resolve('node_modules/.cache/swiftnest/live-fixture'),server:{host:'127.0.0.1',port:0},plugins:[{name:'live-fixture',configureServer(s){s.middlewares.use('/__live_test',async(req,res)=>{res.setHeader('content-type','text/html');res.end(await s.transformIndexHtml('/__live_test','<html><body><div id="root"></div><script type="module" src="/@vite/client"></script><script type="module" src="/@id/__x00__live-fixture"></script></body></html>'));});},resolveId(id){if(id==='\0live-fixture')return id;},load(id){if(id==='\0live-fixture')return fixture;}}]});
   await server.listen();const url=server.resolvedUrls!.local[0]!;
   const browser=await chromium.launch({headless:true,...(process.env.SWIFTNEST_CHROMIUM?{executablePath:process.env.SWIFTNEST_CHROMIUM}:{}),args:['--no-sandbox','--no-proxy-server']});
   try {for(const [width,lang] of [[390,'en'],[390,'zh-CN'],[1280,'en']] as const){
-    const page=await browser.newPage({viewport:{width,height:844}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({locale:lang,viewport:{width,height:844}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(`${url}__live_test?lang=${lang}`);const zh=lang==='zh-CN';
     const dialog=page.getByRole('dialog');await dialog.waitFor();await dialog.getByRole('img').waitFor();
     await dialog.getByRole('button',{name:zh?'接管控制':'Take over',exact:true}).click();await dialog.getByText(zh?'你正在控制':'You are in control',{exact:true}).waitFor();

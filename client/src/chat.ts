@@ -3,7 +3,7 @@ import type { SwiftnestEvent } from '@swiftnest/api';
 export type ChatRow =
   | { kind: 'message'; id: string; role: 'user' | 'assistant'; text: string; attemptId?: string; seq?: number; final?: boolean; index?: number; messageSeq?: number }
   | { kind: 'tools'; id: string; calls: Record<string, { name?: string; arguments?: string; text?: string; isError?: boolean }>; finished: boolean }
-  | { kind: 'error'; id: string; text: string }
+  | { kind: 'error'; id: string; text: string; code?: string }
   | { kind: 'unknown'; id: string; event: unknown };
 export interface ChatState { rows: ChatRow[]; waiting: boolean; activeAttempt?: string; toolsId?: string; seen: Set<string> }
 export const emptyChat = (): ChatState => ({ rows: [], waiting: false, seen: new Set() });
@@ -79,7 +79,7 @@ export function chatReducer(state: ChatState, event: SwiftnestEvent | { type: 'w
       next.toolsId = undefined;
       break;
     case 'error':
-      next.rows.push({ kind: 'error', id: `error:${next.rows.length}`, text: event.message });
+      next.rows.push({ kind: 'error', id: `error:${next.rows.length}`, text: event.message, code: event.code });
       next.waiting = false;
       break;
     default:

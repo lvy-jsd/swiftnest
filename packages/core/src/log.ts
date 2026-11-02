@@ -1,3 +1,4 @@
+import { translateMessage } from '@swiftnest/protocol';
 /** Minimal leveled logger. SWIFTNEST_LOG=debug|info|warn|error (default info). Writes to stderr so stdio MCP stays clean. */
 export interface Logger {
   debug(msg: string, extra?: unknown): void;
@@ -15,7 +16,7 @@ export function createLogger(scope = "swiftnest", level: Level = (process.env.SW
   const emit = (lv: Level, msg: string, extra?: unknown) => {
     if (LEVELS[lv] < min) return;
     const tail = extra === undefined ? "" : " " + (extra instanceof Error ? extra.stack ?? extra.message : JSON.stringify(extra));
-    process.stderr.write(`[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${msg}${tail}\n`);
+    process.stderr.write(`[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${translateMessage(msg)}${tail}\n`);
   };
   return {
     debug: (m, e) => emit("debug", m, e),

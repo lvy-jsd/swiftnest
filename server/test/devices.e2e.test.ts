@@ -65,7 +65,7 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')('DSH discovers live devices → rea
     `);
     await mkdir(join(home, 'dsh/profiles/swiftnest'), { recursive: true });
     await writeFile(join(home, 'dsh/profiles/swiftnest/user.patch.yml'), JSON.stringify([{ insert: [{ id: 'test-device-consumer', name: consumer }] }]));
-    kernel = await startKernel(loadConfig(undefined, { SWIFTNEST_HOME: home, SWIFTNEST_PORT: '0', SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false',
+    kernel = await startKernel(loadConfig(undefined, { SWIFTNEST_LANG: "en", SWIFTNEST_HOME: home, SWIFTNEST_PORT: '0', SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_MODEL_ID: 'fake', SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` }), { onLine: line => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) });
     const route = new URL('swiftnest/api/devices', kernel.url);
     expect((await fetch(route)).status).toBe(401);

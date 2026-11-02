@@ -4,6 +4,8 @@
 //! (from the Unix socket server) and are answered with a [`CmdResponse`] over a per-command
 //! oneshot channel.
 
+use swiftnest_locale::owner_println as println;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -543,7 +545,7 @@ impl MeshNode {
                                                 info.protocols
                                             )
                                         }
-                                        other => tracing::debug!("identify event: {other:?}"),
+                                        other => tracing::debug!("{}", swiftnest_locale::translate(&format!("identify event: {other:?}"))),
                                     }
                                 }
                                 MeshBehaviourEvent::Dcutr(dcutr_event) => {
@@ -551,7 +553,7 @@ impl MeshNode {
                                 }
                             }
                         }
-                        Some(other) => tracing::debug!("{other:?}"),
+                        Some(other) => tracing::debug!("{}", swiftnest_locale::translate(&format!("{other:?}"))),
                         None => break,
                     }
                 }
@@ -790,7 +792,7 @@ impl MeshNode {
             relay::Event::CircuitClosed { src_peer_id, dst_peer_id, .. } => {
                 println!("relay: circuit closed {src_peer_id} -> {dst_peer_id}");
             }
-            other => tracing::debug!("relay event: {other:?}"),
+            other => tracing::debug!("{}", swiftnest_locale::translate(&format!("relay event: {other:?}"))),
         }
     }
 
@@ -824,7 +826,7 @@ impl MeshNode {
                     println!("autonat: public address {addr}");
                 }
             }
-            other => tracing::debug!("autonat event: {other:?}"),
+            other => tracing::debug!("{}", swiftnest_locale::translate(&format!("autonat event: {other:?}"))),
         }
     }
 

@@ -3,6 +3,7 @@
  * devices waiting for their pairing fingerprint to be confirmed, so prompts never interleave.
  */
 import { createInterface, type Interface } from "node:readline/promises";
+import { translateMessage, translateReason } from "@swiftnest/core";
 import type { Nest } from "@swiftnest/core";
 import { t, type Lang } from "./i18n.js";
 
@@ -30,7 +31,7 @@ export function terminalApprovals(nest: Nest, lang: Lang): { rl: Interface; clos
     if (s.state !== "pending_approval") return;
     queue = queue.then(async () => {
       if (nest.tasks.get(s.id)?.state !== "pending_approval") return;
-      const prompt = t(lang, "approvalPrompt")(s.client.name ?? s.client.id, s.device, `${s.capability}.${s.tool}`, JSON.stringify(s.args), s.risk, s.reason ?? "");
+      const prompt = t(lang, "approvalPrompt")(s.client.name ?? s.client.id, s.device, `${s.capability}.${s.tool}`, JSON.stringify(s.args), translateMessage(s.risk, lang === "en" ? "en" : "zh-CN"), translateReason(s.reason ?? "", lang === "en" ? "en" : "zh-CN"));
       const yes = await ask(prompt, t(lang, "noTerminalTask")(s.id));
       if (yes === undefined || nest.tasks.get(s.id)?.state !== "pending_approval") return;
       if (yes) {

@@ -1,3 +1,4 @@
+import { translateMessage } from '@swiftnest/protocol';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -19,7 +20,9 @@ function inside(root: string, file: string): boolean {
 /** Public shell only. The App pairs separately against the existing authenticated API. */
 export function appHandler(dist?: string) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const reply = (status: number, body: string) => { res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }).end(body); };
+    const reply = (status: number, body: string) => {
+      body = translateMessage(body);
+      res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }).end(body); };
     if (req.method !== 'GET') { reply(405, 'Use GET for the Swiftnest App.'); return; }
     if (!dist) { reply(404, 'Swiftnest App is not installed. Build the App and set SWIFTNEST_APP_DIST.'); return; }
     const raw = (req.url ?? '').split('?', 1)[0]!;

@@ -13,12 +13,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { definePlugin, SwiftnestFailure, type Nest } from "@swiftnest/core";
-import { localize, type ClientRef, type TaskSnapshot } from "@swiftnest/protocol";
+import { localize, translateMessage, translateReason, localizedError, defaultLanguage, type Language, type ClientRef, type TaskSnapshot } from "@swiftnest/protocol";
 
 export interface McpSurfaceOptions {
   /** Seconds a call may block before returning a task id instead (default 25). */
   waitSeconds?: number;
-  /** Language of tool descriptions shown to agents (default "en"). */
+  /** Language of tool descriptions shown to agents (default "zh"). */
   lang?: "en" | "zh";
   serverName?: string;
   /** Optional bearer credential, checked on every HTTP request including SSE. */
@@ -54,27 +54,28 @@ function textResult(text: string, isError = false, structured?: Record<string, u
 }
 
 /** Turn a task snapshot into what the agent sees. */
-export function describeTask(s: TaskSnapshot) {
+export function describeTask(s: TaskSnapshot, lang: Language = defaultLanguage()) {
+  const tr = (value: string) => translateMessage(value, lang);
   const structured = { task_id: s.id, state: s.state, device: s.device, tool: `${s.capability}.${s.tool}` } as Record<string, unknown>;
   switch (s.state) {
     case "succeeded": {
       const r = s.result!;
       if (r.data !== undefined) structured.data = r.data;
-      return textResult(r.untrusted ? `${UNTRUSTED_NOTE}\n${r.text}` : r.text || "(no output)", false, structured);
+      return textResult(r.untrusted ? `${tr(UNTRUSTED_NOTE)}\n${r.text}` : tr(r.text || "(no output)"), false, structured);
     }
     case "pending_approval":
       return textResult(
-        `Waiting for the owner's approval (${s.reason ?? "policy"}). Task id: ${s.id}. ` +
-          `Continue with other work, or call ${META.wait} with this task id. Do not retry the same call.`,
+        tr(`Waiting for the owner's approval (${s.reason ? translateReason(s.reason, lang) : "policy"}). Task id: ${s.id}. `) +
+          tr(`Continue with other work, or call ${META.wait} with this task id. Do not retry the same call.`),
         false,
         structured,
       );
     case "queued":
     case "running":
-      return textResult(`Still ${s.state}. Task id: ${s.id}. Call ${META.wait} with this task id to get the result.`, false, structured);
+      return textResult(tr(`Still ${tr(s.state)}. Task id: ${s.id}. Call ${META.wait} with this task id to get the result.`), false, structured);
     default: {
-      const e = s.error;
-      const msg = e ? `${e.code}: ${e.message}${e.suggestion ? `\nHow to fix: ${e.suggestion}` : ""}` : s.state;
+      const e = s.error ? localizedError(s.error, lang) : undefined;
+      const msg = e ? `${e.code}: ${e.message}${e.hint ? tr(`\nHow to fix: ${e.hint}`) : ""}` : s.state;
       return textResult(msg, true, { ...structured, error: e });
     }
   }
@@ -83,7 +84,14 @@ export function describeTask(s: TaskSnapshot) {
 /** Build one MCP server instance (one per stdio connection or HTTP session) bound to a Nest. */
 export function createMcpServer(nest: Nest, opts: McpSurfaceOptions = {}): Server {
   const waitMs = (opts.waitSeconds ?? 25) * 1000;
-  const lang = opts.lang ?? "en";
+  const lang = opts.lang ?? (process.env.SWIFTNEST_LANG === "en" ? "en" : "zh");
+  const language = lang === 'en' ? 'en' : 'zh-CN';
+  const tr = (text: string) => translateMessage(text, language);
+  const schemaText = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(schemaText);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, ['description', 'title'].includes(key) && typeof field === 'string' ? tr(field) : schemaText(field)]));
+  };
   const server = new Server({ name: opts.serverName ?? "swiftnest", version: "0.0.1" }, { capabilities: { tools: { listChanged: true } } });
 
   const client = (): ClientRef => {
@@ -97,10 +105,10 @@ export function createMcpServer(nest: Nest, opts: McpSurfaceOptions = {}): Serve
         name: t.name,
         title: t.tool.title ? `${t.device}: ${localize(t.tool.title, lang)}` : undefined,
         description: `[device: ${t.device}] ${localize(t.tool.description, lang)}`,
-        inputSchema: { type: "object" as const, ...(t.tool.inputSchema as object) },
+        inputSchema: { type: "object" as const, ...(schemaText(t.tool.inputSchema) as object) },
         annotations: { readOnlyHint: t.tool.risk === "read", destructiveHint: t.tool.risk === "sensitive" },
       })),
-      ...metaTools(),
+      ...metaTools().map(tool => ({ ...tool, description: tr(tool.description), inputSchema: schemaText(tool.inputSchema) as typeof tool.inputSchema })),
     ],
   }));
 
@@ -110,25 +118,25 @@ export function createMcpServer(nest: Nest, opts: McpSurfaceOptions = {}): Serve
     try {
       if (name === META.devices) {
         const devices = nest.devices();
-        return textResult(devices.length ? JSON.stringify(devices, null, 2) : "No devices are connected yet.", false, { devices });
+        return textResult(devices.length ? JSON.stringify(devices, null, 2) : tr("No devices are connected yet."), false, { devices });
       }
       if (name === META.status || name === META.wait || name === META.cancel) {
         const id = String(args.task_id ?? "");
-        if (name === META.cancel) return describeTask(await nest.tasks.cancel(id));
+        if (name === META.cancel) return describeTask(await nest.tasks.cancel(id), language);
         if (name === META.status) {
           const s = nest.tasks.get(id);
           if (!s) throw new SwiftnestFailure("UNKNOWN_TASK", `No task ${id}.`, "Use the task id from the original call's response.");
-          return describeTask(s);
+          return describeTask(s, language);
         }
         const secs = Math.min(Math.max(Number(args.seconds ?? 25), 1), 300);
-        return describeTask(await nest.tasks.wait(id, secs * 1000));
+        return describeTask(await nest.tasks.wait(id, secs * 1000), language);
       }
       const task = await nest.call(name, args, client());
       // Return at once if the call needs a person; otherwise wait up to waitSeconds for the result.
-      return describeTask(await nest.tasks.wait(task.id, waitMs, { untilPending: true }));
+      return describeTask(await nest.tasks.wait(task.id, waitMs, { untilPending: true }), language);
     } catch (e) {
-      const err = SwiftnestFailure.from(e);
-      return textResult(`${err.code}: ${err.message}${err.suggestion ? `\nHow to fix: ${err.suggestion}` : ""}`, true, { error: err });
+      const err = { ...SwiftnestFailure.from(e), ...localizedError(e, language) };
+      return textResult(`${err.code}: ${err.message}${err.hint ? tr(`\nHow to fix: ${err.hint}`) : ""}`, true, { error: err });
     }
   });
 

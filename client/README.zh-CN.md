@@ -1,6 +1,6 @@
 # Swiftnest 应用
 
-[English](README.md) | 简体中文
+[English](README.en.md) | 简体中文
 
 采用 Apache-2.0 许可证，使用 React 19、严格 TypeScript、Vite 和 Tauri 2。
 组件与资源均为原创，Phosphor 图标和 TanStack Virtual 使用 MIT 许可证，不使用 DSH Go 代码。
@@ -131,3 +131,9 @@ SWIFTNEST_PERCH_E2E=1 pnpm vitest run native/perch/test
 互通测试启动真实 TS Nest 与 Rust 子进程，覆盖配对指纹、工具发现、读取、审批后写入、命令取消与超时、
 断线重连、进程重启与服务器换钥拒绝。仅使用临时目录。`native/perch/DESIGN.md` 描述 E2b/E2c 的独立加密
 二进制流设计；本任务不实现截屏、输入或大文件传输。
+
+## 界面语言
+
+默认使用简体中文。在 App 的“偏好设置 → 语言”中可选择 English；选择保存在本机，连接服务器后同步给其他设备。
+离线修改会在重连后重试。服务器与 CLI 默认中文，使用 `SWIFTNEST_LANG=en` 选择英文，
+服务器 YAML 也支持 `lang: en`，环境变量优先。原生托盘、通知和文件选择窗口跟随 App 选择。

@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { PropsWithChildren } from "react";
 
 export const en = {
+  languageSyncFailed: "Language could not sync. Your choice is saved here and will retry when connected.",
   transfers: "Transfers",
   sendFileTo: "Send file to\u2026",
   transferHelp: "Files stay inside shared folders. Each transfer needs one destination write approval. Keep the App running on both devices.",
@@ -75,6 +76,7 @@ export const en = {
 export type StringKey = keyof typeof en;
 export type Locale = "en" | "zh-CN";
 export const zhCN: Record<StringKey, string> = {
+  languageSyncFailed: "语言暂未同步。已保存在本机，连接恢复后会重试。",
   transfers: "传输",
   sendFileTo: "发送文件到…",
   transferHelp: "文件须位于共享文件夹内，每笔传输需要一次目标写入审批。请保持两端 App 运行。",
@@ -147,13 +149,27 @@ export const zhCN: Record<StringKey, string> = {
 };
 export const tables = { en, "zh-CN": zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];
-type I18n = { locale: Locale; setLocale: (locale: Locale) => void; t: (key: StringKey) => string };
+export const LOCALE_KEY = "swiftnest.locale";
+export const PENDING_LOCALE_KEY = "swiftnest.localePending";
+export function savedLocale(): Locale {
+  try { return localStorage.getItem(LOCALE_KEY) === "en" ? "en" : "zh-CN"; } catch { return "zh-CN"; }
+}
+type I18n = { acceptServerLocale: (locale: Locale) => void; locale: Locale; setLocale: (locale: Locale) => void; t: (key: StringKey) => string };
 const Context = createContext<I18n | null>(null);
 
 export function I18nProvider({ children, initialLocale }: PropsWithChildren<{ initialLocale?: Locale }>) {
-  const [locale, setLocale] = useState<Locale>(() => initialLocale ?? (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en"));
+  const [locale, updateLocale] = useState<Locale>(() => initialLocale ?? savedLocale());
+  const acceptServerLocale = useCallback((value: Locale) => {
+    updateLocale(value);
+    try { localStorage.setItem(LOCALE_KEY, value); } catch { /* Private browsing. */ }
+  }, []);
+  const setLocale = useCallback((value: Locale) => {
+    try { localStorage.setItem(PENDING_LOCALE_KEY, value); } catch { /* Still works for this session. */ }
+    acceptServerLocale(value);
+    window.dispatchEvent(new CustomEvent('swiftnest-language', { detail: value }));
+  }, [acceptServerLocale]);
   useEffect(() => { document.documentElement.lang = locale; document.title = translate(locale, "appName"); }, [locale]);
-  return <Context value={{ locale, setLocale, t: key => translate(locale, key) }}>{children}</Context>;
+  return <Context value={{ locale, setLocale, acceptServerLocale, t: key => translate(locale, key) }}>{children}</Context>;
 }
 
 export function useI18n(): I18n {

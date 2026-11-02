@@ -1,6 +1,6 @@
 # Swiftnest Server
 
-[English](README.md) | 中文
+[English](README.en.md) | 中文
 
 Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和记忆。它内嵌锁定版本的
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH，MIT）作为内核，Swiftnest 自己的内置模块以 DSH bundle 的形式加载（`server/bundle`）。DSH 自带的 Web UI 在同一端口照常可用，第三方 DSH 插件也照样能装。
@@ -84,3 +84,9 @@ Chromium 测试前先构建网页。浏览器无法启动时会干净跳过，�
 指定系统浏览器。不需要外部模型凭据。
 
 内嵌方式和原因见 [docs/en/dev/dsh-integration.md](../docs/en/dev/dsh-integration.md)。
+
+## 界面语言
+
+默认使用简体中文。在 App 的“偏好设置 → 语言”中可选择 English；选择保存在本机，连接服务器后同步给其他设备。
+离线修改会在重连后重试。服务器与 CLI 默认中文，使用 `SWIFTNEST_LANG=en` 选择英文，
+服务器 YAML 也支持 `lang: en`，环境变量优先。原生托盘、通知和文件选择窗口跟随 App 选择。

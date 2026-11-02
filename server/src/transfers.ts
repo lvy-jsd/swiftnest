@@ -1,3 +1,4 @@
+import { localizedError, ServerFailure } from './i18n.js';
 /** Durable, nonblocking transfer coordinator. Approval grants one immutable identity/path/metadata binding. */
 import { randomBytes } from "node:crypto";
 import { readFile, mkdir } from "node:fs/promises";
@@ -100,7 +101,7 @@ export class Transfers {
     if (ref.device === "server")
       return { device: SERVER, identity: this.nest.identity.publicKey };
     const d = this.nest.devicesStore.list().find((d) => d.slug === ref.device);
-    if (!d) throw new Error(`Unknown paired device ${ref.device}`);
+    if (!d) throw new ServerFailure(`Unknown paired device ${ref.device}`);
     return { device: d.device, identity: d.publicKey };
   }
   private async call(
@@ -127,14 +128,14 @@ export class Transfers {
         result = await this.nest.tasks.wait(task.id, 1000);
       }
       if (result.state !== "succeeded")
-        throw new Error(result.error?.message ?? result.state);
+        throw new ServerFailure(result.error?.message ?? result.state, result.error?.code, result.error?.hint ?? result.error?.suggestion);
       return result.result!.data;
     } finally {
       if (signal?.aborted) await this.nest.tasks.cancel(task.id);
     }
   }
   async start(request: TransferRequest): Promise<Transfer> {
-    if (this.closed) throw new Error("Transfers stopped");
+    if (this.closed) throw new ServerFailure("Transfers stopped");
     for (const ref of [request.source, request.destination])
       if (
         !ref ||
@@ -143,14 +144,14 @@ export class Transfers {
         !ref.path ||
         ref.path.length > 4096
       )
-        throw new Error("Expected source and destination device/path");
+        throw new ServerFailure("Expected source and destination device/path");
     if (
       request.source.device === "server" &&
       request.destination.device === "server"
     )
-      throw new Error("Choose a device endpoint");
+      throw new ServerFailure("Choose a device endpoint");
     if (!["auto", "relay"].includes(request.routing ?? "auto"))
-      throw new Error("Invalid routing");
+      throw new ServerFailure("Invalid routing");
     const source = this.resolve(request.source),
       destination = this.resolve(request.destination);
     const meta = (await this.call(source.device, "inspect", {
@@ -171,7 +172,7 @@ export class Transfers {
         (r) => !["complete", "cancelled", "failed"].includes(r.state),
       ).length >= 32
     )
-      throw new Error("Too many transfers");
+      throw new ServerFailure("Too many transfers");
     const r: Saved = {
       id,
       source: request.source,
@@ -197,7 +198,7 @@ export class Transfers {
     action: "pause" | "resume" | "cancel" | "retry",
   ): Promise<Transfer> {
     const r = this.records.get(id);
-    if (!r) throw new Error("Unknown transfer");
+    if (!r) throw new ServerFailure("Unknown transfer");
     if (r.state === "complete") return this.list().find((t) => t.id === id)!;
     if (action === "pause" || action === "cancel") {
       r.state = action === "pause" ? "paused" : "cancelled";
@@ -212,9 +213,10 @@ export class Transfers {
       await this.save();
     } else {
       if (r.state === "cancelled")
-        throw new Error("Cancelled transfer cannot resume");
+        throw new ServerFailure("Cancelled transfer cannot resume");
       r.state = "waiting";
       r.error = undefined;
+      r.failure = undefined;
       await this.save();
       this.launch(r);
     }
@@ -229,7 +231,8 @@ export class Transfers {
       .catch(async (e) => {
         if (!stop.signal.aborted) {
           r.state = "failed";
-          r.error = String(e);
+          r.error = e instanceof Error ? e.message : String(e);
+          r.failure = localizedError(e, "en");
           r.speed = 0;
           r.eta = null;
           await this.save();
@@ -252,7 +255,7 @@ export class Transfers {
         source.identity !== r.binding.source ||
         destination.identity !== r.binding.destination
       )
-        throw new Error("Paired identity changed; start a new transfer");
+        throw new ServerFailure("Paired identity changed; start a new transfer");
       if (
         [source.device, destination.device].some(
           (d) =>
@@ -273,7 +276,7 @@ export class Transfers {
         signal,
       );
       if (JSON.stringify(currentMeta) !== JSON.stringify(r.binding.meta))
-        throw new Error("Source changed; start a new transfer");
+        throw new ServerFailure("Source changed; start a new transfer");
       if (!r.approved) {
         const receipt = (await this.nest
           .readTransferStatus(destination.device, r.id)
@@ -404,6 +407,7 @@ export class Transfers {
         }
         r.state = "running";
         r.error = undefined;
+        r.failure = undefined;
         await this.save();
         while (!signal.aborted) {
           if (endpointError) throw endpointError;
@@ -424,9 +428,9 @@ export class Transfers {
           }
           // Detect dead relay attempts quickly; direct attempts report progress through their durable receiver journal.
           if (job.streams.some((id) => !this.nest.streams.has(id)))
-            throw new Error("Link dropped");
+            throw new ServerFailure("Link dropped");
           if (Date.now() - lastProgress > 1800000)
-            throw new Error("Transfer stalled");
+            throw new ServerFailure("Transfer stalled");
           await delay(1000, undefined, { signal });
         }
         if (this.records.get(r.id)?.state === "complete") return;
@@ -439,7 +443,8 @@ export class Transfers {
         )
           throw e;
         r.state = "waiting";
-        r.error = String(e);
+        r.error = e instanceof Error ? e.message : String(e);
+        r.failure = localizedError(e, "en");
         r.speed = 0;
         r.eta = null;
         await this.save();

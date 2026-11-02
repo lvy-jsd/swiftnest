@@ -1,21 +1,24 @@
 # Swiftnest Server
 
-English | [中文](README.zh-CN.md)
+[English](README.en.md) | 中文
 
-Swiftnest Server runs on an always-on machine and holds your conversations, bots and memory. It embeds a pinned
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH, MIT) as its kernel and adds Swiftnest's
-built-in modules as a DSH bundle (`server/bundle`). DSH's own Web UI keeps working on the same port, and third-party
-DSH plugins still install into it.
+Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和记忆。它内嵌锁定版本的
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH，MIT）作为内核，Swiftnest 自己的内置模块以 DSH bundle 的形式加载（`server/bundle`）。DSH 自带的 Web UI 在同一端口照常可用，第三方 DSH 插件也照样能装。
 
-The server hosts the Nest and a pinned DSH kernel, serves the App at `/app/` and health at
-`/swiftnest/health`, and routes agent tools to paired Perches. The App handles device pairing, fingerprint
-confirmation, revocation and risky-call approvals. Device-side desktop/Android integration comes separately.
-See [Devices](../docs/en/guide/devices.md) for pairing, approvals and the typed API.
+可以启动内核、配置 OpenAI 兼容模型，提供 `GET /swiftnest/health`、`/app/` 网页应用及网页/桌面链接配对。团队、记忆和 Android 打包留待后续。
 
-## Run it
+服务器同时托管 Nest 和 DSH kernel，将智能体的工具调用转发到已配对的 Perch。App 的设备页支持生成配对码、
+核对指纹、撤销设备和审批高风险请求；聊天页也可查看审批。桌面和 Android 设备端集成另行实现。
+详细步骤及 API 见[设备指南](../docs/zh/guide/devices.md)。
 
-Requirements: Node 24 **from nodejs.org** (DSH's native addon does not recognize distro or Nix builds of Node;
-on NixOS use `nix develop` from the repo root) and an OpenAI-compatible model server such as Ollama.
+设备监听配置：`devices.host` 默认跟随服务器地址，`devices.port` 默认 `7711`，`devices.mdns` 默认 `true`。
+对应环境变量为 `SWIFTNEST_DEVICES_HOST`、`SWIFTNEST_DEVICES_PORT`、`SWIFTNEST_DEVICES_MDNS`（`false` 关闭发现）。
+身份、配对、最近在线信息和原始参数审计保存在 `<home>/devices/`。本机管理通道和 MCP 使用独立的随机进程密钥，
+通过环境变量传递给 DSH；生成的 patch 不保存 bearer 密钥值。
+
+## 运行
+
+需要：**来自 nodejs.org 的** Node 24（DSH 的原生插件不认发行版或 Nix 编译的 Node；NixOS 上在仓库根目录用 `nix develop`），以及一个 OpenAI 兼容的模型服务，比如 Ollama。
 
 ```sh
 pnpm install && pnpm build
@@ -24,72 +27,66 @@ SWIFTNEST_MODEL_BASE_URL=http://127.0.0.1:11434/v1 SWIFTNEST_MODEL_ID=qwen3 \
   node server/dist/cli.js start
 ```
 
-It prints three links valid until restart: DSH Web UI, the pairing URL to paste into the desktop App,
-and **App (web)** (`<root>/app/#/pair?url=<encoded pairing URL>`). Open the latter for one-click pairing,
-then choose **New chat** and send a message. The App removes the pairing URL from its address bar and
-remembers only the server root; browser authentication stays in the cookie jar. Pair again after a
-reload, disconnect or server restart in phase 0. Treat launch-token links as secrets.
+启动后打印三个重启前有效的链接：DSH Web UI、供桌面应用粘贴的配对链接，以及 **App (web)**
+（`<root>/app/#/pair?url=<编码后的配对链接>`）。打开最后一个即可自动配对，再选择“新建聊天”发送消息。
+应用会清除地址栏的配对链接，只记住服务器根地址，网页认证留在浏览器 Cookie jar。
+阶段 0 刷新、断线或服务器重启后需要重新配对。包含启动令牌的链接应当保密。
 
-For other devices on the same Wi-Fi, set `SWIFTNEST_HOST` to the server's concrete LAN IP (not a wildcard)
-and open its App (web) link. Plain HTTP is for trusted networks. The web App must share the API origin;
-the desktop App instead injects native HTTP/WebSocket transports without weakening the kernel's trust
-fence. See [client setup and permissions](../client/README.md).
+同一 Wi-Fi 的其他设备访问时，将 `SWIFTNEST_HOST` 设置为服务器具体的局域网 IP，不能使用通配地址，
+然后打开对应的 App (web) 链接。明文 HTTP 仅用于可信网络。网页应用必须与 API 同源；桌面应用通过原生
+HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配置与权限](../client/README.zh-CN.md)。
 
-`@swiftnest/server` resolves `dist` from the installed optional `@swiftnest/app` package. An explicit
-`appDist` / `SWIFTNEST_APP_DIST` overrides that location; for a source checkout you can set
-`SWIFTNEST_APP_DIST="$PWD/client/dist"`. Missing packages/builds return a clear 404 at `/app/` without
-preventing the kernel or DSH UI from starting. The public shell needs no DSH authentication; API access
-still requires pairing. Static routes reject traversal and escaping symlinks, set MIME types, use SPA
-fallback for page routes, and cache hashed assets immutably (index responses are revalidated).
+`@swiftnest/server` 默认从已安装的可选 `@swiftnest/app` 包解析 `dist` 目录，
+`appDist` / `SWIFTNEST_APP_DIST` 可覆盖它；源码开发可设置 `SWIFTNEST_APP_DIST="$PWD/client/dist"`。
+未安装或未构建应用时，`/app/` 返回明确的 404，不影响内核和 DSH 页面启动。
+应用外壳无需 DSH 认证，API 仍需配对。静态路由拒绝路径穿越和越界符号链接，设置 MIME，页面路由回退首页，
+带哈希的资源采用 immutable 缓存，首页重新验证。
 
-## Configure
+## 配置
 
-Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environment variables override it.
+可选的 YAML 文件（`swiftnest-server start --config swiftnest.yaml`），环境变量优先。
 
-| Field | Env | Default |
+| 字段 | 环境变量 | 默认值 |
 |---|---|---|
 | `home` | `SWIFTNEST_HOME` | `$XDG_DATA_HOME/swiftnest` |
-| `host` (one concrete IP, never `0.0.0.0`) | `SWIFTNEST_HOST` | `127.0.0.1` |
+| `host`（一个具体 IP，不能是 `0.0.0.0`） | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |
-| `devices.host` | `SWIFTNEST_DEVICES_HOST` | server `host` |
-| `devices.port` | `SWIFTNEST_DEVICES_PORT` | `7711` |
-| `devices.mdns` | `SWIFTNEST_DEVICES_MDNS` | `true` (`false` disables) |
-| `appDist` | `SWIFTNEST_APP_DIST` | installed `@swiftnest/app/dist`, otherwise unavailable |
-| `persona` (string) | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
+| `appDist` | `SWIFTNEST_APP_DIST` | 已安装的 `@swiftnest/app/dist`，否则不可用 |
+| `persona`（字符串） | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
-| `model.name`, `model.contextWindow`, `model.maxTokens` | | `Local model`, `32768`, `8192` |
-| `model.apiKeyEnv` (name of the key variable) | | `SWIFTNEST_MODEL_API_KEY` |
-| Node binary for the kernel | `SWIFTNEST_KERNEL_NODE` | the Node running Swiftnest |
+| `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |
+| `model.apiKeyEnv`（存放密钥的变量名） | | `SWIFTNEST_MODEL_API_KEY` |
+| 内核用的 Node 可执行文件 | `SWIFTNEST_KERNEL_NODE` | 运行 Swiftnest 的那个 Node |
 
-The persistent Nest identity, paired devices, last-seen metadata and raw-argument audit live in
-`<home>/devices/`. The loopback admin and MCP listeners have separate random per-process credentials,
-passed to DSH through environment variables; generated patches contain no bearer value.
+DSH 的数据在 `<home>/dsh`。Swiftnest 每次启动都会重新生成 `swiftnest` profile；你自己的 DSH patch 写在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，它最后应用，永远不会被覆盖。
 
-DSH's data lives in `<home>/dsh`. Swiftnest regenerates the `swiftnest` profile on every start; put your own DSH
-patch rows in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which is applied last and never overwritten.
-
-`persona` sets both the shared system-prompt prefix and the persona in every shipped DSH agent preset;
-DSH expands `{{model}}` to the model identity at runtime. For example:
+`persona` 同时设置共享 system-prompt 的前缀和 DSH 自带的各个智能体预设的人设；
+DSH 会在运行时把 `{{model}}` 替换成模型身份。例如：
 
 ```yaml
-persona: "You are Robin, a helpful assistant in Swiftnest, powered by the {{model}} model."
+persona: "你是 Swiftnest 中的助手小雨，由 {{model}} 模型驱动。"
 ```
 
-On each start, the server derives preset overrides from the web bundle installed with the pinned DSH
-kernel. It changes only persona prefixes, retaining the rest of each preset and its unevaluated `!!js`
-expressions. Presets without a persona are left alone. Operator patches still take precedence; a DSH
-patch replaces a row's whole `config`, so overriding a preset manually requires its complete config.
+每次启动时，服务器从锁定版本的 DSH 所安装的 web bundle 中读取预设并生成覆盖行。
+只替换 persona 前缀，保留预设其余内容及未经求值的 `!!js` 表达式；没有 persona 的预设保持原样。
+用户 patch 仍然优先。DSH patch 会替换目标行的整个 `config`，因此手动覆盖预设时须提供完整配置。
 
-## Test
+## 测试
 
 ```sh
-pnpm vitest run server                       # unit tests
-SWIFTNEST_E2E=1 pnpm vitest run packages/api server # real kernel + fake model chat
-SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/web.e2e.test.ts # optional Chromium App flow
+pnpm vitest run server                       # 单元测试
+SWIFTNEST_E2E=1 pnpm vitest run packages/api server # 真实内核与假模型聊天
+SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/web.e2e.test.ts # 可选 Chromium 应用流程
 ```
 
-Build the web App before the Chromium test. It skips cleanly when no browser can launch; set
-`SWIFTNEST_CHROMIUM=/path/to/chrome` to use a system browser. No external model credentials are needed.
+Chromium 测试前先构建网页。浏览器无法启动时会干净跳过，可设置 `SWIFTNEST_CHROMIUM=/path/to/chrome`
+指定系统浏览器。不需要外部模型凭据。
 
-How the embedding works and why: [docs/en/dev/dsh-integration.md](../docs/en/dev/dsh-integration.md).
+内嵌方式和原因见 [docs/en/dev/dsh-integration.md](../docs/en/dev/dsh-integration.md)。
+
+## 界面语言
+
+默认使用简体中文。在 App 的“偏好设置 → 语言”中可选择 English；选择保存在本机，连接服务器后同步给其他设备。
+离线修改会在重连后重试。服务器与 CLI 默认中文，使用 `SWIFTNEST_LANG=en` 选择英文，
+服务器 YAML 也支持 `lang: en`，环境变量优先。原生托盘、通知和文件选择窗口跟随 App 选择。

@@ -1,3 +1,4 @@
+import { localizedError, translateReason, translateMessage } from './i18n.js';
 /** The Nest and its two loopback surfaces belong to the parent, never the DSH child. */
 import { Transfers } from './transfers.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -17,9 +18,31 @@ export const ADMIN_TOKEN_ENV = 'SWIFTNEST_DEVICES_ADMIN_TOKEN';
 export const ADMIN_URL_ENV = 'SWIFTNEST_DEVICES_ADMIN_URL';
 const PREFIX = '/swiftnest/api/devices';
 const secret = () => randomBytes(32).toString('base64url');
-const json = (res: ServerResponse, status: number, value: unknown) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(value));
 
 export async function startDevices(config: ServerConfig) {
+  const json = (res: ServerResponse, status: number, value: unknown) => {
+    const failure = value as { error?: string };
+    if (status >= 400 && typeof failure?.error === 'string') {
+      const details = localizedError({ ...failure, message: failure.error }, lang);
+      value = { ...failure, ...details, error: details.message };
+    }
+    const present = (item: unknown): unknown => {
+      if (Array.isArray(item)) return item.map(present);
+      if (!item || typeof item !== 'object') return item;
+      const task = item as { state?: string; tool?: string; source?: unknown; destination?: unknown; failure?: {code:string;message:string;hint:string}; reason?: string; error?: unknown; result?: {text: string; untrusted?: boolean} };
+      if (!task.state) return item;
+      if (task.tool) return { ...task, ...(task.reason ? { reason: translateReason(task.reason, lang) } : {}),
+        ...(task.error ? { error: { ...(task.error as object), ...localizedError(task.error, lang) } } : {}),
+        ...(task.result && !task.result.untrusted ? { result: { ...task.result, text: translateMessage(task.result.text, lang) } } : {}) };
+      if (task.source && task.destination && typeof task.error === 'string') {
+        const failure = localizedError(task.failure ?? { message: task.error }, lang);
+        return { ...task, error: failure.message, failure };
+      }
+      return item;
+    };
+    value = present(value);
+    return res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(value));
+  };
   const dir = join(config.home, 'devices');
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const nest = new Nest({
@@ -33,6 +56,13 @@ export async function startDevices(config: ServerConfig) {
   const metadata = join(dir, 'seen.json');
   try { cached = JSON.parse(await readFile(metadata, 'utf8')); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  let lang: 'zh-CN' | 'en' = config.lang ?? 'zh-CN';
+  const preferencesFile = join(config.home, 'preferences.json');
+  try {
+    const saved = JSON.parse(await readFile(preferencesFile, 'utf8'));
+    if (saved?.lang === 'en' || saved?.lang === 'zh-CN') lang = saved.lang;
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  let preferenceWrites = Promise.resolve();
   // E1 stored only capability/tool names. Restore callable offline placeholders until
   // the next authenticated hello refreshes schemas and risk metadata.
   for (const d of Object.values(cached)) {
@@ -65,7 +95,7 @@ export async function startDevices(config: ServerConfig) {
     devices: list().filter(d => d.paired).map(d => ({ slug: d.slug!, name: d.name!, kind: d.kind!, online: d.online, ...(d.lastSeen ? { lastSeen: d.lastSeen } : {}) })),
     tools: list().filter(d => d.paired).flatMap(d => (cached[d.device]?.tools ?? []).filter(t=>t.capability!=="transfer").map(t => ({
       name: `device__${d.slug}__${t.capability}_${t.tool.name}`, slug: d.slug!,
-      description: typeof t.tool.description === 'string' ? t.tool.description : t.tool.description.en,
+      description: typeof t.tool.description === 'string' ? translateMessage(t.tool.description, lang) : (lang === "en" ? t.tool.description.en : t.tool.description.zh ?? t.tool.description.en),
       risk: t.tool.risk, inputSchema: t.tool.inputSchema,
     }))),
   });
@@ -106,6 +136,25 @@ export async function startDevices(config: ServerConfig) {
       // The authenticated bundle is the only caller. Never trust a forwarded target or identity.
       if (req.headers.origin) return void json(res, 403, { error: 'Forbidden' });
       const url = new URL(req.url ?? '/', 'http://localhost');
+      if (url.pathname === `${PREFIX}/preferences`) {
+        if (req.method === 'GET') return void json(res, 200, { lang });
+        if (req.method === 'POST') {
+          let body = ''; for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 1024) return void json(res, 413, { error: 'Language request too large' }); }
+          let value; try { value = JSON.parse(body); } catch { return void json(res, 400, { error: 'Invalid language' }); }
+          if (!value || typeof value !== 'object' || (value.lang !== 'en' && value.lang !== 'zh-CN')) return void json(res, 400, { error: 'Invalid language' });
+          const selected = value.lang as 'en' | 'zh-CN';
+          const write = preferenceWrites.then(async () => {
+            await writeFile(`${preferencesFile}.tmp`, JSON.stringify({ lang: selected }), { mode: 0o600 });
+            await rename(`${preferencesFile}.tmp`, preferencesFile);
+            lang = selected;
+            publish('devices-changed');
+          });
+          preferenceWrites = write.catch(() => {});
+          await write;
+          return void json(res, 200, { lang: selected });
+        }
+        return void json(res, 405, { error: 'Method not allowed' });
+      }
       // Private control routes are never mounted in the owner-facing proxy.
       const control = '/swiftnest/control/devices';
       if (url.pathname === control && req.method === 'GET') return void json(res, 200, snapshot());
@@ -162,7 +211,7 @@ export async function startDevices(config: ServerConfig) {
           const action=/^\/transfers\/([a-f0-9]{64})\/(pause|resume|cancel|retry)$/.exec(transferPath);
           if (action && req.method === 'POST') return void json(res,200,await transfers.action(action[1]!,action[2] as 'pause'|'resume'|'cancel'|'retry'));
           return void json(res,404,{error:'Unknown transfer route'});
-        } catch(error) { return void json(res,409,{error:String(error)}); }
+        } catch(error) { return void json(res,409,{error:error instanceof Error ? error.message : String(error),code:(error as {code?:string}).code}); }
       }
       const path = url.pathname.slice(PREFIX.length);
       if (!url.pathname.startsWith(PREFIX + '/') && url.pathname !== PREFIX) return void json(res, 404, { error: 'Not found' });
@@ -190,7 +239,7 @@ export async function startDevices(config: ServerConfig) {
         const maxDimension = Number(url.searchParams.get('maxDimension') ?? 1280);
         const displayId = url.searchParams.get('displayId') ?? '';
         try { return void json(res, 200, await nest.openOwnerStream(device.device, { maxDimension, displayId })); }
-        catch (error) { return void json(res, 409, { error: String(error) }); }
+        catch (error) { return void json(res, 409, { error: error instanceof Error ? error.message : String(error), code: (error as { code?: string }).code }); }
       }
       if (req.method === 'POST') {
         // No user-supplied arguments are needed: decisions are explicit URL actions.
@@ -240,7 +289,7 @@ export async function startDevices(config: ServerConfig) {
     await lan?.close();
     await nest.close();
     offTools();
-    await writes;
+    await writes; await preferenceWrites;
   })();
   try {
     lan = await serveLan(nest, { host: config.devices.host, port: config.devices.port, advertise: config.devices.mdns });

@@ -27,7 +27,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            name: "This computer".into(),
+            name: crate::i18n::text("native_0"),
             slug: String::new(),
             enabled: false,
             background: false,

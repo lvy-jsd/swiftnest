@@ -1,18 +1,12 @@
 #!/usr/bin/env node
+import { message, localizedError } from "./i18n.js";
 import { parseArgs } from "node:util";
 import { loadConfig } from "./config.js";
 import { startKernel } from "./kernel.js";
 import { pairingUrl, webAppUrl } from "./pairing.js";
 
-const HELP = `swiftnest-server — run Swiftnest Server
 
-Usage:
-  swiftnest-server start [--config <file>] [--verbose]
-
-Environment overrides: SWIFTNEST_HOME, SWIFTNEST_HOST, SWIFTNEST_PORT, SWIFTNEST_APP_DIST,
-SWIFTNEST_DEVICES_HOST, SWIFTNEST_DEVICES_PORT, SWIFTNEST_DEVICES_MDNS,
-SWIFTNEST_MODEL_BASE_URL, SWIFTNEST_MODEL_ID, and the key variable named by
-model.apiKeyEnv (default SWIFTNEST_MODEL_API_KEY).`;
+let selectedLanguage: "zh-CN" | "en" = process.env.SWIFTNEST_LANG === "en" ? "en" : "zh-CN";
 
 async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -25,19 +19,21 @@ async function main(argv: string[]): Promise<number> {
     },
   });
   if (values.help || positionals[0] !== "start") {
-    console.log(HELP);
+    console.log(message("help", loadConfig(values.config).lang));
     return values.help ? 0 : 2;
   }
   const config = loadConfig(values.config);
-  console.log(`Starting Swiftnest Server (data in ${config.home})…`);
+  selectedLanguage = config.lang ?? "zh-CN";
+  process.env.SWIFTNEST_LANG = selectedLanguage;
+  console.log(message("starting", config.lang, [config.home]));
   const kernel = await startKernel(config, {
     onLine: values.verbose ? (line) => console.log(`  [dsh] ${line}`) : undefined,
   });
-  console.log(`Ready: ${kernel.url}`);
-  console.log(`Links below are valid until the server restarts.`);
-  console.log(`  Browser (DSH Web UI): ${kernel.url}?token=${kernel.token}`);
+  console.log(message("ready", config.lang, [kernel.url]));
+  console.log(message("links", config.lang));
+  console.log(`  ${message("browser", config.lang)}: ${kernel.url}?token=${kernel.token}`);
   console.log(`  Swiftnest App:        ${pairingUrl(kernel.url, kernel.token)}`);
-  console.log(`  App (web): ${webAppUrl(kernel.url, kernel.token)}`);
+  console.log(`  ${message("webApp", config.lang)}: ${webAppUrl(kernel.url, kernel.token)}`);
 
   const shutdown = async () => {
     await kernel.stop();
@@ -52,7 +48,8 @@ async function main(argv: string[]): Promise<number> {
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),
   (err: unknown) => {
-    console.error(err instanceof Error ? err.message : err);
+    const failure = localizedError(err, selectedLanguage);
+    console.error(`[${failure.code}] ${failure.message}\n${failure.hint}`);
     process.exit(1);
   },
 );

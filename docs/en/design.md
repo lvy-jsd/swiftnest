@@ -1,5 +1,8 @@
 # Swiftnest Design v0.3
 
+> Current language policy (F1): Simplified Chinese is the default in the App, CLI and docs; English is selectable. This supersedes the earlier equal-default proposal below.
+
+
 > Status: Draft v0.3 (2026-10-22). Decisions from v0.2 are in Section 15; this version incorporates the review from the local model Xiaoyan (小燕) (Swift 1.5, the agent that will live in the Nest), see Section 16.
 > In one sentence: **Turn your devices into capabilities that any agent can safely call.**
 
@@ -46,7 +49,7 @@ Advanced terms (only needed when writing plugins): Link (link plugin), Capabilit
 5. **Multiple interaction modes**: Web, DSH, CLI, IM, phone push, OpenAI-compatible API, MCP endpoint—entry points are also plugins.
 6. **Newcomer-friendly**: First run only needs Node.js and a LAN; one-command install, scan a QR code or enter a 6-digit code to pair, errors tell you how to fix them.
 7. **No lock-in, self-hosted**: DSH is a first-class citizen but not required; no dependency on any official service that requires login; data stays in your hands.
-8. **Chinese and English treated equally.**
+8. **Chinese by default, with English selectable.**
 
 ## 3. Overall Architecture
 
@@ -376,4 +379,4 @@ Switch services one by one; no big-bang migration.
 - mDNS was not exercised on the development machine: NixOS's default firewall drops UDP 5353. The code has a test that skips itself where multicast cannot work; the docs explain `--nest` instead.
 - Pairing codes are not bound to a device model and timestamp: the proof is bound to the session's transcript hash, which is what prevents replay.
 
-**Left for M1.5 / M2**: policy reason strings are English only; approvals are not signed and there is no local confirmation on the device (M2); key rotation and recovery (M2); the `swiftnest mcp` stdio bridge; the web panel.
+**Left for M1.5 / M2**: policy reasons now have Chinese and English renderings; approvals are not signed and there is no local confirmation on the device (M2); key rotation and recovery (M2); the `swiftnest mcp` stdio bridge; the web panel.

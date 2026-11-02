@@ -22,7 +22,7 @@ impl Classification {
     pub fn new(risk: Risk, reason: impl Into<String>) -> Self {
         Self {
             risk,
-            reason: Some(reason.into()),
+            reason: Some(crate::i18n::translate(&reason.into())),
         }
     }
 }
@@ -36,14 +36,18 @@ pub struct ToolResult {
 impl ToolResult {
     pub fn text(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: crate::i18n::translate(&text.into()),
             data: None,
             untrusted: false,
         }
     }
     pub fn data(text: impl Into<String>, data: Value, untrusted: bool) -> Self {
         Self {
-            text: text.into(),
+            text: if untrusted {
+                text.into()
+            } else {
+                crate::i18n::translate(&text.into())
+            },
             data: Some(data),
             untrusted,
         }
@@ -65,4 +69,15 @@ pub fn string_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str> {
         .as_str()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| crate::Failure::new("BAD_ARGS", format!("{key} is required")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn untrusted_file_contents_stay_exact_even_when_they_match_catalog_text() {
+        let text = "command is empty";
+        let result = ToolResult::data(text, serde_json::json!({"path":"notes.txt"}), true);
+        assert_eq!(result.text, text);
+    }
 }
