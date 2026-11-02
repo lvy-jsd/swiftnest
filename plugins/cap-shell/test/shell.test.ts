@@ -23,6 +23,28 @@ describe("classifyCommand", () => {
     ["find . -name x -delete", "sensitive"],
     ["/usr/bin/shutdown now", "sensitive"],
     ['echo "unbalanced', "exec"],
+    ["find . -fprintf out.txt %p", "sensitive"],
+    ["find . -fls out.txt", "sensitive"],
+    // Read-only programs that write with some arguments: the read path has no sandbox, so they must ask.
+    ["sort notes.txt", "read"],
+    ["sort -r -k 2 notes.txt", "read"],
+    ["sort -o/tmp/pwned notes.txt", "exec"],
+    ["sort -ro out.txt notes.txt", "exec"],
+    ["sort --output=out.txt notes.txt", "exec"],
+    ["sort --compress-program=sh notes.txt", "exec"],
+    ["date", "read"],
+    ["date +%F", "read"],
+    ['date -d "next monday" +%F', "read"],
+    ["date -s 2020-01-01", "exec"],
+    ["date --set=2020-01-01", "exec"],
+    ["date 010100002020", "exec"],
+    ["uniq notes.txt", "read"],
+    ["uniq -f 1 notes.txt", "read"],
+    ["uniq notes.txt out.txt", "exec"],
+    ["hostname", "read"],
+    ["hostname -I", "read"],
+    ["hostname evil", "exec"],
+    ["file -C -m magic", "exec"],
   ])("%s → %s", (cmd, risk) => {
     expect(classifyCommand(cmd, DEFAULT_READ_ONLY, guard).risk).toBe(risk);
   });

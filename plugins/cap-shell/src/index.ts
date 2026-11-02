@@ -24,6 +24,7 @@ export const DESTRUCTIVE = [
 ];
 const SHELL_OPERATORS = /[;&|`$<>(){}\n\\*?~]/;
 const MAX_OUTPUT = 64 * 1024;
+const FIND_WRITES = ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"];
 
 /** Read-only programs that read file paths from their arguments. For these, a path outside the shared folders or
  * inside a protected location escalates the risk, so `cat` cannot read what cap-files would refuse. */
@@ -36,6 +37,56 @@ const FILE_READING = new Set([
 /** The file-like arguments of a command: every token after the program that is not a `-` flag. */
 function fileArgs(tokens: string[]): string[] {
   return tokens.slice(1).filter((t) => !t.startsWith("-"));
+}
+
+/** Short-flag clusters (`-ro`, `-uo/x`) are split by the program, so a letter anywhere in the cluster counts. */
+function hasShort(arg: string, letter: string): boolean {
+  return /^-[^-]/.test(arg) && arg.slice(1).includes(letter);
+}
+function hasLong(arg: string, names: string[]): boolean {
+  return names.some((n) => arg === n || arg.startsWith(`${n}=`));
+}
+/** Positional arguments, skipping the value that follows each flag in `takesValue`. */
+function positionals(args: string[], takesValue: string[] = []): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (takesValue.includes(a)) i++;
+    else if (!a.startsWith("-") || a === "-") out.push(a);
+  }
+  return out;
+}
+
+/**
+ * Programs on the read-only list that still write files, run programs or change the system with some arguments.
+ * Returns why, or undefined when this invocation only reads. The read path runs WITHOUT a sandbox, so a miss here is
+ * an unapproved write: anything doubtful is treated as a write.
+ */
+export function writingInvocation(program: string, args: string[]): string | undefined {
+  switch (program) {
+    case "sort":
+      if (args.some((a) => hasShort(a, "o") || hasLong(a, ["--output", "--compress-program"])))
+        return "sort -o/--output writes a file and --compress-program runs a program";
+      return undefined;
+    case "date":
+      if (args.some((a) => hasShort(a, "s") || hasLong(a, ["--set"]))) return "date -s/--set changes the system clock";
+      if (positionals(args, ["-d", "--date", "-r", "--reference", "-f", "--file"]).some((a) => !a.startsWith("+")))
+        return "date with a time argument changes the system clock";
+      return undefined;
+    case "uniq":
+      if (positionals(args, ["-f", "--skip-fields", "-s", "--skip-chars", "-w", "--check-chars"]).length > 1)
+        return "uniq with a second file writes its output there";
+      return undefined;
+    case "hostname":
+      if (args.some((a) => hasShort(a, "F") || hasShort(a, "b") || hasLong(a, ["--file", "--boot"])) || positionals(args).length > 0)
+        return "hostname with an argument changes the host name";
+      return undefined;
+    case "file":
+      if (args.some((a) => hasShort(a, "C") || hasLong(a, ["--compile"]))) return "file -C compiles and writes a magic file";
+      return undefined;
+    default:
+      return undefined;
+  }
 }
 
 /** Split a command line on whitespace, honouring simple single/double quotes. Returns null on unbalanced quotes. */
@@ -81,10 +132,12 @@ export function classifyCommand(command: string, readOnly: readonly string[] = D
   if (destructive) return { risk: "sensitive", reason: `runs "${destructive}", which can destroy data or change the system` };
   if (!tokens || !program) return { risk: "exec", reason: "could not parse the command" };
   if (SHELL_OPERATORS.test(unquoted)) return { risk: "exec", reason: "uses shell operators (pipes, redirects, globs or substitutions)" };
-  if (program === "find" && tokens.some((t) => ["-delete", "-exec", "-execdir", "-ok", "-fprint"].includes(t))) {
-    return { risk: "sensitive", reason: "find with -delete/-exec can modify files" };
+  if (program === "find" && tokens.some((t) => FIND_WRITES.includes(t))) {
+    return { risk: "sensitive", reason: "find with -delete/-exec/-fprint can modify files" };
   }
   if (readOnly.includes(program)) {
+    const writes = writingInvocation(program, tokens.slice(1));
+    if (writes) return { risk: "exec", reason: writes };
     // A read-only command that reads files is only "read" if every path it names is inside the shared folders and not
     // a protected location — the same rule cap-files enforces, so the two capabilities cannot disagree.
     if (guard && FILE_READING.has(program)) {

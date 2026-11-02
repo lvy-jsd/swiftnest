@@ -84,6 +84,90 @@ const FILE_READING: &[&str] = &[
     "realpath",
 ];
 const MAX_OUTPUT: usize = 64 * 1024;
+const FIND_WRITES: &[&str] = &[
+    "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls",
+];
+/// Short-flag clusters (`-ro`, `-uo/x`) are split by the program, so a letter anywhere counts.
+fn has_short(arg: &str, letter: char) -> bool {
+    arg.len() > 1 && arg.starts_with('-') && !arg.starts_with("--") && arg[1..].contains(letter)
+}
+fn has_long(arg: &str, names: &[&str]) -> bool {
+    names
+        .iter()
+        .any(|n| arg == *n || arg.strip_prefix(n).is_some_and(|r| r.starts_with('=')))
+}
+/// Positional arguments, skipping the value that follows each flag in `takes_value`.
+fn positionals<'a>(args: &'a [String], takes_value: &[&str]) -> Vec<&'a str> {
+    let mut out = vec![];
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if takes_value.contains(&a.as_str()) {
+            it.next();
+        } else if !a.starts_with('-') || a == "-" {
+            out.push(a.as_str());
+        }
+    }
+    out
+}
+/// Programs on the read-only list that still write files, run programs or change the system
+/// with some arguments. Keep in sync with `writingInvocation` in plugins/cap-shell.
+pub fn writing_invocation(program: &str, args: &[String]) -> Option<&'static str> {
+    match program {
+        "sort"
+            if args
+                .iter()
+                .any(|a| has_short(a, 'o') || has_long(a, &["--output", "--compress-program"])) =>
+        {
+            Some("sort -o/--output writes a file and --compress-program runs a program")
+        }
+        "date"
+            if args
+                .iter()
+                .any(|a| has_short(a, 's') || has_long(a, &["--set"])) =>
+        {
+            Some("date -s/--set changes the system clock")
+        }
+        "date"
+            if positionals(args, &["-d", "--date", "-r", "--reference", "-f", "--file"])
+                .iter()
+                .any(|a| !a.starts_with('+')) =>
+        {
+            Some("date with a time argument changes the system clock")
+        }
+        "uniq"
+            if positionals(
+                args,
+                &[
+                    "-f",
+                    "--skip-fields",
+                    "-s",
+                    "--skip-chars",
+                    "-w",
+                    "--check-chars",
+                ],
+            )
+            .len()
+                > 1 =>
+        {
+            Some("uniq with a second file writes its output there")
+        }
+        "hostname"
+            if args.iter().any(|a| {
+                has_short(a, 'F') || has_short(a, 'b') || has_long(a, &["--file", "--boot"])
+            }) || !positionals(args, &[]).is_empty() =>
+        {
+            Some("hostname with an argument changes the host name")
+        }
+        "file"
+            if args
+                .iter()
+                .any(|a| has_short(a, 'C') || has_long(a, &["--compile"])) =>
+        {
+            Some("file -C compiles and writes a magic file")
+        }
+        _ => None,
+    }
+}
 pub fn tokenize(command: &str) -> Option<Vec<String>> {
     let mut tokens = vec![];
     let mut cur = String::new();
@@ -158,14 +242,16 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
             "uses shell operators (pipes, redirects, globs or substitutions)",
         );
     }
-    if program == "find"
-        && toks
-            .iter()
-            .any(|t| ["-delete", "-exec", "-execdir", "-ok", "-fprint"].contains(&t.as_str()))
-    {
-        return Classification::new(Risk::Sensitive, "find with -delete/-exec can modify files");
+    if program == "find" && toks.iter().any(|t| FIND_WRITES.contains(&t.as_str())) {
+        return Classification::new(
+            Risk::Sensitive,
+            "find with -delete/-exec/-fprint can modify files",
+        );
     }
     if read_only.contains(&program) {
+        if let Some(reason) = writing_invocation(program, &toks[1..]) {
+            return Classification::new(Risk::Exec, reason);
+        }
         if FILE_READING.contains(&program) {
             for arg in toks.iter().skip(1).filter(|t| !t.starts_with('-')) {
                 let c = guard.lexical(Path::new(arg));
