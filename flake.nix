@@ -47,8 +47,8 @@
         let
           pkgs = androidPkgs system;
           sdk = (pkgs.androidenv.composeAndroidPackages {
-            platformVersions = [ "34" "35" ];
-            buildToolsVersions = [ "34.0.0" "35.0.0" ];
+            platformVersions = [ "34" "35" "36" ];
+            buildToolsVersions = [ "34.0.0" "35.0.0" "36.0.0" ];
             includeNDK = true;
             ndkVersions = [ "27.2.12479018" ];
             cmdLineToolsVersion = "latest";
@@ -57,15 +57,20 @@
             targets = [ "aarch64-linux-android" "armv7-linux-androideabi" "x86_64-linux-android" "i686-linux-android" ];
           };
           home = "${sdk}/libexec/android-sdk";
+          # Tauri invokes pnpm again from its build hook and Gradle tasks. Use
+          # the workspace-pinned version through the official Node's Corepack.
+          pnpm = pkgs.writeShellScriptBin "pnpm" ''
+            exec ${officialNode pkgs}/bin/corepack pnpm "$@"
+          '';
         in pkgs.mkShell {
           inputsFrom = [ base ];
-          nativeBuildInputs = [ rust pkgs.jdk17 sdk ];
+          nativeBuildInputs = [ rust pkgs.jdk17 sdk pnpm ];
           ANDROID_HOME = home;
           ANDROID_SDK_ROOT = home;
           NDK_HOME = "${home}/ndk/27.2.12479018";
           JAVA_HOME = pkgs.jdk17.home;
           # Gradle downloads its own aapt2, which cannot run on NixOS; use the SDK's.
-          GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${home}/build-tools/35.0.0/aapt2";
+          GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${home}/build-tools/36.0.0/aapt2";
         };
     in {
       devShells = forAll (pkgs: rec {

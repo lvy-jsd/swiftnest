@@ -36,7 +36,7 @@ in the browser jar. Reloading or losing the connection requires **Pair again** i
 mutation retry or message resubmission occurs. Recent server history is replayed when reopening a chat;
 older-page navigation and interactive approval/question controls are deferred.
 
-Desktop builds use `isTauriRuntime()` to dynamically load `src/nativeTransport.ts`; ordinary web mode
+Desktop and Android builds use `isTauriRuntime()` to dynamically load `src/nativeTransport.ts`; ordinary web mode
 never loads Tauri modules. Official HTTP/WebSocket plugins provide manual-cookie transports. HTTP uses
 `maxRedirections: 0`, `unsafe-headers`, and an empty Origin header (the plugin's explicit opt-out from
 inserting the WebView Origin). Rust HTTP defaults are disabled to avoid the plugin's shared Cookie jar;
@@ -48,12 +48,62 @@ allow HTTP(S), arbitrary user-selected hosts/ports, and only `/connect`, `/api/*
 Hosts cannot be enumerated ahead of LAN pairing. The official WebSocket plugin currently has no URL scope;
 only its required `allow-connect` and `allow-send` commands are granted. The App derives the socket URL
 from the paired root. No filesystem, shell, or navigation permissions are added. These HTTP scopes cover
-the server's root deployment; desktop reverse-proxy path prefixes need an explicit capability adjustment.
+the server's root deployment; native reverse-proxy path prefixes need an explicit capability adjustment.
 
 Desktop development uses `pnpm --filter @swiftnest/app tauri dev` (not part of checks). Linux dependencies
-come from Nix; Windows needs Rust/MSVC and WebView2. Android packaging and real-device measurements come later.
+come from Nix; Windows needs Rust/MSVC and WebView2.
 Preferences retain bilingual copy, system/light/dark themes, accent presets, reduced motion/transparency,
 accessible sheets, two panes at 600 px, desktop sidebar at 1024 px, Alt+Left and phone edge-swipe back.
+
+## Android (arm64 debug APK)
+
+From the repository root:
+
+```sh
+nix develop .#android
+pnpm install --frozen-lockfile
+pnpm build
+# Already initialized and versioned. Only run init when creating a new target:
+# pnpm --filter @swiftnest/app tauri android init
+pnpm --filter @swiftnest/app tauri icon src-tauri/icons/source.svg
+pnpm --filter @swiftnest/app tauri android build --debug --target aarch64 --apk
+```
+
+The application id is `dev.swiftnest.app` (Android 7/API 24 or newer). The APK is under
+`src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` relative to
+`client/`; with only `aarch64` selected, this contains only `arm64-v8a`. It uses a local debug signing
+key and is for testing. Build outputs, generated JNI/Kotlin glue, machine-specific Gradle files and
+local SDK/signing settings are ignored; the Gradle wrapper, build scripts, manifest, activity and
+resources are versioned. Do not re-run init over the customized project.
+
+The Android shell supplies JDK 17, Rust Android targets, SDK/API 36, Build Tools 36.0.0, NDK 27.2
+and an SDK `aapt2` override in
+`GRADLE_OPTS`. Keep that variable when invoking Tauri/Gradle on NixOS: Gradle's downloaded Maven
+`aapt2` cannot run there. First builds download Gradle/Maven dependencies. The Android shell uses
+the official Node's Corepack-backed `pnpm` wrapper so Tauri's build hook and Gradle tasks also use
+the pinned workspace version, avoiding the Nix standalone launcher's missing platform binary.
+Re-enter `nix develop .#android` after updating this checkout if an older shell only has API 34/35.
+The generated template's API 37 default is adjusted to API 36 to match Tauri's Android library and
+the versioned dev shell.
+
+For LAN chat, start the server with `SWIFTNEST_HOST=<server's concrete LAN IP>` and paste its
+`http://192.168.x.y:<port>/connect?token=…` pairing URL into **Pair server** in the APK. Open **New chat**
+and send a message. The phone must reach the server port on the same trusted LAN. Both HTTP and the
+authenticated WebSocket use the same native carrier as desktop; the server's cross-origin fence stays
+enabled. The shared capability has no platform restriction and matches Android's local `main` window.
+
+`network_security_config.xml` permits cleartext for phase-0 LAN pairing, including debug and release
+builds. Arbitrary LAN IPs cannot be enumerated at build time and Android domain rules cannot express
+private IP CIDRs, so this is an app-level exception. The existing native HTTP path scopes and local-only
+IPC permissions still apply; TLS verification is unchanged. Use trusted networks only. Phase 2 adds
+encrypted transport and should remove this exception.
+
+The activity applies system-bar/cutout and keyboard insets to the whole WebView, consumes them to avoid
+double safe-area padding, and uses `adjustResize`. Web layouts retain CSS safe areas and `100dvh`.
+Android system back dismisses Preferences first, returns detail/pairing to the chat list next, and exits
+only from home. A visible keyboard gets the system's normal back-to-dismiss behavior first.
+Real-device checks remain necessary: gesture and three-button navigation, rotation/cutouts, keyboard
+show/hide, LAN pairing and streamed chat. Browser viewport tests do not verify Android IME behavior.
 
 Checks (no Tauri launch or packaging needed):
 
