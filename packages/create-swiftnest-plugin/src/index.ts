@@ -3,7 +3,7 @@
  * npm create swiftnest-plugin@latest [dir] [--name swiftnest-plugin-foo] [--lang zh|en]
  * Copies the capability template, renames it, and pins @swiftnest/sdk to the current release.
  */
-import { translateMessage, localizedError } from '@swiftnest/protocol';
+import { localizedError } from '@swiftnest/protocol';
 import { cp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,11 +49,11 @@ export async function createPlugin(dir: string, name: string): Promise<string> {
   pkg.name = name;
   delete pkg.private;
   pkg.dependencies['@swiftnest/sdk'] = SDK_VERSION;
-  await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   // Standalone tsconfig (the template's extends the monorepo base).
   await writeFile(
     join(target, 'tsconfig.json'),
-    JSON.stringify(
+    `${JSON.stringify(
       {
         compilerOptions: {
           target: 'es2024',
@@ -70,7 +70,7 @@ export async function createPlugin(dir: string, name: string): Promise<string> {
       },
       null,
       2,
-    ) + '\n',
+    )}\n`,
   );
   const index = join(target, 'src', 'index.ts');
   await writeFile(index, (await readFile(index, 'utf8')).replace(/swiftnest-plugin-hello/g, name));

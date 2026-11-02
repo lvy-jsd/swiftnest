@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'rea
 import type { Device, LiveView, ScreenFrame } from '@swiftnest/api';
 import { useDevices } from './devices';
 import { useConnection } from './connection';
-import { useI18n } from './i18n';
+import { type StringKey, useI18n } from './i18n';
 import { Button } from './components/Button';
 
 export function LiveDeviceButton() {
@@ -13,7 +13,7 @@ export function LiveDeviceButton() {
   const available = devices.filter((d) => d.online && d.capabilities.some((c) => c.id === 'screen'));
   return (
     <>
-      <div className="live-device-chips" aria-label={t('liveView')}>
+      <div className="live-device-chips" role="toolbar" aria-label={t('liveView')}>
         {available.map((d) => (
           <Button key={d.device} onClick={() => setDevice(d)}>
             {t('liveView')} · {d.name ?? d.device}
@@ -30,7 +30,8 @@ export function LivePanel({ device, onClose }: { device: Device; onClose: () => 
   const [live, setLive] = useState<LiveView>();
   const [frame, setFrame] = useState<ScreenFrame>();
   const [control, setControl] = useState<'ivy' | 'owner' | 'paused'>('paused');
-  const [error, setError] = useState('');
+  // A catalog key, translated at render so a language switch applies to it too.
+  const [error, setError] = useState<{ key: StringKey; code?: string }>();
   const [pending, setPending] = useState(false);
   const [keyboard, setKeyboard] = useState(false);
   const [text, setText] = useState('');
@@ -80,19 +81,15 @@ export function LivePanel({ device, onClose }: { device: Device; onClose: () => 
           setControl(update.control);
           setPending(false);
           if (update.frame) setFrame(update.frame);
-          if (update.error) setError(`${t('liveViewFailed')} (${update.error.code})`);
+          if (update.error) setError({ key: 'liveViewFailed', code: update.error.code });
         }
         if (!controller.signal.aborted) setControl('paused');
       } catch (error) {
         if (!controller.signal.aborted) {
           setControl('paused');
-          setError(
-            t(
-              ['tls-required', 'secure-context-required'].includes((error as { code?: string }).code ?? '')
-                ? 'liveTlsRequired'
-                : 'liveViewFailed',
-            ),
-          );
+          const code = (error as { code?: string }).code ?? '';
+          const tls = ['tls-required', 'secure-context-required'].includes(code);
+          setError({ key: tls ? 'liveTlsRequired' : 'liveViewFailed' });
         }
       }
     })();
@@ -115,12 +112,12 @@ export function LivePanel({ device, onClose }: { device: Device; onClose: () => 
       dialog.current?.close();
       old?.focus();
     };
-  }, [onClose]);
+  }, []);
   const send = (tool: string, args: Record<string, unknown>, source = frame) => {
     if (control !== 'owner' || !source || !live) return;
     void live
       .input(tool, { displayId: source.displayId, captureId: source.captureId, ...args })
-      .catch(() => setError(t('liveInputFailed')));
+      .catch(() => setError({ key: 'liveInputFailed' }));
   };
   const point = (x: number, y: number) => {
     const rect = picture.current?.getBoundingClientRect();
@@ -192,13 +189,13 @@ export function LivePanel({ device, onClose }: { device: Device; onClose: () => 
   const take = async () => {
     if (!live) return;
     setPending(true);
-    setError('');
+    setError(undefined);
     try {
       if (control === 'owner') await live.handBack();
       else await live.takeOver();
     } catch {
       setPending(false);
-      setError(t('liveInputFailed'));
+      setError({ key: 'liveInputFailed' });
     }
   };
   return (
@@ -220,9 +217,11 @@ export function LivePanel({ device, onClose }: { device: Device; onClose: () => 
       </header>
       {error && (
         <p className="live-error" role="alert">
-          {error}
+          {t(error.key)}
+          {error.code && ` (${error.code})`}
         </p>
       )}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the remote screen; keys go through the keyboard control */}
       <div
         ref={surface}
         tabIndex={-1}

@@ -50,7 +50,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         });
         const errors: string[] = [];
         page.on('pageerror', (e) => errors.push(e.message));
-        await page.goto(server.resolvedUrls!.local[0] + '__transfer_test?lang=' + lang);
+        await page.goto(`${server.resolvedUrls!.local[0]}__transfer_test?lang=${lang}`);
         const zh = lang === 'zh-CN';
         const card = page.locator('.transfer-card');
         await card.waitFor();
@@ -83,7 +83,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         expect(errors).toEqual([]);
         await page.screenshot({
-          path: resolve('client/test/screenshots/transfers-' + lang + '-390.png'),
+          path: resolve(`client/test/screenshots/transfers-${lang}-390.png`),
           fullPage: true,
         });
         await page.getByRole('button', { name: zh ? '取消' : 'Cancel', exact: true }).click();

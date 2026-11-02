@@ -17,7 +17,7 @@ export function defaultLanguage(): Language {
     (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.SWIFTNEST_LANG,
   );
 }
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const makePatterns = (table: Record<string, string>) =>
   Object.entries(table)
     .filter(([key]) => key !== 'riskReason')
@@ -28,7 +28,7 @@ const makePatterns = (table: Record<string, string>) =>
         key: key as keyof typeof messageEn,
         value,
         slots,
-        re: new RegExp('^' + parts.map((p) => (/^\{\d+\}$/.test(p) ? '([\\s\\S]*?)' : escape(p))).join('') + '$'),
+        re: new RegExp(`^${parts.map((p) => (/^\{\d+\}$/.test(p) ? '([\\s\\S]*?)' : escapeRegExp(p))).join('')}$`),
       };
     })
     .sort((a, b) => a.slots.length - b.slots.length || b.value.length - a.value.length);
@@ -89,7 +89,7 @@ export function localizedError(error: unknown, lang: Language = defaultLanguage(
     code = source?.code ?? errorCode(original);
   let translated = translateMessage(original, lang);
   // Third-party failures have an unbounded vocabulary. Keep their stable code and offer a localized action.
-  if (lang === 'zh-CN' && translated === original && /^[\x00-\x7f]*[a-z]{2} [a-z]/i.test(original))
+  if (lang === 'zh-CN' && translated === original && /^\p{ASCII}*[a-z]{2} [a-z]/iu.test(original))
     translated = message('genericError', lang, [code]);
   const rawHint = source?.hint ?? source?.suggestion ?? messageEn.retryHint;
   let hint = translateMessage(rawHint, lang);

@@ -124,7 +124,7 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
     throw new SwiftnestFailure('NOT_PAIRED', t(lang, 'perchNotPaired')(o.name), t(lang, 'perchNotPairedHint')(o.name));
   const savePin = async (p: Pin) => {
     pin = p;
-    await writeFile(pinPath, JSON.stringify(p, null, 2) + '\n', { mode: 0o600 });
+    await writeFile(pinPath, `${JSON.stringify(p, null, 2)}\n`, { mode: 0o600 });
   };
 
   const logger = createLogger(`perch:${o.name}`, 'warn');
@@ -139,11 +139,11 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
   const confirm = async (nestFingerprint: string) => {
     if (o.fingerprint) {
       const same = o.fingerprint.toLowerCase() === nestFingerprint;
-      process.stdout.write(t(lang, same ? 'perchFpMatch' : 'perchFpMismatch')(nestFingerprint) + '\n');
+      process.stdout.write(`${t(lang, same ? 'perchFpMatch' : 'perchFpMismatch')(nestFingerprint)}\n`);
       return same;
     }
     if (!process.stdin.isTTY) {
-      process.stdout.write(t(lang, 'perchFpNoTerminal')(nestFingerprint) + '\n');
+      process.stdout.write(`${t(lang, 'perchFpNoTerminal')(nestFingerprint)}\n`);
       return false;
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -164,7 +164,7 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
       savePin({ nestKey, fingerprint: fingerprintOf(nestKey), url, pairedAt: new Date().toISOString() }),
     onStatus: (s: PerchState, detail?: string) => {
       if (s === 'online' && pin && detail && pin.url !== detail) void savePin({ ...pin, url: detail });
-      if (s !== 'stopped') process.stdout.write(t(lang, 'perchStatus')(s, detail) + '\n');
+      if (s !== 'stopped') process.stdout.write(`${t(lang, 'perchStatus')(s, detail)}\n`);
     },
     logger,
   });
@@ -181,6 +181,6 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
   const end = await run.finished;
   if (end.code === 'REVOKED') await rm(pinPath, { force: true });
   await perch.close();
-  process.stdout.write(t(lang, 'perchFinished')(end.code, end.message) + '\n');
+  process.stdout.write(`${t(lang, 'perchFinished')(end.code, end.message)}\n`);
   process.exitCode = end.code === 'DEVICE_DISCONNECTED' ? 0 : 1;
 }

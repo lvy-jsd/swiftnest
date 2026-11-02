@@ -47,7 +47,7 @@ export async function readFully(file: FileHandle, data: Buffer, length: number, 
 }
 export async function atomicJson(path: string, data: unknown) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const tmp = path + '.tmp';
+  const tmp = `${path}.tmp`;
   const file = await open(tmp, 'w', 0o600);
   try {
     await file.writeFile(JSON.stringify(data));
@@ -106,7 +106,7 @@ export class FileStorage {
   }
   journal(id: string) {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new ServerFailure('Invalid transfer id');
-    return join(this.state, id + '.json');
+    return join(this.state, `${id}.json`);
   }
   async load(id: string): Promise<Journal> {
     return JSON.parse(await readFile(this.journal(id), 'utf8'));

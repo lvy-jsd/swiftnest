@@ -40,7 +40,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
           locale === 'en-US' ? 'en' : 'zh-CN',
         );
         await page.addInitScript(() => {
-          let value: any = {
+          const value: any = {
             settings: {
               name: 'This computer',
               slug: 'computer-fixed',

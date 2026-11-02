@@ -55,7 +55,7 @@ export function discover(timeoutMs = 2_000): Promise<DiscoveredNest[]> {
         const instance = String((ptr as { data: unknown }).data);
         const srv = all.find((r) => r.type === 'SRV' && r.name === instance);
         const txt = all.find((r) => r.type === 'TXT' && r.name === instance);
-        if (!srv || srv.type !== 'SRV') continue;
+        if (srv?.type !== 'SRV') continue;
         const fields = new Map<string, string>();
         for (const entry of ((txt as { data?: unknown } | undefined)?.data as (Buffer | string)[] | undefined) ?? []) {
           const [k, ...v] = String(entry).split('=');

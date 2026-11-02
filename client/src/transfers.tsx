@@ -34,7 +34,7 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
   const action = (r: Transfer, a: 'pause' | 'resume' | 'cancel' | 'retry') =>
     void act(() => store.client!.transferAction(r.id, a));
   return (
-    <div className={`transfer-list ${compact ? 'transfer-list--compact' : ''}`} aria-label={t('transfers')}>
+    <section className={`transfer-list ${compact ? 'transfer-list--compact' : ''}`} aria-label={t('transfers')}>
       {!compact && !rows.length && <p>{t('transferEmpty')}</p>}
       {rows.map((r) => (
         <Card key={r.id} className="transfer-card">
@@ -84,13 +84,13 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
           </div>
         </Card>
       ))}
-    </div>
+    </section>
   );
 }
 export function SendFile({ source }: { source?: string }) {
   const { devices, busy, act } = useDevices();
   const { store, status } = useConnection();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(source ?? 'server');
   const [to, setTo] = useState(source ? 'server' : (devices[0]?.slug ?? 'server'));
@@ -190,7 +190,7 @@ export function SendFile({ source }: { source?: string }) {
   );
 }
 export function TransfersPage({ onBack }: { onBack: () => void }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   return (
     <HubPage title={t('transfers')} subtitle={t('transferHelp')} onBack={onBack}>
       <SendFile />

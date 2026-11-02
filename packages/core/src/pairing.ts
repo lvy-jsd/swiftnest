@@ -147,7 +147,7 @@ export class JsonDeviceStore extends MemoryDeviceStore {
   }
 
   private save(): Promise<void> {
-    const data = JSON.stringify({ devices: this.list() }, null, 2) + '\n';
+    const data = `${JSON.stringify({ devices: this.list() }, null, 2)}\n`;
     const saved = this.writes.then(async () => {
       await mkdir(dirname(this.path), { recursive: true });
       const tmp = `${this.path}.tmp`;

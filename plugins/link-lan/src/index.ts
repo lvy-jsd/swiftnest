@@ -24,7 +24,7 @@ import {
   type BinaryPeer,
 } from '@swiftnest/core';
 import { WebSocket, WebSocketServer } from 'ws';
-import { advertise, discover, type DiscoveredNest } from './mdns.js';
+import { advertise, discover } from './mdns.js';
 
 export { advertise, discover, type DiscoveredNest } from './mdns.js';
 

@@ -24,7 +24,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         {
           name: 'live-fixture',
           configureServer(s) {
-            s.middlewares.use('/__live_test', async (req, res) => {
+            s.middlewares.use('/__live_test', async (_req, res) => {
               res.setHeader('content-type', 'text/html');
               res.end(
                 await s.transformIndexHtml(

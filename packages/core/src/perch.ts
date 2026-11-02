@@ -115,7 +115,7 @@ export class Perch {
       ok: false,
       error: SwiftnestFailure.from(e, 'TOOL_FAILED'),
     });
-    let found;
+    let found: ReturnType<Perch['lookup']>;
     try {
       found = this.lookup(req.capability, req.tool);
     } catch (e) {

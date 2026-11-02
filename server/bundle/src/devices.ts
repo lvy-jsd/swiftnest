@@ -44,7 +44,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
     }
     const path = new URL(req.url ?? '/', 'http://localhost');
     const prefix = '/swiftnest/api/devices';
-    if (path.pathname !== prefix && !path.pathname.startsWith(prefix + '/')) {
+    if (path.pathname !== prefix && !path.pathname.startsWith(`${prefix}/`)) {
       res.writeHead(404).end();
       return;
     }

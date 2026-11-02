@@ -39,13 +39,18 @@ describe('swiftnest-core', () => {
     const routes: string[] = [];
     const disposers: (() => void)[] = [];
     apply({
-      webServer: { register: (r) => (routes.push(r.path), () => routes.splice(routes.indexOf(r.path), 1)) },
+      webServer: {
+        register: (r) => {
+          routes.push(r.path);
+          return () => routes.splice(routes.indexOf(r.path), 1);
+        },
+      },
       effect: (fn) => {
         disposers.push(fn());
       },
     });
     expect(routes).toEqual(['/app', '/swiftnest/health']);
-    disposers.forEach((dispose) => dispose());
+    for (const dispose of disposers) dispose();
     expect(routes).toEqual([]);
   });
 });

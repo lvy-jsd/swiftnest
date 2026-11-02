@@ -183,8 +183,14 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
           resolve({ owner: ownerSays !== false, there: deviceSays !== false });
         else if (ownerSays && deviceSays) resolve({ owner: true, there: true });
       };
-      void answer.then((v) => ((ownerSays = v), settle()));
-      void remote.then((v) => ((deviceSays = v), settle()));
+      void answer.then((v) => {
+        ownerSays = v;
+        settle();
+      });
+      void remote.then((v) => {
+        deviceSays = v;
+        settle();
+      });
     });
     if (!there) pairing.withdraw(candidate.id);
     if (!owner || !there) {

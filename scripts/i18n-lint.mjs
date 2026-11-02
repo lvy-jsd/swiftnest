@@ -32,7 +32,7 @@ export function rawLiterals(source) {
     }
     for (const [key, value] of Object.entries(node)) {
       if (['loc', 'comments', 'tokens'].includes(key)) continue;
-      if (Array.isArray(value)) value.forEach((child) => visit(child, node));
+      if (Array.isArray(value)) for (const child of value) visit(child, node);
       else if (value && typeof value === 'object') visit(value, node);
     }
   }
@@ -53,7 +53,7 @@ export function catalogKeys() {
       keys.push(node.key.name);
     for (const [key, value] of Object.entries(node)) {
       if (key === 'loc') continue;
-      if (Array.isArray(value)) value.forEach(visit);
+      if (Array.isArray(value)) for (const child of value) visit(child);
       else visit(value);
     }
   })(parse(catalog, { sourceType: 'module', plugins: ['typescript', 'jsx'] }));
@@ -71,7 +71,7 @@ export function lintUI() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const found = lintUI();
   if (found.length) {
-    console.error('UI 文案必须使用 i18n key；技术标记须显式列入允许列表。\n' + found.join('\n'));
+    console.error(`UI 文案必须使用 i18n key；技术标记须显式列入允许列表。\n${found.join('\n')}`);
     process.exitCode = 1;
   } else console.log('i18n：UI 字符串检查通过。');
 }

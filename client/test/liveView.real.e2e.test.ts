@@ -1,8 +1,9 @@
 /** Real labwc → Rust Perch → encrypted Nest/App relay → browser LivePanel.
  * Only owner-session admission is a fixture (the signed DSH login has separate e2es).
  */
+import type { Browser } from '@playwright/test';
 import { launchChromium } from './browser';
-import { createServer } from 'vite';
+import { createServer, type ViteDevServer } from 'vite';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -15,8 +16,8 @@ it
   async (locale) => {
     const zh = locale === 'zh-CN';
     const host = await startScreenFixture();
-    let browser;
-    let server;
+    let browser: Browser | undefined;
+    let server: ViteDevServer | undefined;
     try {
       host.send({ op: 'start', settings: { ...host.last().settings, allowLiveView: true } });
       await expect.poll(() => host.last()?.settings.allowLiveView && host.last()?.phase === 'online').toBe(true);
@@ -85,7 +86,7 @@ it
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale);
-      await page.goto(server.resolvedUrls!.local[0]! + '__real_live');
+      await page.goto(`${server.resolvedUrls!.local[0]!}__real_live`);
       const panel = page.getByRole('dialog');
       const image = panel.getByRole('img');
       await image.waitFor({ timeout: 20000 });
@@ -130,7 +131,7 @@ it
       await expect.poll(() => host.last()?.watching, { timeout: 10000 }).toBe(false);
       expect(errors).toEqual([]);
     } catch (error) {
-      throw new Error(String(error) + '\n' + host.errors.slice(-15).join('\n'), { cause: error });
+      throw new Error(`${String(error)}\n${host.errors.slice(-15).join('\n')}`, { cause: error });
     } finally {
       await browser?.close();
       await server?.close();

@@ -12,7 +12,7 @@ it.skipIf(process.env.SWIFTNEST_SCREEN_E2E !== '1')(
     try {
       const device = hub.nest.devices()[0]!.device;
       const api = (path: string, method = 'GET') =>
-        fetch(appUrl + '/swiftnest/api/devices' + path, { method, headers: { authorization: 'Bearer owner-session' } });
+        fetch(`${appUrl}/swiftnest/api/devices${path}`, { method, headers: { authorization: 'Bearer owner-session' } });
       expect((await api(`/live?device=${device}`, 'POST')).status).toBe(409);
       send({ op: 'start', settings: { ...last().settings, allowLiveView: true } });
       await expect.poll(() => last()?.settings.allowLiveView && last()?.phase === 'online').toBe(true);
@@ -38,9 +38,9 @@ it.skipIf(process.env.SWIFTNEST_SCREEN_E2E !== '1')(
       const response = await api(`/live?device=${device}&maxDimension=640`, 'POST');
       expect(response.status).toBe(200);
       const offer = await response.json();
-      const forbidden = new WebSocket(appUrl.replace('http:', 'ws:') + `/swiftnest/api/devices/live?id=${offer.id}`);
+      const forbidden = new WebSocket(`${appUrl.replace('http:', 'ws:')}/swiftnest/api/devices/live?id=${offer.id}`);
       await new Promise<void>((r) => forbidden.once('error', () => r()));
-      const socket = new WebSocket(appUrl.replace('http:', 'ws:') + `/swiftnest/api/devices/live?id=${offer.id}`, {
+      const socket = new WebSocket(`${appUrl.replace('http:', 'ws:')}/swiftnest/api/devices/live?id=${offer.id}`, {
         headers: { authorization: 'Bearer owner-session' },
       });
       viewer = await LiveView.open(socket, offer);
@@ -75,7 +75,7 @@ it.skipIf(process.env.SWIFTNEST_SCREEN_E2E !== '1')(
         .toBe(true);
       expect((await api(`/live?device=${device}`, 'POST')).status).toBe(409);
     } catch (error) {
-      throw new Error(String(error) + '\n' + errors.slice(-15).join('\n'), { cause: error });
+      throw new Error(`${String(error)}\n${errors.slice(-15).join('\n')}`, { cause: error });
     } finally {
       viewer?.close();
       await close();

@@ -52,14 +52,14 @@ it('binary file endpoints transfer empty and partial chunks, authenticate record
   const home = await mkdtemp(join(tmpdir(), 'file-endpoints-'));
   try {
     for (const length of [0, 4096, 4 * 1024 * 1024 + 7]) {
-      const from = join(home, 'from' + length),
-        to = join(home, 'to' + length);
+      const from = join(home, `from${length}`),
+        to = join(home, `to${length}`);
       await mkdir(from);
       await mkdir(to);
       const path = join(from, 'input');
       await writeFile(path, Buffer.alloc(length, 0xa9));
-      const source = new FileStorage(from, from + '-state', 'a', 10 ** 8),
-        destination = new FileStorage(to, to + '-state', 'b', 10 ** 8);
+      const source = new FileStorage(from, `${from}-state`, 'a', 10 ** 8),
+        destination = new FileStorage(to, `${to}-state`, 'b', 10 ** 8);
       const binding: FileBinding = {
         source: 'a',
         destination: 'b',

@@ -80,6 +80,7 @@ interface Context {
         annotate(
           name: string,
           metadata: { category: 'device'; group: string; risk: NativeDeviceTool['risk']; summary: string },
+          // biome-ignore lint/suspicious/noConfusingVoidType: mirrors DSH's own signature
         ): (() => void) | void;
       }
     | undefined;
@@ -349,8 +350,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
           let pending = '';
           for await (const chunk of response.body!.pipeThrough(new TextDecoderStream())) {
             pending += chunk;
-            let boundary: number;
-            while ((boundary = pending.indexOf('\n\n')) >= 0) {
+            for (let boundary = pending.indexOf('\n\n'); boundary >= 0; boundary = pending.indexOf('\n\n')) {
               const frame = pending.slice(0, boundary);
               pending = pending.slice(boundary + 2);
               const data = frame.split('\n').find((line) => line.startsWith('data: '));
@@ -402,7 +402,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
             if (typeof prompt?.sessionId !== 'string' || (deviceSlug !== undefined && typeof deviceSlug !== 'string'))
               throw new Error('Invalid App prompt');
             const rollback = directory.fromApp(prompt.sessionId, deviceSlug);
-            let value;
+            let value: unknown;
             try {
               value = await ctx.typertGateway.invoke({
                 namespace: 'session',

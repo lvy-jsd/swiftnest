@@ -53,6 +53,7 @@ export interface SwiftnestPlugin {
   kind: PluginKind;
   apiVersion: number;
   runsOn: PluginRole | 'both';
+  // biome-ignore lint/suspicious/noConfusingVoidType: a plugin's setup may simply return nothing
   setup(ctx: PluginContext): void | Disposer | Promise<void | Disposer>;
 }
 

@@ -16,13 +16,13 @@ export function terminalApprovals(nest: Nest, lang: Lang): { rl: Interface; clos
   let queue = Promise.resolve();
   const ask = async (prompt: string, fallback: string): Promise<boolean | undefined> => {
     if (!terminalOpen) {
-      process.stdout.write(prompt + '\n' + fallback + '\n');
+      process.stdout.write(`${prompt}\n${fallback}\n`);
       return undefined;
     }
     try {
       return /^y(es)?$/i.test((await rl.question(prompt)).trim());
     } catch {
-      process.stdout.write('\n' + fallback + '\n');
+      process.stdout.write(`\n${fallback}\n`);
       return undefined;
     }
   };
@@ -43,10 +43,10 @@ export function terminalApprovals(nest: Nest, lang: Lang): { rl: Interface; clos
       if (yes === undefined || nest.tasks.get(s.id)?.state !== 'pending_approval') return;
       if (yes) {
         await nest.tasks.approve(s.id, 'terminal');
-        process.stdout.write(t(lang, 'approved') + '\n');
+        process.stdout.write(`${t(lang, 'approved')}\n`);
       } else {
         await nest.tasks.deny(s.id, 'denied in terminal');
-        process.stdout.write(t(lang, 'denied') + '\n');
+        process.stdout.write(`${t(lang, 'denied')}\n`);
       }
     });
   });
@@ -57,7 +57,7 @@ export function terminalApprovals(nest: Nest, lang: Lang): { rl: Interface; clos
       const yes = await ask(t(lang, 'pairConfirmPrompt')(c.device, c.fingerprint), t(lang, 'noTerminalPair')(c.id));
       if (yes === undefined) return;
       nest.pairing.confirm(c.id, yes);
-      process.stdout.write((yes ? t(lang, 'pairOwnerYes') : t(lang, 'pairOwnerNo')) + '\n');
+      process.stdout.write(`${yes ? t(lang, 'pairOwnerYes') : t(lang, 'pairOwnerNo')}\n`);
     });
   });
 

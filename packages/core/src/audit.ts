@@ -44,7 +44,7 @@ export class JsonlAuditLog implements AuditLog {
     // serialize writes so concurrent tasks never interleave lines
     this.queue = this.queue.then(async () => {
       await this.ready;
-      await appendFile(this.path, JSON.stringify(entry) + '\n', { mode: 0o600 });
+      await appendFile(this.path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
     });
     return this.queue;
   }

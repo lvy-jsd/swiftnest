@@ -570,12 +570,14 @@ input[type="range"] {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  /* biome-ignore-start lint/complexity/noImportantStyles: beats the theme's inline motion tokens */
   :root {
     --duration-press: 0ms !important;
     --duration-standard: 0ms !important;
     --duration-navigation: 0ms !important;
     --duration-slow: 0ms !important;
   }
+  /* biome-ignore-end lint/complexity/noImportantStyles: beats the theme's inline motion tokens */
   .button:active:not(:disabled) {
     transform: none;
   }

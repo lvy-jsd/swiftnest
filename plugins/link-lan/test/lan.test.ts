@@ -78,7 +78,9 @@ describe('link-lan', () => {
     const run = runLanPerch(perch, {
       url: server.url,
       pairing: { code, confirm: async () => true },
-      onPaired: (key) => void (pinned = key),
+      onPaired: (key) => {
+        pinned = key;
+      },
       onStatus: (s) => states.push(s),
     });
     await until(states, 'online');

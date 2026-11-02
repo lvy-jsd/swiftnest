@@ -5,7 +5,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
-  Nest,
+  type Nest,
   Perch,
   memoryLink,
   type BinaryPeer,

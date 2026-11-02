@@ -141,7 +141,6 @@ try {
     name: 'laptop__shell__run',
     arguments: { command: `rm -rf ${join(base, 'nothing-here')}` },
   });
-  const rmId = /(t[\w-]+)/.exec(textOf(rm))?.[1];
   check('an rm command is stopped for approval', /approval/i.test(textOf(rm)), textOf(rm));
   const listed = cli(nestHome, 'pending').stdout;
   check(
@@ -187,7 +186,7 @@ try {
   await new Promise((r) => setTimeout(r, 300));
   const left = spawnSync('pgrep', ['-af', '^/bin/sh -c sleep 30; echo late']).stdout.toString().trim();
   check('…and its process is really gone', !left, left);
-  void sleeper, rmId;
+  void sleeper;
 
   const audit = cli(nestHome, 'audit', '-n', '50').stdout;
   check(

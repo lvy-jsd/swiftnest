@@ -159,7 +159,7 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
         expect(system).not.toContain('{{model}}');
       }
       if (process.env.SWIFTNEST_RECORD_FIXTURES === '1') {
-        writeFileSync(new URL('./fixtures/chat.json', import.meta.url), JSON.stringify(frames, null, 2) + '\n');
+        writeFileSync(new URL('./fixtures/chat.json', import.meta.url), `${JSON.stringify(frames, null, 2)}\n`);
       }
     } catch (error) {
       throw new Error(

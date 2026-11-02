@@ -44,7 +44,12 @@ function demo(): Capability {
 /** Wrap a transport so a test can rewrite or duplicate what it sends. */
 function tap(t: FrameTransport, rewrite: (data: string, n: number) => string[]): FrameTransport {
   let n = 0;
-  return { ...t, send: (d) => rewrite(d, n++).forEach((x) => t.send(x)) };
+  return {
+    ...t,
+    send: (d) => {
+      for (const x of rewrite(d, n++)) t.send(x);
+    },
+  };
 }
 
 describe('secure channel', () => {
@@ -137,7 +142,13 @@ async function setup(o: { pairOwner?: boolean; pairDevice?: boolean; code?: stri
       pairing:
         pairingCode === undefined
           ? undefined
-          : { code: pairingCode, confirm: async (fp) => ((shown = fp), o.pairDevice ?? true) },
+          : {
+              code: pairingCode,
+              confirm: async (fp) => {
+                shown = fp;
+                return o.pairDevice ?? true;
+              },
+            },
       confirmTimeoutMs: 2_000,
     });
     return { nestSide, perchSide, shown: () => shown };

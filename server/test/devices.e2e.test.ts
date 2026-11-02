@@ -66,7 +66,7 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       ].find((p) => prompt === p);
       const round = rounds.get(kind ?? '') ?? 0;
       let tool: { name: string; arguments: string } | undefined;
-      let text = 'Done.';
+      const text = 'Done.';
       if (kind) {
         rounds.set(kind, round + 1);
         if ((kind === 'read-device' || kind === 'tools-offline') && round === 0)

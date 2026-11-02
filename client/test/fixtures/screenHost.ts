@@ -78,7 +78,7 @@ export async function startScreenFixture() {
     const child = launch(resolve('target/debug/examples/interop'), [join(home, 'state')], env);
     const states: any[] = [];
     createInterface({ input: child.stdout }).on('line', (line) => states.push(JSON.parse(line)));
-    const send = (data: unknown) => child.stdin.write(JSON.stringify(data) + '\n');
+    const send = (data: unknown) => child.stdin.write(`${JSON.stringify(data)}\n`);
     const last = () => states.at(-1);
     await expect.poll(() => !!last()?.settings).toBe(true);
     const { code } = hub.nest.pairing.start();
@@ -91,7 +91,7 @@ export async function startScreenFixture() {
     return { home, hub, appUrl, clicks, errors, send, last, close };
   } catch (error) {
     await close();
-    throw new Error(String(error) + '\n' + errors.slice(-15).join('\n'), { cause: error });
+    throw new Error(`${String(error)}\n${errors.slice(-15).join('\n')}`, { cause: error });
   }
   async function close() {
     for (const child of processes.reverse()) {

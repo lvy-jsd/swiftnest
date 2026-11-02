@@ -128,7 +128,12 @@ describe('tasks', () => {
     perch.addCapability(
       demo(
         (signal) =>
-          new Promise((_, rej) => signal.addEventListener('abort', () => ((aborted = true), rej(signal.reason)))),
+          new Promise((_, rej) =>
+            signal.addEventListener('abort', () => {
+              aborted = true;
+              rej(signal.reason);
+            }),
+          ),
       ),
     );
     nest.attach(memoryLink(perch));
@@ -160,8 +165,15 @@ describe('tasks', () => {
     const nest = new Nest({ logger: silentLogger, maxConcurrentPerDevice: 1 });
     const perch = new Perch({ device: 'dev', logger: silentLogger });
     let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    perch.addCapability(demo(async () => (await gate, 'slow done')));
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    perch.addCapability(
+      demo(async () => {
+        await gate;
+        return 'slow done';
+      }),
+    );
     nest.attach(memoryLink(perch));
     const a = await nest.call('dev__demo__slow', {}, { id: 't' }, 5000);
     const b = await nest.call('dev__demo__look', {}, { id: 't' });

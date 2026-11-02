@@ -30,10 +30,10 @@ it('pausing an approval cancels the task and stays paused after a server restart
     hub.nest.attach(memoryLink(perch));
     await writeFile(join(config.home, 'files', 'source'), 'small file');
     const api = async (path: string, body?: unknown) => {
-      const response = await fetch(hub.env[ADMIN_URL_ENV] + '/swiftnest/api/devices' + path, {
+      const response = await fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
-          authorization: 'Bearer ' + hub.env[ADMIN_TOKEN_ENV],
+          authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}`,
           'content-type': 'application/json',
         },
         body: body === undefined ? undefined : JSON.stringify(body),

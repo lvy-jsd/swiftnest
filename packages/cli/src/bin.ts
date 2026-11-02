@@ -42,7 +42,7 @@ async function playground(lang: Lang, o: { port: number; devices: string[]; stdi
   process.on('SIGTERM', () => void shutdown());
 
   if (o.stdio) {
-    process.stderr.write(t(lang, 'stdioNoApproval') + '\n');
+    process.stderr.write(`${t(lang, 'stdioNoApproval')}\n`);
     await serveMcpStdio(nest, { lang });
     return;
   }
@@ -82,7 +82,7 @@ async function doctor(lang: Lang, port: number) {
     bad(t(lang, 'doctorState')(dir));
   }
   (await portFree(port)) ? ok(t(lang, 'doctorPortOk')(port)) : bad(t(lang, 'doctorPort')(port));
-  process.stdout.write(t(lang, 'doctorSummary')(problems) + '\n');
+  process.stdout.write(`${t(lang, 'doctorSummary')(problems)}\n`);
   return problems ? 1 : 0;
 }
 
@@ -135,7 +135,7 @@ async function main(argv: string[]) {
       });
     case 'perch':
       if (!values.name)
-        return void process.stderr.write(t(lang, 'needArg')('swiftnest perch --name <device> [--pair <code>]') + '\n');
+        return void process.stderr.write(`${t(lang, 'needArg')('swiftnest perch --name <device> [--pair <code>]')}\n`);
       return runPerch(lang, {
         name: values.name,
         nest: values.nest,
@@ -170,7 +170,7 @@ async function main(argv: string[]) {
       process.stdout.write(t(lang, 'usage'));
       return;
     default:
-      process.stderr.write(t(lang, 'unknownCommand')(cmd) + '\n');
+      process.stderr.write(`${t(lang, 'unknownCommand')(cmd)}\n`);
       process.exitCode = 2;
   }
 }

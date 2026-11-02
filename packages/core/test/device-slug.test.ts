@@ -11,7 +11,7 @@ it('normalizes names, bounds slugs, handles non-Latin names and resolves collisi
   expect(deviceSlug('laptop', ['laptop', 'laptop-2'])).toBe('laptop-3');
   const name = 'a'.repeat(40);
   expect(deviceSlug(name)).toHaveLength(24);
-  expect(deviceSlug(name, ['a'.repeat(24)])).toBe('a'.repeat(22) + '-2');
+  expect(deviceSlug(name, ['a'.repeat(24)])).toBe(`${'a'.repeat(22)}-2`);
   for (const value of ['', '__', '123', '测试 - phone !', name])
     expect(deviceSlug(value)).toMatch(/^[a-z0-9_-]{1,24}$/);
 });

@@ -248,8 +248,7 @@ export class SwiftnestClient {
             if (done) break;
             buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
             if (buffer.length > 65536) throw new ApiError('protocol-error', 'Device event exceeds size limit');
-            let end: number;
-            while ((end = buffer.indexOf('\n\n')) >= 0) {
+            for (let end = buffer.indexOf('\n\n'); end >= 0; end = buffer.indexOf('\n\n')) {
               const frame = buffer.slice(0, end);
               buffer = buffer.slice(end + 2);
               const data = frame

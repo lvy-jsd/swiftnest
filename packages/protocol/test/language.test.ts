@@ -73,6 +73,7 @@ it('rejects new prose in JSX, attributes, expressions and template strings while
     'const C=()=> <p>Hello</p>',
     'const C=()=> <input placeholder="New label"/>',
     'const C=()=> <p>{"Failure happened"}</p>',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: source text under test
     'const C=()=> <p>{`New message ${1}`}</p>',
   ])
     expect(violations(source, allowed).length).toBeGreaterThan(0);

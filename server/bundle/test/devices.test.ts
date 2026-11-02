@@ -75,7 +75,7 @@ it('forwards a bounded transfer request only after owner admission; never proxie
   const admit = vi.fn().mockReturnValue({ peer: { principal: { kind: 'agent' } } });
   const handler = deviceProxy({ admit }, upstream, 'secret');
   const proxy = await listen((req, res) => void handler(req, res));
-  const path = proxy + '/swiftnest/api/devices/transfers';
+  const path = `${proxy}/swiftnest/api/devices/transfers`;
   const body = JSON.stringify({ source: { device: 'a', path: 'video' }, destination: { device: 'b', path: 'video' } });
   expect((await fetch(path, { method: 'POST', body })).status).toBe(403);
   expect(received).toBe('');
@@ -83,5 +83,5 @@ it('forwards a bounded transfer request only after owner admission; never proxie
   expect((await fetch(path, { method: 'POST', body })).status).toBe(200);
   expect(received).toBe(body);
   expect((await fetch(path, { method: 'POST', body: 'x'.repeat(32769) })).status).toBe(413);
-  expect((await fetch(proxy + '/swiftnest/control/devices/transfers', { method: 'POST', body })).status).toBe(404);
+  expect((await fetch(`${proxy}/swiftnest/control/devices/transfers`, { method: 'POST', body })).status).toBe(404);
 });

@@ -28,6 +28,7 @@ export function Sheet({
     else if (!open && element?.open) element.close();
   }, [open]);
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the click closes on the backdrop; Escape closes via onCancel
     <dialog
       ref={dialog}
       className="sheet glass"

@@ -25,7 +25,7 @@ it('authenticates language changes, shares them between callers and persists the
   });
   let hub = await startDevices(config);
   const request = (path = '/preferences', body?: unknown, token = hub.env[ADMIN_TOKEN_ENV]) =>
-    fetch(hub.env[ADMIN_URL_ENV] + '/swiftnest/api/devices' + path, {
+    fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { authorization: `Bearer ${token}` },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -63,7 +63,7 @@ it('includes the configured assistant name with the preferences', async () => {
   };
   const hub = await startDevices(loadConfig(undefined, env));
   try {
-    const response = await fetch(hub.env[ADMIN_URL_ENV] + '/swiftnest/api/devices/preferences', {
+    const response = await fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices/preferences`, {
       headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` },
     });
     expect(await response.json()).toEqual({ lang: 'zh-CN', assistantName: '小艾' });

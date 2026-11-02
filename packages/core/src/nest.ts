@@ -91,7 +91,7 @@ export class Nest {
         'Give the new device a different name, or remove the old one first.',
       );
     }
-    existing?.off.forEach((f) => f());
+    for (const off of existing?.off ?? []) off();
     const off = [conn.onCapabilitiesChanged(() => this.changed()), conn.onClose(() => this.detach(conn.device, conn))];
     this.conns.set(conn.device, { conn, off });
     this.logger.info(`device online: ${conn.device} via ${conn.via} (${fingerprintOf(conn.publicKey)})`);
@@ -101,7 +101,7 @@ export class Nest {
   detach(device: string, conn?: PerchConnection): void {
     const entry = this.conns.get(device);
     if (!entry || (conn && entry.conn !== conn)) return;
-    entry.off.forEach((f) => f());
+    for (const off of entry.off) off();
     this.conns.delete(device);
     this.logger.info(`device offline: ${device}`);
     this.changed();

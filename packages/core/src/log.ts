@@ -19,9 +19,7 @@ export function createLogger(
   const emit = (lv: Level, msg: string, extra?: unknown) => {
     if (LEVELS[lv] < min) return;
     const tail =
-      extra === undefined
-        ? ''
-        : ' ' + (extra instanceof Error ? (extra.stack ?? extra.message) : JSON.stringify(extra));
+      extra === undefined ? '' : ` ${extra instanceof Error ? (extra.stack ?? extra.message) : JSON.stringify(extra)}`;
     process.stderr.write(
       `[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${translateMessage(msg)}${tail}\n`,
     );

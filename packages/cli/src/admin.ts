@@ -17,7 +17,10 @@ export function adminHandlers(nest: Nest): Record<string, Handler> {
       paired: nest.devicesStore.list().length,
     }),
     'pair.start': () => ({ ...nest.pairing.start(), fingerprint: nest.identity.fingerprint }),
-    'pair.stop': () => (nest.pairing.stop(), { ok: true }),
+    'pair.stop': () => {
+      nest.pairing.stop();
+      return { ok: true };
+    },
     'pair.pending': () => nest.pairing.pending(),
     'pair.confirm': (p) => ({ ok: nest.pairing.confirm(String(p.id), p.accept === true) }),
     devices: () => {
@@ -49,8 +52,7 @@ export async function serveAdmin(path: string, handlers: Record<string, Handler>
     sock.on('data', (chunk: string) => {
       buf += chunk;
       if (buf.length > 1_000_000) return sock.destroy();
-      let nl: number;
-      while ((nl = buf.indexOf('\n')) >= 0) {
+      for (let nl = buf.indexOf('\n'); nl >= 0; nl = buf.indexOf('\n')) {
         const line = buf.slice(0, nl);
         buf = buf.slice(nl + 1);
         void (async () => {
@@ -60,9 +62,9 @@ export async function serveAdmin(path: string, handlers: Record<string, Handler>
             id = req.id;
             const h = handlers[String(req.method)];
             if (!h) throw new SwiftnestFailure('UNKNOWN_METHOD', `Unknown admin method ${String(req.method)}.`);
-            sock.write(JSON.stringify({ id, result: (await h(req.params ?? {})) ?? null }) + '\n');
+            sock.write(`${JSON.stringify({ id, result: (await h(req.params ?? {})) ?? null })}\n`);
           } catch (e) {
-            sock.write(JSON.stringify({ id, error: SwiftnestFailure.from(e, 'ADMIN_FAILED') }) + '\n');
+            sock.write(`${JSON.stringify({ id, error: SwiftnestFailure.from(e, 'ADMIN_FAILED') })}\n`);
           }
         })();
       }
@@ -107,6 +109,6 @@ export function adminCall<T = unknown>(path: string, method: string, params: Rec
         ? reject(new SwiftnestFailure(res.error.code, res.error.message, res.error.suggestion))
         : resolve(res.result as T);
     });
-    sock.write(JSON.stringify({ id: 1, method, params }) + '\n');
+    sock.write(`${JSON.stringify({ id: 1, method, params })}\n`);
   });
 }

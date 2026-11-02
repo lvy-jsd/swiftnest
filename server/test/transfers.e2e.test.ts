@@ -31,10 +31,10 @@ async function fixture() {
     }),
   );
   const api = async (path: string, body?: unknown) => {
-    const res = await fetch(hub.env[ADMIN_URL_ENV] + '/swiftnest/api/devices' + path, {
+    const res = await fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
-        authorization: 'Bearer ' + hub.env[ADMIN_TOKEN_ENV],
+        authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}`,
         'content-type': 'application/json',
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -46,10 +46,10 @@ async function fixture() {
   async function host(name: string) {
     const root = join(home, name);
     await mkdir(root);
-    const dir = join(home, name + '-state');
+    const dir = join(home, `${name}-state`);
     let states: any[] = [];
     let child: ChildProcessWithoutNullStreams;
-    const send = (v: unknown) => child.stdin.write(JSON.stringify(v) + '\n');
+    const send = (v: unknown) => child.stdin.write(`${JSON.stringify(v)}\n`);
     const launch = async () => {
       states = [];
       child = spawn(resolve('target/debug/examples/interop'), [dir], {
@@ -195,7 +195,7 @@ for (const routing of ['relay', 'auto'] as const)
           void (async () => {
             if (killed) return;
             const j = JSON.parse(
-              await readFile(join(b.dir, 'transfers', transfer.id + '.json'), 'utf8').catch(() => '{}'),
+              await readFile(join(b.dir, 'transfers', `${transfer.id}.json`), 'utf8').catch(() => '{}'),
             );
             if (!killed && j.offset >= 100 * 1024 * 1024 && j.state !== 'complete') {
               killed = true;
@@ -209,7 +209,7 @@ for (const routing of ['relay', 'auto'] as const)
         await f.hub.nest.tasks.approve(approval.id);
         await expect
           .poll(
-            async () => JSON.parse(await readFile(join(b.dir, 'transfers', transfer.id + '.json'), 'utf8')).offset,
+            async () => JSON.parse(await readFile(join(b.dir, 'transfers', `${transfer.id}.json`), 'utf8')).offset,
             { timeout: 20000 },
           )
           .toBeGreaterThan(0);
