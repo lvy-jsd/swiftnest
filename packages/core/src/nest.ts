@@ -6,7 +6,13 @@
 import { randomUUID } from 'node:crypto';
 import { StreamRegistry } from './streams.js';
 import { EventEmitter } from 'node:events';
-import { parseQualifiedToolName, qualifiedToolName, type ClientRef, type ToolDescriptor } from '@swiftnest/protocol';
+import {
+  parseQualifiedToolName,
+  qualifiedToolName,
+  text,
+  type ClientRef,
+  type ToolDescriptor,
+} from '@swiftnest/protocol';
 import { MemoryAuditLog, type AuditLog } from './audit.js';
 import { SwiftnestFailure } from './errors.js';
 import { fingerprintOf, generateIdentity, type Identity } from './identity.js';
@@ -87,8 +93,8 @@ export class Nest {
     if (existing && existing.conn.publicKey !== conn.publicKey) {
       throw new SwiftnestFailure(
         'DEVICE_NAME_TAKEN',
-        `Another device is already registered as "${conn.device}".`,
-        'Give the new device a different name, or remove the old one first.',
+        text('anotherDeviceAlreadyRegistered', conn.device),
+        text('hintRenameNewDevice'),
       );
     }
     for (const off of existing?.off ?? []) off();
@@ -138,7 +144,7 @@ export class Nest {
 
   openOwnerStream(device: string, options: { maxDimension: number; displayId: string }) {
     const conn = this.conns.get(device)?.conn;
-    if (!conn?.openOwnerStream) throw new SwiftnestFailure('STREAM_UNAVAILABLE', 'Device does not support live view');
+    if (!conn?.openOwnerStream) throw new SwiftnestFailure('STREAM_UNAVAILABLE', text('deviceNotSupportLiveView'));
     return conn.openOwnerStream(options);
   }
 
@@ -199,11 +205,7 @@ export class Nest {
   call(name: string, args: Record<string, unknown>, client: ClientRef, timeoutMs?: number) {
     const parts = parseQualifiedToolName(name);
     if (!parts) {
-      throw new SwiftnestFailure(
-        'BAD_TOOL_NAME',
-        `"${name}" is not a Swiftnest tool name.`,
-        'Tool names look like <device>__<capability>__<tool>, e.g. laptop__shell__run.',
-      );
+      throw new SwiftnestFailure('BAD_TOOL_NAME', text('notSwiftnestToolName', name), text('hintToolNameFormat'));
     }
     return this.tasks.submit({ client, ...parts, args, timeoutMs });
   }

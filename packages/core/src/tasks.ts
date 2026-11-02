@@ -12,6 +12,7 @@ import {
   type SwiftnestError,
   type TaskSnapshot,
   type TaskState,
+  text,
 } from '@swiftnest/protocol';
 import type { AuditLog } from './audit.js';
 import { SwiftnestFailure } from './errors.js';
@@ -80,8 +81,8 @@ export class TaskManager {
       await this.finish(t, 'failed', {
         error: new SwiftnestFailure(
           'DEVICE_OFFLINE',
-          `Device "${req.device}" is not connected.`,
-          'Check that its Perch is running, then list devices again.',
+          text('deviceNotConnected', req.device),
+          text('hintCheckPerchRunning'),
           true,
         ).toJSON(),
       });
@@ -103,8 +104,8 @@ export class TaskManager {
       await this.finish(t, 'denied', {
         error: new SwiftnestFailure(
           'DENIED',
-          `Policy denied ${req.capability}.${req.tool} on ${req.device}: ${decision.reason}.`,
-          'Ask the owner to change the permission for this tool if it should be allowed.',
+          text('policyDenied', req.capability, req.tool, req.device, decision.reason),
+          text('hintAskOwnerForPermission'),
         ).toJSON(),
       });
     } else if (decision.action === 'ask') {
@@ -122,7 +123,7 @@ export class TaskManager {
   async approve(taskId: string, by = 'owner'): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval')
-      throw new SwiftnestFailure('NOT_PENDING', `Task ${taskId} is ${t.snap.state}, not waiting for approval.`);
+      throw new SwiftnestFailure('NOT_PENDING', text('taskNotWaitingApproval', taskId, t.snap.state));
     clearTimeout(t.approvalTimer);
     t.snap.reason = `${t.snap.reason ?? ''}; approved by ${by}`.replace(/^; /, '');
     void this.run(t);
@@ -133,7 +134,7 @@ export class TaskManager {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval') return this.snapshot(taskId);
     clearTimeout(t.approvalTimer);
-    await this.finish(t, 'denied', { error: new SwiftnestFailure('DENIED', `Not approved: ${why}.`).toJSON() });
+    await this.finish(t, 'denied', { error: new SwiftnestFailure('DENIED', text('notApproved', why)).toJSON() });
     return this.snapshot(taskId);
   }
 
@@ -142,7 +143,7 @@ export class TaskManager {
     if (TERMINAL_STATES.has(t.snap.state)) return this.snapshot(taskId);
     clearTimeout(t.approvalTimer);
     if (t.snap.state === 'running') this.o.connection(t.snap.device)?.cancel(taskId);
-    await this.finish(t, 'cancelled', { error: new SwiftnestFailure('CANCELLED', 'Cancelled by request.').toJSON() });
+    await this.finish(t, 'cancelled', { error: new SwiftnestFailure('CANCELLED', text('cancelledRequest')).toJSON() });
     return this.snapshot(taskId);
   }
 
@@ -201,8 +202,8 @@ export class TaskManager {
       if (!conn)
         throw new SwiftnestFailure(
           'DEVICE_OFFLINE',
-          `Device "${dev}" disconnected.`,
-          'Wait for it to reconnect, then retry.',
+          text('deviceDisconnected', dev),
+          text('hintWaitForReconnect'),
           true,
         );
       const res = await conn.invoke({
@@ -276,12 +277,7 @@ export class TaskManager {
 
   private require(taskId: string): Internal {
     const t = this.tasks.get(taskId);
-    if (!t)
-      throw new SwiftnestFailure(
-        'UNKNOWN_TASK',
-        `No task ${taskId}.`,
-        'Task ids come from the response of the original call.',
-      );
+    if (!t) throw new SwiftnestFailure('UNKNOWN_TASK', text('noTask', taskId), text('hintTaskIdsFromCall'));
     return t;
   }
 

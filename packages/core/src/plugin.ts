@@ -2,7 +2,7 @@
  * Plugin contract. Everything beyond the core — capabilities, links, surfaces, policies — is a plugin with this shape.
  * Built-in trusted plugins run in-process (cheap on phones and small boards); third-party isolation comes later (design §5.4).
  */
-import { PLUGIN_API_VERSION, type CapabilityManifestInput, type Risk } from '@swiftnest/protocol';
+import { PLUGIN_API_VERSION, text, type CapabilityManifestInput, type Risk } from '@swiftnest/protocol';
 import { SwiftnestFailure } from './errors.js';
 import type { Logger } from './log.js';
 import type { Nest } from './nest.js';
@@ -75,17 +75,15 @@ export class PluginHost {
     if (plugin.apiVersion !== PLUGIN_API_VERSION) {
       throw new SwiftnestFailure(
         'PLUGIN_API_MISMATCH',
-        `Plugin ${plugin.name} targets plugin API v${plugin.apiVersion}, this Swiftnest speaks v${PLUGIN_API_VERSION}.`,
-        'Upgrade the plugin or Swiftnest so both use the same plugin API version.',
+        text('pluginTargetsPluginApiVSwiftnest', plugin.name, plugin.apiVersion, PLUGIN_API_VERSION),
+        text('hintMatchPluginApi'),
       );
     }
     if (plugin.runsOn !== 'both' && plugin.runsOn !== this.role) {
       throw new SwiftnestFailure(
         'PLUGIN_WRONG_ROLE',
-        `Plugin ${plugin.name} runs on the ${plugin.runsOn}, but this is a ${this.role}.`,
-        plugin.runsOn === 'perch'
-          ? 'Install it on the device (Perch) instead.'
-          : 'Install it on the server (Nest) instead.',
+        text('pluginRunsBut', plugin.name, plugin.runsOn, this.role),
+        text(plugin.runsOn === 'perch' ? 'hintInstallOnDevice' : 'hintInstallOnServer'),
       );
     }
     const dispose = await plugin.setup(ctx);

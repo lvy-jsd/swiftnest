@@ -6,6 +6,7 @@
  * man in the middle could guess a 6-digit code offline from what it relays. So both people then compare short
  * fingerprints — the Nest shows the device's, the device shows the Nest's — and both must say yes.
  */
+import { text } from '@swiftnest/protocol';
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -128,8 +129,8 @@ export class JsonDeviceStore extends MemoryDeviceStore {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT')
         throw new SwiftnestFailure(
           'STORE_CORRUPT',
-          `Cannot read the paired devices file ${path}.`,
-          'Fix or delete the file; deleting it means pairing every device again.',
+          text('cannotReadPairedDevicesFile', path),
+          text('hintFixPairedDevicesFile'),
         );
     }
     return store;
