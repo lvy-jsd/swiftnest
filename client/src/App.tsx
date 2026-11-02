@@ -16,7 +16,7 @@ import type { ThemePreference } from './design/theme';
 import { breakpoints } from './design/tokens';
 import { useI18n } from './i18n';
 import type { Locale } from './i18n';
-import { isTauriRuntime } from './runtime';
+import { hasPrecisePointer, isTauriRuntime } from './runtime';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
 import type { ChatRow } from './chat';
@@ -61,9 +61,11 @@ function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?:
     <span className="chat-link__copy"><strong>{chat.title || t('untitledChat')}</strong><time dateTime={new Date(chat.updatedAt).toISOString()}>{new Date(chat.updatedAt).toLocaleString(locale)}</time></span>
   </a>;
 }
-function ConnectionStatus() {
+/** `quiet` hides the row while all is well (the chat header already shows the server). */
+function ConnectionStatus({ quiet = false }: { quiet?: boolean }) {
   const { status, root, error } = useConnection();
   const { t } = useI18n();
+  if (quiet && status === 'connected' && !error) return null;
   return <div className="connection-status"><p role="status">{t(status)}{root ? ` · ${root}` : ''}</p>
     {error && <p role="alert">{t(error)}</p>}
     <a href="#/pair">{t(status === 'connected' ? 'reconnect' : 'pair')}</a>
@@ -100,9 +102,14 @@ function Thinking() {
 }
 function TranscriptRow({ row }: { row: ChatRow }) {
   const { t, locale } = useI18n();
-  if (row.kind === 'message') return row.text ? <article className={`message${row.role === 'user' ? ' message--own' : ''}`} data-streaming={!row.final || undefined}>
-    <div className="message__body"><strong>{t(row.role === 'user' ? 'you' : 'botName')}</strong><p>{row.text}</p></div>
-  </article> : null;
+  const { assistantName } = useConnection();
+  if (row.kind === 'message') {
+    if (!row.text) return null;
+    const author = row.role === 'user' ? t('you') : assistantName ?? t('assistant');
+    return <article className={`message${row.role === 'user' ? ' message--own' : ''}`} data-streaming={!row.final || undefined}>
+      <div className="message__body"><strong>{author}</strong><p>{row.text}</p></div>
+    </article>;
+  }
   if (row.kind === 'error') {
     const failure = localizedError({ code: row.code, message: row.text }, locale);
     return <p className="inline-error" role="alert">{failure.message}<br />{failure.hint} ({failure.code})</p>;
@@ -115,6 +122,7 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
   const { store, status, root, sessions } = useConnection();
   const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
   const [draft, setDraft] = useState('');
+  const [hasKeyboard] = useState(hasPrecisePointer);
   const [ready, setReady] = useState(false);
   const { client } = store;
   const Send = icons.send, Options = icons.settings;
@@ -146,12 +154,12 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
     void client.sendMessage(sessionId, text).catch(() => { dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') }); });
   }
   return <DetailPage title={sessions.find(s => s.sessionId === sessionId)?.title || t('untitledChat')} subtitle={root || t(status)} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}><Options size={24} /></Button>}>
-    <ConnectionStatus />
+    <ConnectionStatus quiet />
     <DeviceApprovals compact />
     <TransferCards compact />
     <LiveDeviceButton />
     <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
-    <div className="composer-area glass">{state.waiting && <Thinking />}<p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p><form className="composer" onSubmit={send}>
+    <div className="composer-area glass">{state.waiting && <Thinking />}{(state.waiting || hasKeyboard) && <p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p>}<form className="composer" onSubmit={send}>
       <textarea aria-label={t('composer')} placeholder={t('composer')} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
       <Button type="submit" variant="primary" iconOnly disabled={!draft.trim() || !ready || status !== 'connected'} aria-label={t('send')}><Send size={24} /></Button>
     </form></div>
