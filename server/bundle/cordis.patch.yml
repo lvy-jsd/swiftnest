@@ -9,3 +9,8 @@
         appDist: !!js process.env.SWIFTNEST_APP_DIST
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN
+    - id: swiftnest-devices
+      name: '@swiftnest/server-bundle/native-devices'
+      config:
+        devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
+        devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN

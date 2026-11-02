@@ -23,7 +23,7 @@ class Socket implements ApiWebSocket {
   interaction(value: unknown): void { this.frame(this.sent.find(f => f.endpoint === '$events').streamId, value); }
 }
 
-function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean; legacyHeaders?: boolean; devices?: (url: string, init: RequestInit) => Response } = {}) {
+function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boolean; legacyHeaders?: boolean; deviceSlug?: string; devices?: (url: string, init: RequestInit) => Response } = {}) {
   let socket!: Socket;
   const calls: { url: string; init: RequestInit; body?: any }[] = [];
   const doFetch = vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -38,6 +38,7 @@ function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boo
       if (options.legacyHeaders) Object.defineProperty(response.headers, 'getSetCookie', { value: undefined });
       return response;
     }
+    if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
     const value = body?.method === 'session/create' ? { sessionId: 'session-1' }
       : body?.method === 'session/list' ? { items: [{ sessionId: 'session-1', updatedAt: 100, running: false, blank: true, projections: { values: { title: 'Test' } } }] }
@@ -46,7 +47,7 @@ function harness(options: { badRpcId?: boolean; failRpc?: boolean; browser?: boo
       result: options.failRpc ? { ok: false, error: { code: 'session/agent-busy', message: 'Busy' } } : { ok: true, value } });
   });
   const factory = vi.fn((_url: string, _options: { headers: Readonly<Record<string, string>> }) => socket = new Socket());
-  const client = new SwiftnestClient({ fetch: doFetch, createWebSocket: factory, cookieMode: options.browser ? 'browser' : 'manual', timeoutMs: 500 });
+  const client = new SwiftnestClient({ fetch: doFetch, createWebSocket: factory, deviceSlug: options.deviceSlug, cookieMode: options.browser ? 'browser' : 'manual', timeoutMs: 500 });
   return { client, calls, factory, get socket() { return socket; } };
 }
 const pairing = 'https://server.test/mount/connect?token=launch&interactions=answer';
@@ -62,7 +63,9 @@ describe('independent API client', () => {
       expect(await h.client.listSessions()).toEqual([{ sessionId: 'session-1', updatedAt: 100, running: false, blank: true, title: 'Test' }]);
       expect(h.calls[1]).toMatchObject({ url: 'https://server.test/mount/api/session/create', init: { headers: { cookie: 'dsh_api=secret' } }, body: { type: 'client-request', method: 'session/create', payload: { args: { request: {} } } } });
       const receipt = await h.client.sendMessage('session-1', 'hi');
-      expect(h.calls.at(-1)?.body.payload.args.request.requestId).toBe(receipt.requestId);
+      expect(h.calls.at(-1)?.body.request.requestId).toBe(receipt.requestId);
+      expect(h.calls.at(-1)).toMatchObject({ url: 'https://server.test/mount/swiftnest/api/chat', body: { request: { sessionId: 'session-1', mode: 'queue' } } });
+      expect(h.calls.at(-1)?.body).not.toHaveProperty('deviceSlug');
       await expect(h.client.sendMessage('session-1', '  ')).rejects.toMatchObject({ code: 'invalid-message' });
     } finally { h.client.close(); }
   });
@@ -202,4 +205,13 @@ describe('device API client', () => {
     await expect(client.watchDevices()).rejects.toMatchObject({ code: 'not-connected' });
     client.close();
   });
+});
+
+it('reports the paired native App connection on the prompt that sends the chat', async () => {
+  const h = harness({ deviceSlug: 'phone' });
+  await h.client.connect(pairing);
+  try {
+    await h.client.sendMessage('session-1', 'hi');
+    expect(h.calls.at(-1)?.body).toMatchObject({ deviceSlug: 'phone', request: { sessionId: 'session-1' } });
+  } finally { h.client.close(); }
 });

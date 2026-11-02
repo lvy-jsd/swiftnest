@@ -62,7 +62,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     page.on('pageerror', error => diagnostics.push(error.message));
     page.on('response', response => { if (response.status() >= 400) diagnostics.push(`${response.status()} ${new URL(response.url()).pathname}`); });
     const modes: string[] = [];
-    page.on('request', request => { if (request.url().endsWith('/api/session/prompt')) modes.push(request.postDataJSON().payload.args.request.mode); });
+    page.on('request', request => { if (request.url().endsWith('/swiftnest/api/chat')) modes.push(request.postDataJSON().request.mode); });
     await page.goto(new URL('app/chats/deep-link', kernel.url).href);
     await page.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
     await page.goto(webAppUrl(kernel.url, kernel.token));

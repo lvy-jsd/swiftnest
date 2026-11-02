@@ -16,33 +16,63 @@ export interface PairedDevice {
   device: string;
   publicKey: string;
   pairedAt: string;
+  /** Stable agent namespace, assigned by the store on first pairing. */
+  slug: string;
+  name: string;
+  kind: 'desktop' | 'android';
+}
+
+export type PairingRecord = Omit<PairedDevice, 'slug' | 'name' | 'kind'> & Partial<Pick<PairedDevice, 'slug' | 'name' | 'kind'>>;
+
+export function deviceSlug(name: string, used: Iterable<string> = []): string {
+  const base = name.normalize('NFKD').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'device';
+  const taken = new Set(used);
+  let slug = base;
+  for (let n = 2; taken.has(slug); n++) {
+    const suffix = `-${n}`;
+    slug = base.slice(0, 24 - suffix.length) + suffix;
+  }
+  return slug;
 }
 
 export interface DeviceStore {
   list(): PairedDevice[];
   get(device: string): PairedDevice | undefined;
-  add(entry: PairedDevice): Promise<void>;
+  add(entry: PairingRecord): Promise<void>;
   remove(device: string): Promise<boolean>;
+  onChange?(fn: () => void): () => void;
 }
 
 export class MemoryDeviceStore implements DeviceStore {
   protected entries = new Map<string, PairedDevice>();
+  private listeners = new Set<() => void>();
+  onChange(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
+  protected changed() { for (const fn of this.listeners) fn(); }
   list() {
-    return [...this.entries.values()];
+    return [...this.entries.values()].map(d => ({ ...d }));
   }
   get(device: string) {
-    return this.entries.get(device);
+    const entry = this.entries.get(device);
+    return entry && { ...entry };
   }
-  async add(entry: PairedDevice) {
-    this.entries.set(entry.device, entry);
+  async add(entry: PairingRecord) {
+    const previous = this.entries.get(entry.device);
+    const used = this.list().filter(d => d.device !== entry.device).map(d => d.slug!);
+    const requested = entry.slug;
+    const slug = previous?.slug ?? (requested && /^[a-z0-9_-]{1,24}$/.test(requested) && !used.includes(requested) ? requested : deviceSlug(entry.name ?? entry.device, used));
+    this.entries.set(entry.device, { ...entry, slug, name: entry.name ?? previous?.name ?? entry.device, kind: entry.kind ?? previous?.kind ?? 'desktop' });
+    this.changed();
   }
   async remove(device: string) {
-    return this.entries.delete(device);
+    const removed = this.entries.delete(device);
+    if (removed) this.changed();
+    return removed;
   }
 }
 
 /** Paired devices in a JSON file (mode 600), written atomically. */
 export class JsonDeviceStore extends MemoryDeviceStore {
+  private writes = Promise.resolve();
   private constructor(private path: string) {
     super();
   }
@@ -50,15 +80,27 @@ export class JsonDeviceStore extends MemoryDeviceStore {
   static async open(path: string): Promise<JsonDeviceStore> {
     const store = new JsonDeviceStore(path);
     try {
-      const raw = JSON.parse(await readFile(path, "utf8")) as { devices?: PairedDevice[] };
-      for (const d of raw.devices ?? []) store.entries.set(d.device, d);
+      const raw = JSON.parse(await readFile(path, "utf8")) as { devices?: PairingRecord[] };
+      // Reserve valid existing slugs before assigning namespaces to legacy records.
+      const records = raw.devices ?? [];
+      const reserved = new Set(records.map(d => d.slug).filter((s): s is string => !!s && /^[a-z0-9_-]{1,24}$/.test(s)));
+      const assigned = new Set<string>();
+      let migrated = false;
+      for (const d of records) {
+        const slug = d.slug && /^[a-z0-9_-]{1,24}$/.test(d.slug) && !assigned.has(d.slug) ? d.slug : deviceSlug(d.name ?? d.device, [...reserved, ...assigned]);
+        assigned.add(slug);
+        const entry = { ...d, slug, name: d.name ?? d.device, kind: d.kind ?? 'desktop' as const };
+        store.entries.set(d.device, entry);
+        migrated ||= JSON.stringify(entry) !== JSON.stringify(d);
+      }
+      if (migrated) await store.save();
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw new SwiftnestFailure("STORE_CORRUPT", `Cannot read the paired devices file ${path}.`, "Fix or delete the file; deleting it means pairing every device again.");
     }
     return store;
   }
 
-  override async add(entry: PairedDevice) {
+  override async add(entry: PairingRecord) {
     await super.add(entry);
     await this.save();
   }
@@ -69,11 +111,16 @@ export class JsonDeviceStore extends MemoryDeviceStore {
     return removed;
   }
 
-  private async save() {
-    await mkdir(dirname(this.path), { recursive: true });
-    const tmp = `${this.path}.tmp`;
-    await writeFile(tmp, JSON.stringify({ devices: this.list() }, null, 2) + "\n", { mode: 0o600 });
-    await rename(tmp, this.path);
+  private save(): Promise<void> {
+    const data = JSON.stringify({ devices: this.list() }, null, 2) + "\n";
+    const saved = this.writes.then(async () => {
+      await mkdir(dirname(this.path), { recursive: true });
+      const tmp = `${this.path}.tmp`;
+      await writeFile(tmp, data, { mode: 0o600 });
+      await rename(tmp, this.path);
+    });
+    this.writes = saved.catch(() => {});
+    return saved;
   }
 }
 

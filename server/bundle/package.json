@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
+    "./native-devices": { "types": "./dist/native-devices.d.ts", "default": "./dist/native-devices.js" },
     "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"

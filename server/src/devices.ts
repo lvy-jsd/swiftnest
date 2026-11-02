@@ -4,7 +4,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { networkInterfaces } from 'node:os';
-import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy, fingerprintOf } from '@swiftnest/core';
+import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy, fingerprintOf, type ExposedTool } from '@swiftnest/core';
 import { serveLan } from '@swiftnest/link-lan';
 import { serveMcpHttp } from '@swiftnest/surface-mcp';
 import type { Device, DeviceEvent } from '@swiftnest/api';
@@ -26,15 +26,26 @@ export async function startDevices(config: ServerConfig) {
     audit: new JsonlAuditLog(join(dir, 'audit.jsonl')),
     policy: new RulePolicy(),
   });
-  let cached: Record<string, Device> = {};
+  type CachedDevice = Device & { tools?: ExposedTool[] };
+  let cached: Record<string, CachedDevice> = {};
   const metadata = join(dir, 'seen.json');
   try { cached = JSON.parse(await readFile(metadata, 'utf8')); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  // E1 stored only capability/tool names. Restore callable offline placeholders until
+  // the next authenticated hello refreshes schemas and risk metadata.
+  for (const d of Object.values(cached)) {
+    d.online = false;
+    d.tools ??= d.capabilities.flatMap(cap => cap.tools.map(name => ({
+      name: `${d.device}__${cap.id}__${name}`, device: d.device, capability: cap.id,
+      tool: { name, description: `Device ${cap.id}.${name} (metadata refreshes on reconnect)`, risk: 'sensitive' as const, defaultTimeoutMs: 30_000,
+        inputSchema: { type: 'object', properties: {}, additionalProperties: true } },
+    })));
+  }
   let writes = Promise.resolve();
   const streams = new Set<ServerResponse>();
-  const publish = (type: DeviceEvent['type']) => {
+  const publish = (type: DeviceEvent['type'], slugs?: string[]) => {
     for (const res of streams) {
-      if (!res.write(`data: ${JSON.stringify({ type })}\n\n`)) res.destroy();
+      if (!res.write(`data: ${JSON.stringify({ type, slugs })}\n\n`)) res.destroy();
     }
   };
   const list = (): Device[] => {
@@ -42,24 +53,44 @@ export async function startDevices(config: ServerConfig) {
     const paired = new Map(nest.devicesStore.list().map(d => [d.device, d]));
     return [...new Set([...paired.keys(), ...online.keys()])].map(device => {
       const live = online.get(device), stored = paired.get(device);
-      return { ...cached[device], ...live, device, online: !!live, paired: !!stored,
+      return { ...cached[device], ...live, device, slug: stored?.slug, name: stored?.name ?? device, lastSeen: cached[device]?.lastSeen ?? stored?.pairedAt, kind: stored?.kind ?? 'desktop', online: !!live, paired: !!stored,
         fingerprint: live?.fingerprint ?? fingerprintOf(stored!.publicKey), pairedAt: stored?.pairedAt,
         capabilities: live?.capabilities ?? cached[device]?.capabilities ?? [] };
     });
   };
-  const offTools = nest.onToolsChanged(() => {
+  const snapshot = () => ({
+    devices: list().filter(d => d.paired).map(d => ({ slug: d.slug!, name: d.name!, kind: d.kind!, online: d.online, ...(d.lastSeen ? { lastSeen: d.lastSeen } : {}) })),
+    tools: list().filter(d => d.paired).flatMap(d => (cached[d.device]?.tools ?? []).map(t => ({
+      name: `device__${d.slug}__${t.capability}_${t.tool.name}`, slug: d.slug!,
+      description: typeof t.tool.description === 'string' ? t.tool.description : t.tool.description.en,
+      risk: t.tool.risk, inputSchema: t.tool.inputSchema,
+    }))),
+  });
+  let previous = new Map(snapshot().devices.map(d => [d.slug, JSON.stringify(d)]));
+  const changed = () => {
     const now = new Date().toISOString();
-    const live = new Map(nest.devices().map(d => [d.device, d]));
-    const next: Record<string, Device> = Object.create(null);
-    for (const d of list()) next[d.device] = { ...d, lastSeen: live.has(d.device) || cached[d.device]?.online ? now : d.lastSeen };
+    const live = new Set(nest.devices().map(d => d.device));
+    const next: Record<string, CachedDevice> = Object.create(null);
+    const liveTools = nest.tools();
+    for (const d of list().filter(d => d.paired || d.online)) {
+      const tools = new Map((cached[d.device]?.tools ?? []).map(t => [t.name, t]));
+      for (const t of liveTools.filter(t => t.device === d.device)) tools.set(t.name, t);
+      next[d.device] = { ...d, tools: [...tools.values()], lastSeen: live.has(d.device) || cached[d.device]?.online ? now : d.lastSeen };
+    }
     cached = next;
+    const current = new Map(snapshot().devices.map(d => [d.slug, JSON.stringify(d)]));
+    const slugs = [...new Set([...previous.keys(), ...current.keys()])].filter(slug => previous.get(slug) !== current.get(slug));
+    previous = current;
     const data = JSON.stringify(cached);
     writes = writes.then(async () => {
       await writeFile(`${metadata}.tmp`, data, { mode: 0o600 });
       await rename(`${metadata}.tmp`, metadata);
     }).catch(error => nest.logger.error('device metadata write failed', error));
-    publish('devices-changed');
-  });
+    publish('devices-changed', slugs);
+  };
+  const offTools = nest.onToolsChanged(changed);
+  const offStore = nest.devicesStore.onChange?.(changed);
+  changed();
   const offTasks = nest.tasks.onChange(s => publish(s.state === 'pending_approval' ? 'approval-pending' : 'approvals-changed'));
   const offPairing = nest.pairing.onChange(() => publish('pairing-changed'));
   const mcpToken = secret(), adminToken = secret();
@@ -69,9 +100,53 @@ export async function startDevices(config: ServerConfig) {
     void (async () => {
       const expected = Buffer.from(`Bearer ${adminToken}`), given = Buffer.from(req.headers.authorization ?? '');
       if (expected.length !== given.length || !timingSafeEqual(expected, given)) return void json(res, 401, { error: 'Unauthorized' });
-      // The authenticated bundle proxy is the only caller. Never trust a forwarded target or identity.
+      // The authenticated bundle is the only caller. Never trust a forwarded target or identity.
       if (req.headers.origin) return void json(res, 403, { error: 'Forbidden' });
       const url = new URL(req.url ?? '/', 'http://localhost');
+      // Private control routes are never mounted in the owner-facing proxy.
+      const control = '/swiftnest/control/devices';
+      if (url.pathname === control && req.method === 'GET') return void json(res, 200, snapshot());
+      if (url.pathname === `${control}/events` && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+        streams.add(res);
+        res.write(`data: ${JSON.stringify({ type: 'devices-changed', slugs: snapshot().devices.map(d => d.slug) })}\n\n`);
+        const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
+        res.on('close', () => { clearInterval(heartbeat); streams.delete(res); });
+        return;
+      }
+      if (url.pathname === `${control}/call` && req.method === 'POST') {
+        let body = ''; for await (const chunk of req) {
+          body += chunk;
+          if (Buffer.byteLength(body) > 1024 * 1024) return void json(res, 413, { error: 'Device arguments too large' });
+        }
+        const { name, args, sessionId } = JSON.parse(body);
+        const tool = snapshot().tools.find(t => t.name === name);
+        if (!tool) return void json(res, 404, { error: `Unknown device tool ${name}` });
+        if (!args || typeof args !== 'object' || Array.isArray(args)) return void json(res, 400, { error: 'Expected object arguments' });
+        const d = list().find(d => d.slug === tool.slug)!;
+        if (!d.online) return void json(res, 409, { error: `device ${d.slug} is offline (last seen ${d.lastSeen ?? 'unknown'})` });
+        const raw = cached[d.device]!.tools!.find(t => `device__${d.slug}__${t.capability}_${t.tool.name}` === name)!;
+        let taskId: string | undefined;
+        let abandoned = res.destroyed;
+        const closed = () => {
+          if (res.writableEnded) return;
+          abandoned = true;
+          if (taskId) void nest.tasks.cancel(taskId);
+        };
+        res.once('close', closed);
+        try {
+          if (abandoned) return;
+          const task = await nest.call(raw.name, args, { id: `dsh:${typeof sessionId === 'string' ? sessionId : 'unknown'}`, name: 'DSH chat' });
+          taskId = task.id;
+          if (abandoned) { await nest.tasks.cancel(task.id); return; }
+          return void json(res, 200, task);
+        } finally { res.off('close', closed); }
+      }
+      const taskRoute = new RegExp(`^${control}/tasks/([a-f0-9-]+)(/cancel)?$`).exec(url.pathname);
+      if (taskRoute && nest.tasks.get(taskRoute[1]!)) {
+        if (req.method === 'POST' && taskRoute[2]) return void json(res, 200, await nest.tasks.cancel(taskRoute[1]!));
+        if (req.method === 'GET' && !taskRoute[2]) return void json(res, 200, await nest.tasks.wait(taskRoute[1]!, 25_000));
+      }
       const path = url.pathname.slice(PREFIX.length);
       if (!url.pathname.startsWith(PREFIX + '/') && url.pathname !== PREFIX) return void json(res, 404, { error: 'Not found' });
       if (req.method === 'GET') {
@@ -109,7 +184,7 @@ export async function startDevices(config: ServerConfig) {
           if (kind === 'pairing' && action) return void json(res, nest.pairing.confirm(id, action === 'approve') ? 200 : 409, { id });
           if (kind === 'approvals' && action) {
             if (nest.tasks.get(id)?.state !== 'pending_approval') return void json(res, 409, { error: 'Approval is no longer pending' });
-            return void json(res, 200, action === 'approve' ? await nest.tasks.approve(id, 'App owner') : await nest.tasks.deny(id, 'denied in App'));
+            return void json(res, 200, action === 'approve' ? await nest.tasks.approve(id, 'App owner') : await nest.tasks.deny(id, 'denied by owner'));
           }
         }
       }
@@ -118,7 +193,7 @@ export async function startDevices(config: ServerConfig) {
   });
   let closing: Promise<void> | undefined;
   const close = (): Promise<void> => closing ??= (async () => {
-    offTasks(); offPairing();
+    offTasks(); offPairing(); offStore?.();
     nest.pairing.stop();
     for (const p of nest.pairing.pending()) nest.pairing.confirm(p.id, false);
     for (const t of nest.tasks.list()) if (['pending_approval', 'queued', 'running'].includes(t.state)) await nest.tasks.cancel(t.id);

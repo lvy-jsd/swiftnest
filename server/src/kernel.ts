@@ -78,7 +78,7 @@ export function parseReadyLine(line: string): { url: string; token: string } | u
 export async function startKernel(config: ServerConfig, opts: StartOptions = {}): Promise<RunningKernel> {
   const paths = resolveKernel();
   const devices = await startDevices(config);
-  try { writeProfile(config, { bundleDir: paths.bundleDir, devicesMcpUrl: devices.mcpUrl }); }
+  try { writeProfile(config, { bundleDir: paths.bundleDir }); }
   catch (error) { await devices.close(); throw error; }
   const args = [
     paths.dshBin,

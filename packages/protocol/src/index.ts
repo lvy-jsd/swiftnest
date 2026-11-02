@@ -160,6 +160,7 @@ export const PerchHello = z.object({
   protocol: z.number().int(),
   device: Name,
   publicKey: z.string(),
+  kind: z.enum(['desktop', 'android']).optional(),
   capabilities: z.array(CapabilityManifest),
 });
 export const InvokeRequest = z.object({

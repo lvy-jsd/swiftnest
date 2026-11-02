@@ -33,6 +33,9 @@ it('uses owner admission and forwards only the parent credential and allowed rou
   expect(received[0].headers).not.toHaveProperty('cookie');
   expect(received[0].headers).not.toHaveProperty('origin');
   expect((await fetch(path, { method: 'DELETE' })).status).toBe(405);
+  expect((await fetch(`${proxy}/swiftnest/control/devices/call`, { method: 'POST' })).status).toBe(404);
+  expect((await fetch(`${proxy}/swiftnest/api/devices/%2e%2e/%2e%2e/control/devices`)).status).toBe(404);
+  expect(received).toHaveLength(1);
 });
 it('refuses a non-loopback admin URL', () => {
   expect(() => deviceProxy({ admit: () => ({ rejection: 401 }) }, 'http://other.test', 'secret')).toThrow('loopback');

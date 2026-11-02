@@ -17,6 +17,8 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
     if (rejection) { res.writeHead(rejection).end(); return; }
     if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405).end(); return; }
     const path = new URL(req.url ?? '/', 'http://localhost');
+    const prefix = '/swiftnest/api/devices';
+    if (path.pathname !== prefix && !path.pathname.startsWith(prefix + '/')) { res.writeHead(404).end(); return; }
     const abort = new AbortController();
     const closed = () => abort.abort();
     res.once('close', closed);

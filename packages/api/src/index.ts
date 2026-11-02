@@ -150,7 +150,14 @@ export class SwiftnestClient {
   async sendMessage(sessionId: string, text: string): Promise<MessageReceipt> {
     if (!text.trim()) throw new ApiError('invalid-message', 'Message text must not be empty');
     const requestId = randomId();
-    const result = await this.rpc<SessionPromptValue>('session/prompt', { request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text }] } });
+    this.assertConnected();
+    const response = await this.request(this.url('swiftnest/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text }] }, deviceSlug: this.options.deviceSlug }) });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => undefined) as { error?: { code?: string; message?: string } } | undefined;
+      throw new ApiError(failure?.error?.code ?? 'http-error', failure?.error?.message ?? `App prompt returned HTTP ${response.status}`);
+    }
+    const result = await response.json() as SessionPromptValue;
     return { requestId, accepted: result.accepted };
   }
 

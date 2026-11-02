@@ -2,6 +2,9 @@
 export type { TaskSnapshot as DeviceApproval, AuditEntry as DeviceAuditEntry } from '@swiftnest/protocol';
 export interface Device {
   device: string;
+  slug?: string;
+  name?: string;
+  kind?: 'desktop' | 'android';
   online: boolean;
   paired: boolean;
   fingerprint: string;

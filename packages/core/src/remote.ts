@@ -176,6 +176,8 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
     throw new SwiftnestFailure("PROTOCOL_ERROR", `Device "${device}" sent a hello that does not match its handshake.`);
   }
 
+  const record = o.devices.get(device);
+  if (record && h.kind && record.kind !== h.kind) await o.devices.add({ ...record, kind: h.kind });
   const conn = remoteConnection(channel, box, { device, publicKey: key, via: o.via, capabilities: h.capabilities, logger });
   try {
     nest.attach(conn);
