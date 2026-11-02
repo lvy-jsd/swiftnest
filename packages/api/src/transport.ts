@@ -1,3 +1,4 @@
+import { localizedError } from '@swiftnest/protocol';
 import type { RemoteStreamServerMessage } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import type { ApiWebSocket } from './types.js';
 
@@ -12,7 +13,8 @@ export function randomId(): string {
 }
 
 export class ApiError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); this.name = 'ApiError'; }
+  readonly hint: string;
+  constructor(public readonly code: string, message: string, hint?: string, public readonly serverCode?: string) { const failure = localizedError({ code, message, hint }); super(failure.message); this.hint = failure.hint; this.name = 'ApiError'; }
 }
 
 /** Cancellable single-reader inbox. Closing wakes a reader already blocked in next(). */

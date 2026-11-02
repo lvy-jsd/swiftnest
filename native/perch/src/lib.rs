@@ -1,4 +1,5 @@
 //! Device-only core. The host owns consent/UI; the server owns the Nest and approvals.
+pub use swiftnest_locale as i18n;
 pub mod capability;
 pub mod channel;
 pub mod files;
@@ -14,12 +15,18 @@ pub struct Failure {
     pub code: String,
     pub message: String,
     pub retryable: bool,
+    pub hint: String,
+    #[serde(skip)]
+    pub diagnostic: String,
 }
 impl Failure {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
+        let diagnostic = message.into();
         Self {
             code: code.into(),
-            message: message.into(),
+            message: i18n::failure_message(code, &diagnostic),
+            hint: i18n::text("retryHint"),
+            diagnostic,
             retryable: matches!(code, "TIMEOUT" | "DISCONNECTED" | "NEST_UNREACHABLE"),
         }
     }

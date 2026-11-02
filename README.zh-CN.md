@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · 简体中文
+  <a href="README.en.md">English</a> · 简体中文
 </p>
 
 ---
@@ -76,3 +76,8 @@ cd my-plugin && npm install && npm test
 ## 许可证
 
 [Apache-2.0](LICENSE)
+## 界面语言
+
+默认使用简体中文。在 App 的“偏好设置 → 语言”中可选择 English；选择保存在本机，连接服务器后同步给其他设备。
+离线修改会在重连后重试。服务器与 CLI 默认中文，使用 `SWIFTNEST_LANG=en` 选择英文，
+服务器 YAML 也支持 `lang: en`，环境变量优先。原生托盘、通知和文件选择窗口跟随 App 选择。

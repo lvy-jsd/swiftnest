@@ -15,6 +15,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== "1")(
   `;
     const server = await createServer({
       root: resolve("client"),
+      cacheDir: resolve("node_modules/.cache/swiftnest/transfer-fixture"),
       server: { host: "127.0.0.1", port: 0 },
       plugins: [
         {
@@ -50,6 +51,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== "1")(
     try {
       for (const lang of ["en", "zh-CN"]) {
         const page = await browser.newPage({
+          locale: lang,
           viewport: { width: 390, height: 844 },
         });
         const errors: string[] = [];

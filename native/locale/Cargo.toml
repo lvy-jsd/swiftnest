@@ -1,0 +1,9 @@
+[package]
+name = "swiftnest-locale"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Chinese-first owner-facing messages for Swiftnest native hosts"
+[dependencies]
+regex = "1"
+serde_json = "1"

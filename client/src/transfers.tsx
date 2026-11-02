@@ -1,3 +1,4 @@
+import { translateMessage } from '@swiftnest/api';
 import { useState } from "react";
 import type { Transfer } from "@swiftnest/api";
 import { useDevices } from "./devices";
@@ -28,7 +29,7 @@ const stateKey = {
 export function TransferCards({ compact = false }: { compact?: boolean }) {
   const { transfers, busy, act } = useDevices();
   const { store } = useConnection();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const rows = compact
     ? transfers
         .filter((r) => !["complete", "cancelled"].includes(r.state))
@@ -56,10 +57,10 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
             value={r.state === "complete" ? r.size || 1 : r.offset}
           />
           <p>
-            {bytes(r.offset)} / {bytes(r.size)} · {bytes(r.speed)}/s ·{" "}
-            {t("transferETA")}: {r.eta === null ? "—" : `${Math.ceil(r.eta)}s`}
+            {bytes(r.offset)} / {bytes(r.size)} · {bytes(r.speed)}/{t("seconds")} ·{" "}
+            {t("transferETA")}: {r.eta === null ? "—" : `${Math.ceil(r.eta)}${t("seconds")}`}
           </p>
-          {r.error && r.state === "failed" && <p role="alert">{r.error}</p>}
+          {r.error && r.state === "failed" && <p role="alert">{translateMessage(r.error, locale)}{r.failure && <><br />{translateMessage(r.failure.hint, locale)} ({r.failure.code})</>}</p>}
           <div className="device-actions">
             {["running", "waiting", "approval", "preparing"].includes(
               r.state,
@@ -93,7 +94,7 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
 export function SendFile({ source }: { source?: string }) {
   const { devices, busy, act } = useDevices();
   const { store, status } = useConnection();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(source ?? "server");
   const [to, setTo] = useState(
@@ -199,7 +200,7 @@ export function SendFile({ source }: { source?: string }) {
   );
 }
 export function TransfersPage({ onBack }: { onBack: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
     <HubPage
       title={t("transfers")}

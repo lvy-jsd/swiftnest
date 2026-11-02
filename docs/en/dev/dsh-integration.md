@@ -58,7 +58,7 @@ With that patch as `$DSH_HOME/cordis.patch.yml`, `dsh --profile headless "<promp
 ## Persona configuration
 
 `ServerConfig.persona` / YAML `persona` is a string, overridden by `SWIFTNEST_PERSONA`. Its default is
-`You are a helpful assistant in Swiftnest, powered by the {{model}} model.` DSH expands `{{model}}`
+a Chinese assistant persona by default, or `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` with `lang: en`. DSH expands `{{model}}`
 at runtime. The generated profile owns both `system-prompt.config.personaPrefix` and preset persona
 prefixes; the static Swiftnest bundle has no separate persona text.
 
@@ -221,7 +221,7 @@ per-process bearer value (checked in the real-kernel test).
 The bundle injects `connection` and calls `connection.admit(req)` for `/swiftnest/api/devices/*`, retaining
 the native Host/Origin/session fence and requiring `peer.principal.kind === 'owner'`. It streams authorized
 requests to the parent's loopback admin listener using a separate environment credential, forwarding no
-browser cookies, request bodies or caller-supplied authorization. The admin endpoint owns pairing,
+browser cookies or caller-supplied authorization. Only bounded transfer and language-preference JSON bodies are forwarded. The admin endpoint owns pairing,
 fingerprint decisions, revocation, task decisions, audit and SSE invalidations. MCP has no approval tool.
 
 Verified against the pinned kernel: MCP `tools/list_changed` adds/removes tools in the same conversation,
@@ -229,3 +229,7 @@ new conversations see current tools, and the kernel is never restarted. Acceptan
 Perch over link-lan with cap-files, lets the fake model read a file, waits for App approval before writing,
 and checks both audit results. The Chromium flow exercises device management and approval/denial at 390 px.
 See [Devices](../guide/devices.md) for configuration and the API contract.
+
+## Owner language
+
+The App defaults to zh-CN regardless of browser language. Settings persist locally; authenticated `/swiftnest/api/devices/preferences` GET/POST persists the owner choice on the server. Connected Apps follow it within two seconds; offline changes are retried after pairing. CLI precedence is SWIFTNEST_LANG, then YAML lang, then zh-CN. Errors retain stable codes and include localized message and hint.

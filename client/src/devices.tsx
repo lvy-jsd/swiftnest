@@ -1,3 +1,4 @@
+import { translateReason } from '@swiftnest/api';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import type { Device, DeviceApproval, DevicePairing, DevicePairingCandidate, Transfer } from '@swiftnest/api';
@@ -68,14 +69,14 @@ export function useDevices() { const value = useContext(Context); if (!value) th
 export function DeviceApprovals({ compact = false }: { compact?: boolean }) {
   const { approvals, error, busy, act } = useDevices();
   const { store } = useConnection();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [selected, setSelected] = useState<string>();
   const approval = approvals.find(a => a.id === selected);
   const answer = (a: DeviceApproval, accept: boolean) => void act(() => store.client!.answerDeviceApproval(a.id, accept));
   const details = (a: DeviceApproval) => <>
     <p><strong>{a.device} · {a.capability}.{a.tool}</strong></p>
     <p>{t('requestedBy')}: {a.client.name ?? a.client.id}</p>
-    <p>{t('risk')}: {t(a.risk)} · {a.reason}</p>
+    <p>{t('risk')}: {t(a.risk)} · {a.reason && translateReason(a.reason, locale)}</p>
     <pre>{JSON.stringify(a.args, null, 2)}</pre>
   </>;
   return <>

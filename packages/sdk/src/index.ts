@@ -1,3 +1,4 @@
+export { defaultLanguage, translateMessage } from "@swiftnest/protocol";
 /**
  * @swiftnest/sdk — everything a plugin author needs: the plugin contract, error type, protocol types,
  * and `createTestNest` to exercise a plugin against a simulated Nest and devices, no hardware required.

@@ -14,7 +14,7 @@ afterEach(async () => { for (const fn of cleanup.splice(0).reverse()) await fn()
 async function setup() {
   const home = await mkdtemp(join(tmpdir(), 'swiftnest-hub-'));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
-  const config = loadConfig(undefined, { SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false' });
+  const config = loadConfig(undefined, { SWIFTNEST_LANG: "en", SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false' });
   const hub = await startDevices(config);
   cleanup.push(hub.close);
   const api = (path = '', method = 'GET', auth = hub.env[ADMIN_TOKEN_ENV]) => fetch(`${hub.env[ADMIN_URL_ENV]}/swiftnest/api/devices${path}`, { method, headers: { authorization: `Bearer ${auth}` } });
@@ -116,5 +116,5 @@ it('migrates E1 offline tool names without requiring a Perch reconnect or changi
   expect(snapshot).toMatchObject({ devices: [{ slug: 'legacy', online: false, lastSeen }], tools: [{ name: 'device__legacy__files_read', risk: 'sensitive' }] });
   const result = await fetch(`${url}/call`, { method: 'POST', headers, body: JSON.stringify({ name: 'device__legacy__files_read', args: {} }) });
   expect(result.status).toBe(409);
-  expect(await result.json()).toEqual({ error: `device legacy is offline (last seen ${lastSeen})` });
+  expect(await result.json()).toMatchObject({ error: `device legacy is offline (last seen ${lastSeen})`, code: expect.any(String), hint: expect.any(String) });
 });

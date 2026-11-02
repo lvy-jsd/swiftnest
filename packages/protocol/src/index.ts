@@ -1,3 +1,5 @@
+import { translateMessage } from './language.js';
+export * from './language.js';
 /**
  * @swiftnest/protocol — the data shapes every Swiftnest component agrees on.
  *
@@ -16,8 +18,8 @@ export const PLUGIN_API_VERSION = 1;
 export const LocalizedText = z.union([z.string(), z.object({ en: z.string(), zh: z.string().optional() })]);
 export type LocalizedText = z.infer<typeof LocalizedText>;
 
-export function localize(text: LocalizedText, lang: "en" | "zh" = "en"): string {
-  if (typeof text === "string") return text;
+export function localize(text: LocalizedText, lang: "en" | "zh" = "zh"): string {
+  if (typeof text === "string") return translateMessage(text, lang === "en" ? "en" : "zh-CN");
   return (lang === "zh" ? text.zh : undefined) ?? text.en;
 }
 
@@ -108,6 +110,7 @@ export type ClientRef = z.infer<typeof ClientRef>;
 export const SwiftnestError = z.object({
   code: z.string(),
   message: z.string(),
+  hint: z.string().optional(),
   suggestion: z.string().optional(),
   retryable: z.boolean().default(false),
 });

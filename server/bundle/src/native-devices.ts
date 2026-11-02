@@ -1,3 +1,4 @@
+import { translateMessage, localizedError } from '@swiftnest/protocol';
 /** Native DSH device tools. The Nest and all policy decisions remain in the parent. */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -104,7 +105,8 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
     });
     if (!response.ok) {
       const body = await response.json() as { error?: string };
-      throw new Error(body.error ?? `Device control returned HTTP ${response.status}`);
+      const failure = body as { code?: string; message?: string; hint?: string };
+      throw Object.assign(new Error(failure.message ?? body.error ?? translateMessage(`Device control returned HTTP ${response.status}`)), { code: failure.code, hint: failure.hint });
     }
     return response;
   };
@@ -113,7 +115,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
     ['transfer_status','List file transfer progress and ids.',{type:'object',properties:{},additionalProperties:false}, (_args:unknown,exec:Execution)=>request('/transfers',{signal:exec.signal})],
     ['transfer_cancel','Cancel a file transfer by id.',{type:'object',properties:{id:{type:'string',pattern:'^[a-f0-9]{64}$'}},required:['id'],additionalProperties:false}, (args:unknown,exec:Execution)=>request(`/transfers/${encodeURIComponent((args as {id:string}).id)}/cancel`,{method:'POST',signal:exec.signal})],
   ] as const) {
-    const dispose=ctx.tools.register({name:toolName,description,parameters,output:{schema:{type:'object',properties:{text:{type:'string'},data:{}},required:['text']},render:(_args,value)=>[{type:'text',text:value.text}]},execute:async(args,exec)=>{const data=await (await execute(args,exec)).json();return {text:JSON.stringify(data),data};}});
+    const dispose=ctx.tools.register({name:toolName,description:translateMessage(description),parameters,output:{schema:{type:'object',properties:{text:{type:'string'},data:{}},required:['text']},render:(_args,value)=>[{type:'text',text:value.text}]},execute:async(args,exec)=>{const data=await (await execute(args,exec)).json();return {text:JSON.stringify(data),data};}});
     ctx.effect(()=>dispose,`swiftnest-devices: ${toolName}`);
   }
   const invoke = async (tool: NativeDeviceTool, args: unknown, exec: Execution) => {
@@ -209,7 +211,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(value));
     } catch (error) {
       const failure = error as { code?: string; message?: string };
-      if (!res.headersSent) res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: failure?.code ?? 'invalid-message', message: failure?.message ?? String(error) } }));
+      if (!res.headersSent) res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { ...localizedError(error), code: failure?.code ?? 'invalid-message' } }));
     }
     finally { res.off('close', closed); }
   } }), 'swiftnest-devices: App chat');

@@ -110,6 +110,7 @@ async function main(argv: string[]) {
     },
   });
   const lang = detectLang(values.lang);
+  process.env.SWIFTNEST_LANG = lang === "en" ? "en" : "zh-CN";
   const cmd = values.help ? "help" : (positionals[0] ?? "help");
   const list = (v: string | undefined) => String(v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const port = Number(values.port);

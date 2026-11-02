@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { App, chatFromHash } from "../src/App";
 import { ThemeProvider } from "../src/design/theme";
-import { I18nProvider, en, translate, zhCN } from "../src/i18n";
+import { I18nProvider, en, translate, zhCN, savedLocale, LOCALE_KEY } from "../src/i18n";
 import { isTauriRuntime } from "../src/runtime";
 import { ConnectionProvider } from '../src/connection';
 
@@ -35,4 +35,15 @@ describe("web shell and translations", () => {
     expect(chatFromHash("#/chats/%zz")).toBeUndefined();
     expect(chatFromHash("#/")).toBeUndefined();
   });
+});
+
+it('defaults to Chinese on an English system and restores an explicit English choice', () => {
+  vi.stubGlobal('navigator', { language: 'en-US' });
+  vi.stubGlobal('localStorage', { getItem: () => null });
+  try {
+    expect(savedLocale()).toBe('zh-CN');
+    expect(renderToStaticMarkup(<ThemeProvider><I18nProvider><ConnectionProvider><App /></ConnectionProvider></I18nProvider></ThemeProvider>)).toContain('配对服务器');
+    vi.stubGlobal('localStorage', { getItem: (key: string) => key === LOCALE_KEY ? 'en' : null });
+    expect(savedLocale()).toBe('en');
+  } finally { vi.unstubAllGlobals(); }
 });

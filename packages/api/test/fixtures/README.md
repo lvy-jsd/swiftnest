@@ -1,3 +1,5 @@
+[简体中文](README.zh-CN.md)
+
 `chat.json` records `session/follow` items from the real 0.2.1-rc.5 Swiftnest kernel against the fixed SSE
 model in `chat.e2e.test.ts`. Machine-specific paths were replaced with `/workspace` and `/dsh-checkout/`.
 Non-chat durable records after the opening snapshot are omitted; stream chunk boundaries are preserved.

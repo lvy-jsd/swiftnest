@@ -1,5 +1,7 @@
 # E2c validation — 2026-11-02
 
+[简体中文](VALIDATION.zh-CN.md)
+
 Large file transfer is implemented for native Perches and server storage. This work is uncommitted;
 no commit, push, system-wide install, system configuration change, phone pairing or reboot was made.
 All transfer fixtures use temporary files/identities. Prettier 3.6.2 was fetched through `pnpm dlx` into

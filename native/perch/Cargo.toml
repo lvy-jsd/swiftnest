@@ -6,6 +6,7 @@ license = "Apache-2.0"
 description = "Shared, Node-free Swiftnest device core for Tauri hosts"
 
 [dependencies]
+swiftnest-locale = { path = "../locale" }
 aes-gcm = "0.10"
 async-trait = "0.1"
 base64 = "0.22"

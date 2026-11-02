@@ -9,6 +9,8 @@
 //! event the node emits. Events carry an `event` key and responses do not, so a client tells
 //! them apart by that key.
 
+use swiftnest_locale::owner_println as println;
+
 use std::path::Path;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -71,7 +73,7 @@ async fn handle_connection(
             Ok(Some(line)) => line,
             Ok(None) => break, // EOF: the client closed the connection.
             Err(e) => {
-                tracing::debug!("socket read error: {e}");
+                tracing::debug!("{}", swiftnest_locale::translate(&format!("socket read error: {e}")));
                 break;
             }
         };
@@ -88,14 +90,14 @@ async fn handle_connection(
                         loop {
                             match rx.recv().await {
                                 Ok(ev) => {
-                                    let Ok(json) = serde_json::to_string(&ev) else { continue };
+                                    let Ok(json) = owner_json(&ev) else { continue };
                                     if tx.send(json).is_err() {
                                         break;
                                     }
                                 }
                                 // A slow client missed some events; keep going with the newer ones.
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
-                                    tracing::warn!("socket client lagged, dropped {n} events");
+                                    tracing::warn!("{}", swiftnest_locale::translate(&format!("socket client lagged, dropped {n} events")));
                                 }
                                 Err(broadcast::error::RecvError::Closed) => break,
                             }
@@ -122,7 +124,7 @@ async fn handle_connection(
             Err(e) => CmdResponse::err(format!("invalid command: {e}")),
         };
 
-        let out = serde_json::to_string(&resp).unwrap_or_else(|_| r#"{"ok":false}"#.to_string());
+        let out = owner_json(&resp).unwrap_or_else(|_| r#"{"ok":false}"#.to_string());
         if out_tx.send(out).is_err() {
             break;
         }
@@ -133,4 +135,24 @@ async fn handle_connection(
     }
     drop(out_tx);
     let _ = writer_task.await;
+}
+
+/// Localize explanatory fields only; payload text, task output and protocol identifiers stay exact.
+fn owner_json(value: &impl serde::Serialize) -> serde_json::Result<String> {
+    let mut value = serde_json::to_value(value)?;
+    if let Some(object) = value.as_object_mut() {
+        let failed = object.get("ok").and_then(|v| v.as_bool()) == Some(false) || object.contains_key("error");
+        let code = "MESH_REQUEST_FAILED";
+        let mut failure = None;
+        for field in ["error", "reason", "note"] {
+            if let Some(serde_json::Value::String(source)) = object.get_mut(field) {
+                *source = if failed { swiftnest_locale::failure_message(code, source) } else { swiftnest_locale::translate(source) };
+                if failed { failure = Some(source.clone()); }
+            }
+        }
+        if let Some(message) = failure {
+            object.insert("failure".into(), serde_json::json!({"code":code,"message":message,"hint":swiftnest_locale::text("retryHint")}));
+        }
+    }
+    serde_json::to_string(&value)
 }

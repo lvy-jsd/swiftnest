@@ -1,12 +1,12 @@
 import { defineConfig } from "vitepress";
 
-// zh and en on equal footing: every page exists in both directories.
+// Chinese is the default; English pages have matching Chinese counterparts.
 export default defineConfig({
   title: "Swiftnest",
-  description: "Turn your devices into capabilities any agent can call safely.",
+  description: "把你的设备变成智能体能安全调用的能力。",
   cleanUrls: true,
   locales: {
-    root: { label: "Language", lang: "en" },
+    root: { label: "简体中文", lang: "zh-CN", link: "/", themeConfig: { nav: [{ text: "指南", link: "/zh/guide/quickstart" }, { text: "English", link: "/en/" }], outlineTitle: "本页内容", docFooter: { prev: "上一页", next: "下一页" }, returnToTopLabel: "回到顶部", sidebarMenuLabel: "目录", darkModeSwitchLabel: "外观", darkModeSwitchTitle: "切换为深色模式", lightModeSwitchTitle: "切换为浅色模式", langMenuLabel: "语言", notFound: { title: "页面不存在", quote: "这个页面可能已移动，请从首页继续。", linkText: "返回首页", linkLabel: "返回首页" } } },
     en: {
       label: "English",
       lang: "en",
@@ -39,6 +39,7 @@ export default defineConfig({
       lang: "zh-CN",
       link: "/zh/",
       themeConfig: {
+        outlineTitle: "本页内容", docFooter: { prev: "上一页", next: "下一页" }, returnToTopLabel: "回到顶部", sidebarMenuLabel: "目录", darkModeSwitchLabel: "外观", darkModeSwitchTitle: "切换为深色模式", lightModeSwitchTitle: "切换为浅色模式", langMenuLabel: "语言", notFound: { title: "页面不存在", quote: "这个页面可能已移动，请从首页继续。", linkText: "返回首页", linkLabel: "返回首页" },
         nav: [
           { text: "指南", link: "/zh/guide/quickstart" },
           { text: "设计", link: "/zh/design" },

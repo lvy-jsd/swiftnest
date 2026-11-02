@@ -1,6 +1,7 @@
 /** Owner commands against the running Nest (through its admin socket). */
 import { createInterface } from "node:readline/promises";
 import type { AuditEntry, TaskSnapshot } from "@swiftnest/protocol";
+import { translateMessage, translateReason } from "@swiftnest/core";
 import type { PairingCandidate } from "@swiftnest/core";
 import { adminCall } from "./admin.js";
 import { adminSocket } from "./daemons.js";
@@ -21,7 +22,7 @@ export async function pair(lang: Lang, o: { confirm?: string; reject?: string; p
     return;
   }
   const started = await call<{ code: string; expiresAt: string; fingerprint: string }>("pair.start");
-  process.stdout.write(t(lang, "pairStarted")(started.code, new Date(started.expiresAt).toLocaleTimeString(), started.fingerprint));
+  process.stdout.write(t(lang, "pairStarted")(started.code, new Date(started.expiresAt).toLocaleTimeString(lang === "en" ? "en" : "zh-CN"), started.fingerprint));
   if (!process.stdin.isTTY) {
     process.stdout.write(t(lang, "pairHeadless") + "\n");
     return;
@@ -67,19 +68,19 @@ export async function revoke(lang: Lang, device: string | undefined) {
 export async function pending(lang: Lang) {
   const list = await call<TaskSnapshot[]>("tasks.pending");
   if (!list.length) return void process.stdout.write(t(lang, "pendingNone") + "\n");
-  for (const s of list) process.stdout.write(t(lang, "pendingRow")(s.id, s.device, `${s.capability}.${s.tool}`, JSON.stringify(s.args), s.risk, s.reason ?? "") + "\n");
+  for (const s of list) process.stdout.write(t(lang, "pendingRow")(s.id, s.device, `${s.capability}.${s.tool}`, JSON.stringify(s.args), translateMessage(s.risk, lang === "en" ? "en" : "zh-CN"), translateReason(s.reason ?? "", lang === "en" ? "en" : "zh-CN")) + "\n");
 }
 
 export async function decide(lang: Lang, id: string | undefined, approve: boolean) {
   if (!id) return void process.stdout.write(t(lang, "needArg")(`swiftnest ${approve ? "approve" : "deny"} <task-id>`) + "\n");
   const s = await call<TaskSnapshot>(approve ? "tasks.approve" : "tasks.deny", { id });
-  process.stdout.write(`${approve ? t(lang, "approved") : t(lang, "denied")} ${s.id} → ${s.state}\n`);
+  process.stdout.write(`${approve ? t(lang, "approved") : t(lang, "denied")} ${s.id} → ${translateMessage(s.state, lang === "en" ? "en" : "zh-CN")}\n`);
 }
 
 export async function audit(lang: Lang, limit: number, device?: string) {
   const rows = await call<AuditEntry[]>("audit.tail", { limit, device });
   if (!rows.length) return void process.stdout.write(t(lang, "auditNone") + "\n");
   for (const e of rows) {
-    process.stdout.write(`${e.at}  ${e.state.padEnd(16)} ${e.device}__${e.capability}__${e.tool} ${JSON.stringify(e.args)}  ← ${e.client.name ?? e.client.id}${e.reason ? `  (${e.reason})` : ""}${e.error ? `  [${e.error.code}]` : ""}\n`);
+    process.stdout.write(`${e.at}  ${translateMessage(e.state, lang === "en" ? "en" : "zh-CN").padEnd(16)} ${e.device}__${e.capability}__${e.tool} ${JSON.stringify(e.args)}  ← ${e.client.name ?? e.client.id}${e.reason ? `  (${translateReason(e.reason, lang === "en" ? "en" : "zh-CN")})` : ""}${e.error ? `  [${e.error.code}]` : ""}\n`);
   }
 }

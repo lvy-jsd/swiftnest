@@ -1,3 +1,5 @@
+import { localizedError } from '@swiftnest/api';
+import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
@@ -41,7 +43,7 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
   const chosenPreset = Object.entries(presets).find(([, hue]) => hue === theme.accentHue)?.[0] ?? "custom";
   return <SheetPage open={open} onClose={onClose} title={t("preferences")} actions={<Button variant="primary" onClick={onClose}>{t("done")}</Button>}>
     <div className="field-groups">
-      <label className="field"><span>{t("language")}</span><select value={locale} onChange={event => setLocale(event.target.value as Locale)}><option value="en">{t("english")}</option><option value="zh-CN">{t("chinese")}</option></select></label>
+      <label className="field"><span>{t("language")}</span><select aria-label={t("language")} value={locale} onChange={event => setLocale(event.target.value as Locale)}><option value="zh-CN">{t("chinese")}</option><option value="en">{t("english")}</option></select></label>
       <label className="field"><span>{t("appearance")}</span><select value={theme.preference} onChange={event => theme.setPreference(event.target.value as ThemePreference)}>{(["system", "light", "dark"] as const).map(mode => <option key={mode} value={mode}>{t(mode)}</option>)}</select></label>
       <label className="field"><span>{t("accent")}</span><select value={chosenPreset} onChange={event => theme.setAccentHue(event.target.value === "custom" ? 0 : presets[event.target.value as keyof typeof presets])}>{Object.keys(presets).map(name => <option key={name} value={name}>{t(name as keyof typeof presets)}</option>)}<option value="custom">{t("custom")}</option></select></label>
       <label className="field"><span>{t("customHue")}</span><input type="range" min={0} max={359} step={1} value={theme.accentHue} onChange={event => theme.setAccentHue(Number(event.target.value))} /></label>
@@ -97,11 +99,14 @@ function Thinking() {
   return <p className="thinking-pill" role="status">{t('thinking')} · {seconds} {t('seconds')}</p>;
 }
 function TranscriptRow({ row }: { row: ChatRow }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   if (row.kind === 'message') return row.text ? <article className={`message${row.role === 'user' ? ' message--own' : ''}`} data-streaming={!row.final || undefined}>
     <div className="message__body"><strong>{t(row.role === 'user' ? 'you' : 'botName')}</strong><p>{row.text}</p></div>
   </article> : null;
-  if (row.kind === 'error') return <p className="inline-error" role="alert">{row.text}</p>;
+  if (row.kind === 'error') {
+    const failure = localizedError({ code: row.code, message: row.text }, locale);
+    return <p className="inline-error" role="alert">{failure.message}<br />{failure.hint} ({failure.code})</p>;
+  }
   if (row.kind === 'tools') return <details key={String(row.finished)} className="event-card"><summary>{t(row.finished ? 'ranTools' : 'runningTools').replace('{count}', String(Object.keys(row.calls).length))}</summary><pre>{JSON.stringify(row.calls, null, 2)}</pre></details>;
   return <details className="event-card"><summary>{t('unknownEvent')}</summary><pre>{JSON.stringify(row.event, null, 2)}</pre></details>;
 }
@@ -199,7 +204,7 @@ function AppContent() {
     if (swipeOffset > Math.min(120, window.innerWidth / 4)) back();
     swipe.current = null; setSwipeOffset(0);
   }
-  return <div className="app-shell">
+  return <div className="app-shell"><LanguageSync />
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>
     <aside className="sidebar"><div className="sidebar__brand"><strong>{t('appName')}</strong><Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Settings size={24} /></Button></div>
       <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>

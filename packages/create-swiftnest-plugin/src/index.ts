@@ -3,6 +3,7 @@
  * npm create swiftnest-plugin@latest [dir] [--name swiftnest-plugin-foo] [--lang zh|en]
  * Copies the capability template, renames it, and pins @swiftnest/sdk to the current release.
  */
+import { translateMessage, localizedError } from '@swiftnest/protocol';
 import { cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,7 +68,8 @@ export async function createPlugin(dir: string, name: string): Promise<string> {
 
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: { name: { type: "string" }, lang: { type: "string" } } });
-  const zh = (values.lang ?? process.env.LANG ?? "").toLowerCase().startsWith("zh");
+  const zh = (values.lang ?? process.env.SWIFTNEST_LANG ?? "zh-CN") !== "en";
+  process.env.SWIFTNEST_LANG = zh ? "zh-CN" : "en";
   const dir = positionals[0] ?? "swiftnest-plugin-hello";
   const name = pluginName(dir, values.name);
   const target = await createPlugin(dir, name);
@@ -78,4 +80,6 @@ async function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { await main(); } catch (error) { const failure = localizedError(error); console.error(`[${failure.code}] ${failure.message}\n${failure.hint}`); process.exitCode = 1; }
+}

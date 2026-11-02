@@ -54,10 +54,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     // A real non-loopback address exercises the insecure-context LAN path.
     const host = Object.values(networkInterfaces()).flat().find(address => address?.family === 'IPv4' && !address.internal)?.address ?? '127.0.0.1';
     kernel = await startKernel(loadConfig(undefined, {
-      SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: "0", SWIFTNEST_DEVICES_MDNS: "false", SWIFTNEST_HOST: host, SWIFTNEST_PORT: '0', SWIFTNEST_APP_DIST: dist,
+      SWIFTNEST_LANG: "en", SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: "0", SWIFTNEST_DEVICES_MDNS: "false", SWIFTNEST_HOST: host, SWIFTNEST_PORT: '0', SWIFTNEST_APP_DIST: dist,
       SWIFTNEST_MODEL_ID: 'fake', SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
     }), { readyTimeoutMs: 90_000, onLine: line => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) });
     page = await browser.newPage({ locale: 'en-US', viewport: { width: 1100, height: 800 } });
+    await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     page.on('pageerror', error => diagnostics.push(error.message));
     page.on('response', response => { if (response.status() >= 400) diagnostics.push(`${response.status()} ${new URL(response.url()).pathname}`); });
@@ -68,7 +69,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     await page.goto(webAppUrl(kernel.url, kernel.token));
     await page.getByRole('button', { name: 'New chat', exact: true }).waitFor();
     expect(page.url()).not.toContain('token');
-    expect(await page.evaluate(() => Object.keys(localStorage))).toEqual(['swiftnest.serverRoot']);
+    expect(await page.evaluate(() => Object.keys(localStorage))).toEqual(['swiftnest.locale', 'swiftnest.serverRoot']);
     await page.getByRole('button', { name: 'New chat', exact: true }).click();
     const composer = page.getByRole('textbox', { name: 'Write a message' });
     await composer.fill('hi');
@@ -131,6 +132,38 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await revoke.getByRole('button', { name: 'Revoke device', exact: true }).click();
     await page.getByText('No paired devices yet.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Go back' }).click();
+    // Cross-device language sync, explicit English system locale, and persistence.
+    await page.getByRole('button', { name: 'Open preferences' }).first().click();
+    await page.getByLabel('Language', { exact: true }).selectOption('zh-CN');
+    await page.getByRole('button', { name: '完成', exact: true }).click();
+    await page.getByRole('heading', { name: '聊天', exact: true }).waitFor();
+    const second = await browser.newPage({ locale: 'en-US', viewport: { width: 390, height: 844 } });
+    await second.goto(new URL('app/', kernel.url).href);
+    await second.getByRole('link', { name: '配对服务器', exact: true }).waitFor();
+    // Save an offline English choice and reload it, before choosing Chinese for pairing.
+    await second.getByRole('button', { name: '打开偏好设置' }).first().click();
+    await second.getByLabel('语言', { exact: true }).selectOption('en');
+    await second.reload(); await second.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
+    await second.getByRole('button', { name: 'Open preferences' }).first().click();
+    await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
+    await second.getByRole('button', { name: '完成', exact: true }).click();
+    await second.goto(webAppUrl(kernel.url, kernel.token));
+    await second.getByRole('button', { name: '新建聊天', exact: true }).waitFor();
+    await second.getByRole('button', { name: '打开偏好设置' }).first().click();
+    await second.getByLabel('语言', { exact: true }).selectOption('en');
+    await page.getByRole('heading', { name: 'Chats', exact: true }).waitFor();
+    await second.reload(); await second.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
+    expect(await second.locator('html').getAttribute('lang')).toBe('en');
+    await second.goto(webAppUrl(kernel.url, kernel.token));
+    await second.getByRole('button', { name: 'New chat', exact: true }).waitFor();
+    // Return to Chinese and record the phone-width default view.
+    await second.getByRole('button', { name: 'Open preferences' }).first().click();
+    await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
+    await second.getByRole('button', { name: '完成', exact: true }).click();
+    await mkdir('client/test/screenshots', { recursive: true });
+    await second.screenshot({ path: 'client/test/screenshots/language-zh-CN-390.png', animations: 'disabled' });
+    await second.close();
     expect(errors).toEqual([]);
     await page.close();
   } catch (error) {

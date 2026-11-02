@@ -1,12 +1,12 @@
-/** CLI strings in both languages (design: zh and en on equal footing). Language: --lang, else LC_ALL / LANG. */
+/** Chinese-first CLI. --lang overrides SWIFTNEST_LANG; the OS locale never changes the default. */
 export type Lang = "en" | "zh";
 
 export function detectLang(flag?: string): Lang {
-  const v = (flag ?? process.env.SWIFTNEST_LANG ?? process.env.LC_ALL ?? process.env.LANG ?? "").toLowerCase();
-  return v.startsWith("zh") ? "zh" : "en";
+  const v = (flag ?? process.env.SWIFTNEST_LANG ?? "zh-CN").toLowerCase();
+  return v === "en" ? "en" : "zh";
 }
 
-const STRINGS = {
+export const STRINGS = {
   usage: {
     en: `Swiftnest — turn your devices into capabilities any agent can call safely.
 

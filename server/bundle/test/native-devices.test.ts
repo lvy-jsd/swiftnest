@@ -16,7 +16,7 @@ async function setup(catalog = true) {
   let catalogReady: ((ctx: any) => void) | undefined;
   const home = await mkdtemp(join(tmpdir(), 'native-devices-'));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
-  const hub = await startDevices(loadConfig(undefined, { SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false' }));
+  const hub = await startDevices(loadConfig(undefined, { SWIFTNEST_LANG: "en", SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false' }));
   cleanup.push(hub.close);
   const tools = new Map<string, NativeToolDefinition>();
   const registered = vi.fn((tool: NativeToolDefinition) => { tools.set(tool.name, tool); return () => { tools.delete(tool.name); }; });

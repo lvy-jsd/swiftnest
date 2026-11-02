@@ -2,6 +2,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use swiftnest_perch::i18n;
 use swiftnest_perch::{
     runtime::{Controller, Snapshot},
     store::Settings,
@@ -12,6 +13,31 @@ use tauri::Manager;
 struct DeviceState {
     core: Arc<Controller>,
     tray_ready: AtomicBool,
+    language_path: std::path::PathBuf,
+}
+#[tauri::command]
+fn set_language(
+    lang: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DeviceState>,
+) -> Result<(), Failure> {
+    if lang != "en" && lang != "zh-CN" {
+        return Err(Failure::new("BAD_ARGS", "Invalid language"));
+    }
+    let mut file = tempfile::NamedTempFile::new_in(state.language_path.parent().unwrap())
+        .map_err(Failure::from)?;
+    std::io::Write::write_all(&mut file, lang.as_bytes()).map_err(Failure::from)?;
+    file.persist(&state.language_path)
+        .map_err(|e| Failure::from(e.error))?;
+    i18n::set_language(&lang);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some(tray) = app.tray_by_id("perch-status") {
+        tray.set_menu(Some(
+            tray_menu(&app).map_err(|e| Failure::new("TRAY_UNAVAILABLE", e.to_string()))?,
+        ))
+        .map_err(|e| Failure::new("TRAY_UNAVAILABLE", e.to_string()))?;
+    }
+    Ok(())
 }
 fn desktop_only() -> Result<(), Failure> {
     if cfg!(any(target_os = "android", target_os = "ios")) {
@@ -73,9 +99,12 @@ async fn perch_pick_file(app: tauri::AppHandle) -> Result<Option<String>, Failur
     {
         use tauri_plugin_dialog::DialogExt;
         let (send, receive) = std::sync::mpsc::sync_channel(1);
-        app.dialog().file().pick_file(move |path| {
-            let _ = send.send(path);
-        });
+        app.dialog()
+            .file()
+            .set_title(i18n::text("pickFile"))
+            .pick_file(move |path| {
+                let _ = send.send(path);
+            });
         tauri::async_runtime::spawn_blocking(move || {
             receive
                 .recv()
@@ -103,9 +132,12 @@ async fn perch_pick_folders(app: tauri::AppHandle) -> Result<Vec<String>, Failur
     {
         use tauri_plugin_dialog::DialogExt;
         let (send, receive) = std::sync::mpsc::sync_channel(1);
-        app.dialog().file().pick_folders(move |paths| {
-            let _ = send.send(paths);
-        });
+        app.dialog()
+            .file()
+            .set_title(i18n::text("pickFolders"))
+            .pick_folders(move |paths| {
+                let _ = send.send(paths);
+            });
         tauri::async_runtime::spawn_blocking(move || {
             let paths = receive
                 .recv()
@@ -130,21 +162,24 @@ async fn perch_pick_folders(app: tauri::AppHandle) -> Result<Vec<String>, Failur
     }
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn tray(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::{
-        menu::{Menu, MenuItem},
-        tray::TrayIconBuilder,
-    };
-    let show = MenuItem::with_id(app, "show", "Open Swiftnest / 打开", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Swiftnest / 退出", true, None::<&str>)?;
+fn tray_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem};
+    let show = MenuItem::with_id(app, "show", i18n::text("native_237"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", i18n::text("native_238"), true, None::<&str>)?;
     let stop = MenuItem::with_id(
         app,
         "stop-view",
-        "Stop live view / 停止实时画面",
+        i18n::text("native_239"),
         true,
         None::<&str>,
     )?;
     let menu = Menu::with_items(app, &[&show, &stop, &quit])?;
+    Ok(menu)
+}
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::tray::TrayIconBuilder;
+    let menu = tray_menu(app.handle())?;
     let mut tray = TrayIconBuilder::with_id("perch-status")
         .menu(&menu)
         .tooltip("Swiftnest")
@@ -180,6 +215,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init());
     builder
         .invoke_handler(tauri::generate_handler![
+            set_language,
             perch_snapshot,
             perch_stop_view,
             perch_configure,
@@ -190,37 +226,69 @@ pub fn run() {
             perch_pick_folders
         ])
         .setup(|app| {
-            let core = Controller::open(app.path().app_data_dir()?.join("perch"))?;
+            let data_dir = app.path().app_data_dir()?;
+            let core = Controller::open(data_dir.join("perch"))?;
+            let language_path = data_dir.join("language");
+            if let Ok(lang) = std::fs::read_to_string(&language_path) {
+                i18n::set_language(lang.trim());
+            }
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             let tray_ready = tray(app).is_ok();
             #[cfg(any(target_os = "android", target_os = "ios"))]
             let tray_ready = false;
             core.set_indicator_ready(tray_ready);
             app.manage(DeviceState {
+                language_path,
                 core: core.clone(),
                 tray_ready: AtomicBool::new(tray_ready),
             });
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
-                let handle=app.handle().clone();
+                let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     use tauri_plugin_notification::NotificationExt;
                     core.resume().await;
-                    let mut was_watching=false;
+                    let mut was_watching = false;
                     loop {
-                        let snapshot=core.snapshot();let watching=snapshot.watching;
-                        if let Some(tray)=handle.tray_by_id("perch-status") {
-                            let title=if watching {"● Sharing desktop / 正在共享桌面"}else{"Swiftnest"};
-                            let _=tray.set_tooltip(Some(title));let _=tray.set_title(Some(if watching {"●"}else{""}));
-                            if watching!=was_watching {
+                        let snapshot = core.snapshot();
+                        let watching = snapshot.watching;
+                        if let Some(tray) = handle.tray_by_id("perch-status") {
+                            let title = if watching {
+                                i18n::text("native_240")
+                            } else {
+                                "Swiftnest".into()
+                            };
+                            let _ = tray.set_tooltip(Some(&title));
+                            let _ = tray.set_title(Some(if watching { "●" } else { "" }));
+                            if watching != was_watching {
                                 if watching {
-                                    let mut rgba=vec![0;32*32*4];for y in 0..32 {for x in 0..32 {if (x as i32-16).pow(2)+(y as i32-16).pow(2)<196 {let i=(y*32+x)*4;rgba[i..i+4].copy_from_slice(&[220,45,45,255]);}}}
-                                    let _=tray.set_icon(Some(tauri::image::Image::new_owned(rgba,32,32)));
-                                }else{let _=tray.set_icon(handle.default_window_icon().cloned());}
+                                    let mut rgba = vec![0; 32 * 32 * 4];
+                                    for y in 0..32 {
+                                        for x in 0..32 {
+                                            if (x as i32 - 16).pow(2) + (y as i32 - 16).pow(2) < 196
+                                            {
+                                                let i = (y * 32 + x) * 4;
+                                                rgba[i..i + 4].copy_from_slice(&[220, 45, 45, 255]);
+                                            }
+                                        }
+                                    }
+                                    let _ = tray.set_icon(Some(tauri::image::Image::new_owned(
+                                        rgba, 32, 32,
+                                    )));
+                                } else {
+                                    let _ = tray.set_icon(handle.default_window_icon().cloned());
+                                }
                             }
                         }
-                        if watching && !was_watching {let _=handle.notification().builder().title("Desktop sharing / 正在共享桌面").body("Your desktop is being viewed. Stop from the Swiftnest tray menu. / 可在托盘菜单停止共享。").show();}
-                        was_watching=watching;
+                        if watching && !was_watching {
+                            let _ = handle
+                                .notification()
+                                .builder()
+                                .title(i18n::text("native_241"))
+                                .body(i18n::text("native_242"))
+                                .show();
+                        }
+                        was_watching = watching;
                         tokio_pause().await;
                     }
                 });
@@ -239,7 +307,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("Could not start Swiftnest. Restart the app. / 无法启动 Swiftnest，请重启应用。")
+        .unwrap_or_else(|_| panic!("{}", i18n::text("native_243")))
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 let core = app.state::<DeviceState>().core.clone();

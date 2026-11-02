@@ -1,3 +1,4 @@
+import { ServerFailure } from './i18n.js';
 /** Server is an endpoint only for its own files. Device ↔ device relays never call this codec. */
 import {
   createHash,
@@ -61,7 +62,7 @@ export async function writeFully(
       data.length - offset,
       position + offset,
     );
-    if (!bytesWritten) throw new Error("File write made no progress");
+    if (!bytesWritten) throw new ServerFailure("File write made no progress");
     offset += bytesWritten;
   }
 }
@@ -79,7 +80,7 @@ export async function readFully(
       length - offset,
       position + offset,
     );
-    if (!bytesRead) throw new Error("Source truncated");
+    if (!bytesRead) throw new ServerFailure("Source truncated");
     offset += bytesRead;
   }
 }
@@ -107,7 +108,7 @@ export async function inspectFile(path: string): Promise<FileBinding["meta"]> {
   const file = await open(path, "r");
   try {
     const info = await file.stat();
-    if (!info.isFile()) throw new Error("Source must be a regular file");
+    if (!info.isFile()) throw new ServerFailure("Source must be a regular file");
     const buffer = Buffer.alloc(Math.min(1024 * 1024, info.size));
     await readFully(file, buffer, buffer.length, 0);
     return {
@@ -137,17 +138,17 @@ export class FileStorage {
   async allowed(raw: string) {
     const c = await this.guard.check(raw);
     if (!c.inside || c.secret || basename(c.real).startsWith(".swiftnest-"))
-      throw new Error("Protected or unshared server path");
+      throw new ServerFailure("Protected or unshared server path");
     // Refuse dangling links too (the shared TS guard predates the native check).
     if (
       (await lstat(c.path).catch(() => undefined))?.isSymbolicLink() &&
       !(await stat(c.path).catch(() => undefined))
     )
-      throw new Error("Dangling symlink");
+      throw new ServerFailure("Dangling symlink");
     return c.real;
   }
   journal(id: string) {
-    if (!/^[a-f0-9]{64}$/.test(id)) throw new Error("Invalid transfer id");
+    if (!/^[a-f0-9]{64}$/.test(id)) throw new ServerFailure("Invalid transfer id");
     return join(this.state, id + ".json");
   }
   async load(id: string): Promise<Journal> {
@@ -172,12 +173,12 @@ export class FileStorage {
         !Number.isSafeInteger(b.meta.size) ||
         b.meta.size < 0
       )
-        throw new Error("Invalid destination identity or size");
+        throw new ServerFailure("Invalid destination identity or size");
       const old = await this.load(transferId(b)).catch(() => undefined);
       if (old) return old;
       const target = await this.allowed(b.destinationPath);
       if (await lstat(target).catch(() => undefined))
-        throw new Error("Destination exists; choose another name");
+        throw new ServerFailure("Destination exists; choose another name");
       let used = 0;
       const walk = async (dir: string): Promise<void> => {
         for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -198,7 +199,7 @@ export class FileStorage {
         }
       }
       if (used + b.meta.size > this.quota)
-        throw new Error("Server files quota exceeded");
+        throw new ServerFailure("Server files quota exceeded");
       const temp = await open(await this.part(b), "wx", 0o600);
       await temp.sync();
       await temp.close();
@@ -269,7 +270,7 @@ export class FileCipher {
   }
   seal(flag: number, data: Uint8Array) {
     if (data.length > CHUNK || this.sent === 0xffffffffffffffffn)
-      throw new Error("File record limit");
+      throw new ServerFailure("File record limit");
     const header = Buffer.alloc(30);
     header[0] = 1;
     this.id.copy(header, 1);
@@ -297,7 +298,7 @@ export class FileCipher {
       b.readBigUInt64BE(17) !== this.received ||
       b.readUInt32BE(26) !== b.length - 46
     )
-      throw new Error("Invalid file record/replay");
+      throw new ServerFailure("Invalid file record/replay");
     const nonce = Buffer.alloc(12);
     b.copy(nonce, 4, 17, 25);
     const cipher = createDecipheriv("aes-256-gcm", this.receiveKey, nonce);
@@ -321,7 +322,7 @@ export function fileInbox(cipher: FileCipher, signal: AbortSignal) {
     bufferedAmount: 0,
     send(data) {
       try {
-        if (queue.length >= 2) throw new Error("File backpressure");
+        if (queue.length >= 2) throw new ServerFailure("File backpressure");
         queue.push(cipher.open(data));
         wake?.();
       } catch (e) {
@@ -355,11 +356,11 @@ export function fileInbox(cipher: FileCipher, signal: AbortSignal) {
     async get(): Promise<[number, Buffer]> {
       while (!queue.length) {
         if (closed || signal.aborted)
-          throw failure ?? new Error("File stream closed");
+          throw failure ?? new ServerFailure("File stream closed");
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(() => {
             wake = undefined;
-            reject(new Error("File stream timeout"));
+            reject(new ServerFailure("File stream timeout"));
           }, 1800000);
           wake = () => {
             clearTimeout(timer);
@@ -372,7 +373,7 @@ export function fileInbox(cipher: FileCipher, signal: AbortSignal) {
     },
     put(flag: number, data: Uint8Array) {
       signal.throwIfAborted();
-      if (closed || !out) throw new Error("File stream closed");
+      if (closed || !out) throw new ServerFailure("File stream closed");
       out(cipher.seal(flag, data));
     },
     close() {
@@ -393,7 +394,7 @@ async function prefix(file: FileHandle, size: number, check = () => {}) {
       Math.min(buf.length, size - offset),
       offset,
     );
-    if (!bytesRead) throw new Error("File truncated");
+    if (!bytesRead) throw new ServerFailure("File truncated");
     hash.update(buf.subarray(0, bytesRead));
     offset += bytesRead;
   }
@@ -410,13 +411,13 @@ export async function storageEndpoint(
   const control = async () => {
     const [flag, data] = await inbox.get();
     if (flag !== 4 || data.length > 8192)
-      throw new Error("Expected file control");
+      throw new ServerFailure("Expected file control");
     return JSON.parse(data.toString());
   };
   if (offer.sender) {
     const path = await storage.allowed(b.sourcePath);
     if (JSON.stringify(await inspectFile(path)) !== JSON.stringify(b.meta))
-      throw new Error("Source changed");
+      throw new ServerFailure("Source changed");
     const input = await open(path, "r");
     try {
       const ready = await control();
@@ -428,11 +429,11 @@ export async function storageEndpoint(
         offset > b.meta.size ||
         (offset !== b.meta.size && offset % CHUNK)
       )
-        throw new Error("Bad resume offset");
+        throw new ServerFailure("Bad resume offset");
       const hash = await prefix(input, offset, inbox.check);
       if (ready.prefix !== hash.copy().digest("hex")) {
         send({ type: "reset" });
-        throw new Error("Partial file hash changed");
+        throw new ServerFailure("Partial file hash changed");
       }
       const buffer = Buffer.alloc(CHUNK);
       while (offset < b.meta.size) {
@@ -454,24 +455,24 @@ export async function storageEndpoint(
             break;
           }
           if (ack.type !== "retry" || ack.offset !== offset)
-            throw new Error("Bad ACK");
+            throw new ServerFailure("Bad ACK");
         }
-        if (!accepted) throw new Error("Repeated bad chunk");
+        if (!accepted) throw new ServerFailure("Repeated bad chunk");
         hash.update(buffer.subarray(0, length));
         offset += length;
       }
       if (JSON.stringify(await inspectFile(path)) !== JSON.stringify(b.meta))
-        throw new Error("Source changed");
+        throw new ServerFailure("Source changed");
       send({ type: "finish", hash: hash.digest("hex") });
       if ((await control()).type !== "complete")
-        throw new Error("Final verification failed");
+        throw new ServerFailure("Final verification failed");
     } finally {
       await input.close();
     }
   } else {
     const j = await storage.load(transferId(b));
     if (JSON.stringify(j.binding) !== JSON.stringify(b))
-      throw new Error("Unapproved transfer");
+      throw new ServerFailure("Unapproved transfer");
     if (j.state === "complete") {
       send({ type: "complete", hash: j.hash });
       progress(j);
@@ -485,7 +486,7 @@ export async function storageEndpoint(
       const target = await open(await storage.allowed(b.destinationPath), "r");
       try {
         if ((await prefix(target, b.meta.size)).digest("hex") !== j.hash)
-          throw new Error("Committed file changed");
+          throw new ServerFailure("Committed file changed");
       } finally {
         await target.close();
       }
@@ -496,7 +497,7 @@ export async function storageEndpoint(
       return;
     }
     if ((await lstat(part)).isSymbolicLink())
-      throw new Error("Temporary file is a symlink");
+      throw new ServerFailure("Temporary file is a symlink");
     const output = await open(part, "r+");
     try {
       if ((await output.stat()).size < j.offset) j.offset = 0;
@@ -518,7 +519,7 @@ export async function storageEndpoint(
           await output.truncate(0);
           await output.sync();
           await storage.save(j);
-          throw new Error("Resume prefix reset");
+          throw new ServerFailure("Resume prefix reset");
         }
         if (msg.type === "finish") {
           if (
@@ -528,12 +529,12 @@ export async function storageEndpoint(
             j.offset = 0;
             j.state = "ready";
             await storage.save(j);
-            throw new Error("Whole-file hash mismatch");
+            throw new ServerFailure("Whole-file hash mismatch");
           }
           await output.sync();
           const target = await storage.allowed(b.destinationPath);
           if (await lstat(target).catch(() => undefined))
-            throw new Error("Destination exists");
+            throw new ServerFailure("Destination exists");
           j.state = "committing";
           j.hash = msg.hash;
           await storage.save(j);
@@ -551,7 +552,7 @@ export async function storageEndpoint(
           msg.length !== length ||
           !length
         )
-          throw new Error("Bad chunk");
+          throw new ServerFailure("Bad chunk");
         const [flag, data] = await inbox.get();
         if (flag !== 5 || data.length !== length || msg.hash !== digest(data)) {
           send({ type: "retry", offset: j.offset });

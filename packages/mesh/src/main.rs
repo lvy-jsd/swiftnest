@@ -18,6 +18,8 @@
 //!   MESH_TASK_ROOTS   (default: the home directory) comma-separated folders shared for task paths
 //!   MESH_TASK_DENY    (default empty) comma-separated extra paths refused for task paths
 
+use swiftnest_locale::owner_println as println;
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -47,7 +49,13 @@ fn env_or(name: &str, default: u16) -> u16 {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    if let Err(error) = run().await {
+        eprintln!("[MESH_FAILED] {}\n{}", swiftnest_locale::failure_message("MESH_FAILED", &error.to_string()), swiftnest_locale::text("retryHint"));
+        std::process::exit(1);
+    }
+}
+async fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

@@ -15,7 +15,7 @@ export async function startScreenFixture() {
   const processes:ChildProcessWithoutNullStreams[]=[];const errors:string[]=[];
   const launch=(bin:string,args:string[],env=process.env) => {const child=spawn(bin,args,{env});processes.push(child);child.stderr.on('data',data=>errors.push(String(data)));return child;};
   const env={...process.env,XDG_RUNTIME_DIR:runtime,XDG_CONFIG_HOME:config,WLR_BACKENDS:'headless',WLR_HEADLESS_OUTPUTS:'1',WLR_RENDERER:'pixman',LIBGL_ALWAYS_SOFTWARE:'1',DBUS_SESSION_BUS_ADDRESS:'',WAYLAND_DISPLAY:'',DISPLAY:''};
-  const hub=await startDevices(loadConfig(undefined,{SWIFTNEST_HOME:join(home,'server'),SWIFTNEST_DEVICES_HOST:'127.0.0.1',SWIFTNEST_DEVICES_PORT:'0',SWIFTNEST_DEVICES_MDNS:'false'}));
+  const hub=await startDevices(loadConfig(undefined,{SWIFTNEST_LANG:"en",SWIFTNEST_HOME:join(home,'server'),SWIFTNEST_DEVICES_HOST:'127.0.0.1',SWIFTNEST_DEVICES_PORT:'0',SWIFTNEST_DEVICES_MDNS:'false'}));
   const admission={admit:(req:{headers:import('node:http').IncomingHttpHeaders}) => req.headers.authorization==='Bearer owner-session' ? {peer:{principal:{kind:'owner'}}} : {rejection:403}};
   const handler=deviceProxy(admission,hub.env[ADMIN_URL_ENV],hub.env[ADMIN_TOKEN_ENV]);
   const upgrade=liveUpgrade(admission,hub.env[ADMIN_URL_ENV],hub.env[ADMIN_TOKEN_ENV]);

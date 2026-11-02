@@ -1,3 +1,4 @@
+import { ServerFailure } from './i18n.js';
 /**
  * Runs the pinned DSH kernel as a child process on the `swiftnest` profile and
  * reports the URL it serves. A child process keeps DSH's own lifecycle,
@@ -98,6 +99,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       ...process.env,
       ...opts.env,
       ...devices.env,
+      SWIFTNEST_LANG: config.lang ?? "zh-CN",
       DSH_HOME: dshHome(config),
       SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
@@ -122,7 +124,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
   return new Promise<RunningKernel>((resolveStart, rejectStart) => {
     let settled = false;
     const tail: string[] = [];
-    const timer = setTimeout(() => fail(new Error("DSH kernel did not report ready in time")), opts.readyTimeoutMs ?? 60_000);
+    const timer = setTimeout(() => fail(new ServerFailure("DSH kernel did not report ready in time")), opts.readyTimeoutMs ?? 60_000);
     const fail = (err: Error) => {
       if (settled) return;
       settled = true;
@@ -130,7 +132,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       const hint = tail.some((l) => l.includes("node-addon-require-builtin"))
         ? "\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary."
         : "";
-      void stop().then(() => rejectStart(new Error(`${err.message}${hint}\n--- kernel output ---\n${tail.join("\n")}`)));
+      void stop().then(() => rejectStart(new ServerFailure(`${err.message}${hint}\n--- kernel output ---\n${tail.join("\n")}`)));
     };
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/\r?\n/)) {
@@ -149,6 +151,6 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     child.stdout?.on("data", onData);
     child.stderr?.on("data", onData);
     child.once("error", fail);
-    child.once("exit", (code, signal) => fail(new Error(`DSH kernel exited (${signal ?? code})`)));
+    child.once("exit", (code, signal) => fail(new ServerFailure(`DSH kernel exited (${signal ?? code})`)));
   });
 }
