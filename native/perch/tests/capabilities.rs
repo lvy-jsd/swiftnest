@@ -210,52 +210,14 @@ async fn files_guards_and_risk_cases() {
 fn shell_classification_and_tokenizer_cases() {
     let home = dirs::home_dir().unwrap();
     let guard = PathGuard::new(vec![home], vec![]);
-    for (command, risk) in [
-        ("echo ok", Risk::Read),
-        ("df -h", Risk::Read),
-        ("grep -n \"a b\" file.txt", Risk::Read),
-        ("cat rm.txt", Risk::Read),
-        ("head -n 5 notes.txt", Risk::Read),
-        ("ls | wc -l", Risk::Exec),
-        ("echo hi > out.txt", Risk::Exec),
-        ("ls ~/projects", Risk::Exec),
-        ("python3 script.py", Risk::Exec),
-        ("rm -rf /", Risk::Sensitive),
-        ("ls; rm -rf ~", Risk::Sensitive),
-        ("sudo ls", Risk::Sensitive),
-        ("mkfs.ext4 /dev/sda1", Risk::Sensitive),
-        ("find . -name x -delete", Risk::Sensitive),
-        ("/usr/bin/shutdown now", Risk::Sensitive),
-        ("echo \"unbalanced", Risk::Exec),
-        ("cat .ssh/id_rsa", Risk::Sensitive),
-        ("cat /etc/passwd", Risk::Exec),
-        ("ls -la /tmp", Risk::Exec),
-        ("cat notes.txt", Risk::Read),
-        ("git status", Risk::Exec),
-        ("find . -fprintf out.txt %p", Risk::Sensitive),
-        ("find . -fls out.txt", Risk::Sensitive),
-        ("sort notes.txt", Risk::Read),
-        ("sort -r -k 2 notes.txt", Risk::Read),
-        ("sort -o/tmp/pwned notes.txt", Risk::Exec),
-        ("sort -ro out.txt notes.txt", Risk::Exec),
-        ("sort --output=out.txt notes.txt", Risk::Exec),
-        ("sort --compress-program=sh notes.txt", Risk::Exec),
-        ("date", Risk::Read),
-        ("date +%F", Risk::Read),
-        ("date -d \"next monday\" +%F", Risk::Read),
-        ("date -s 2020-01-01", Risk::Exec),
-        ("date --set=2020-01-01", Risk::Exec),
-        ("date 010100002020", Risk::Exec),
-        ("uniq notes.txt", Risk::Read),
-        ("uniq -f 1 notes.txt", Risk::Read),
-        ("uniq notes.txt out.txt", Risk::Exec),
-        ("hostname", Risk::Read),
-        ("hostname -I", Risk::Read),
-        ("hostname evil", Risk::Exec),
-        ("file -C -m magic", Risk::Exec),
-    ] {
+    // Shared with cap-shell's TypeScript tests, so both classifiers stay in step.
+    let cases: Vec<(String, Risk)> = serde_json::from_str(include_str!(
+        "../../../plugins/cap-shell/test/classification-cases.json"
+    ))
+    .unwrap();
+    for (command, risk) in cases {
         assert_eq!(
-            classify_command(command, READ_ONLY, &guard).risk,
+            classify_command(&command, &READ_ONLY, &guard).risk,
             risk,
             "{command}"
         );

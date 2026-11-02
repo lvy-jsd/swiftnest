@@ -1,0 +1,49 @@
+{
+  "$comment": "Single source of truth for shell risk classification. Read by @swiftnest/cap-shell (TypeScript) and swiftnest-perch (Rust, via include_str!). Shared test cases: plugins/cap-shell/test/classification-cases.json.",
+  "readOnly": [
+    "echo", "pwd", "whoami", "id", "hostname", "uname", "date", "uptime", "ls", "cat", "head", "tail", "wc",
+    "df", "du", "free", "ps", "which", "file", "stat", "grep", "sort", "uniq", "true", "nproc", "lscpu"
+  ],
+  "destructive": [
+    "rm", "rmdir", "dd", "shred", "mkfs", "fdisk", "parted", "wipefs", "shutdown", "reboot", "poweroff", "halt",
+    "kill", "killall", "pkill", "sudo", "su", "doas", "chmod", "chown", "chattr", "mount", "umount", "iptables",
+    "nft", "systemctl", "crontab", "passwd", "useradd", "userdel"
+  ],
+  "fileReading": [
+    "cat", "head", "tail", "less", "more", "wc", "grep", "egrep", "fgrep", "file", "stat", "ls", "du", "find",
+    "sort", "uniq", "diff", "cmp", "md5sum", "sha1sum", "sha256sum", "cksum", "od", "xxd", "strings", "base64",
+    "readlink", "realpath"
+  ],
+  "shellOperators": ";&|`$<>(){}\n\\*?~",
+  "findWrites": ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"],
+  "writingInvocations": {
+    "sort": {
+      "shortFlags": "o",
+      "longFlags": ["--output", "--compress-program"],
+      "reason": "sort -o/--output writes a file and --compress-program runs a program"
+    },
+    "date": {
+      "shortFlags": "s",
+      "longFlags": ["--set"],
+      "valueFlags": ["-d", "--date", "-r", "--reference", "-f", "--file"],
+      "positionalPrefix": "+",
+      "reason": "date -s/--set or a time argument changes the system clock"
+    },
+    "uniq": {
+      "valueFlags": ["-f", "--skip-fields", "-s", "--skip-chars", "-w", "--check-chars"],
+      "maxPositionals": 1,
+      "reason": "uniq with a second file writes its output there"
+    },
+    "hostname": {
+      "shortFlags": "Fb",
+      "longFlags": ["--file", "--boot"],
+      "maxPositionals": 0,
+      "reason": "hostname with an argument changes the host name"
+    },
+    "file": {
+      "shortFlags": "C",
+      "longFlags": ["--compile"],
+      "reason": "file -C compiles and writes a magic file"
+    }
+  }
+}

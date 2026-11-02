@@ -62,7 +62,7 @@
   "native_64": "运行“{program}”可能删除数据或更改系统",
   "native_65": "无法解析命令",
   "native_66": "使用了 shell 操作符（管道、重定向、通配符或替换）",
-  "native_67": "find 的 -delete/-exec 参数可修改文件",
+  "native_67": "find 的 -delete/-exec/-fprint 参数可修改文件",
   "native_68": "“{program} {arg}”读取受保护位置（{}）",
   "native_69": "“{program} {arg}”读取共享文件夹以外的位置（{}）",
   "native_70": "“{program}”在只读命令列表中",
@@ -349,5 +349,10 @@
   "delivered": "已送达",
   "resumed": "已继续",
   "started": "已开始",
-  "invalidLanguage": "语言无效，请选择简体中文或 English"
+  "invalidLanguage": "语言无效，请选择简体中文或 English",
+  "native_244": "sort 的 -o/--output 会写文件，--compress-program 会运行程序",
+  "native_245": "date 的 -s/--set 或时间参数会修改系统时钟",
+  "native_246": "uniq 带第二个文件时会把结果写进去",
+  "native_247": "hostname 带参数时会修改主机名",
+  "native_248": "file -C 会编译并写出 magic 文件"
 }
