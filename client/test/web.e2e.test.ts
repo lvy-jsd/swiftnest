@@ -165,18 +165,21 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     await second.screenshot({ path: 'client/test/screenshots/language-zh-CN-390.png', animations: 'disabled' });
     await second.close();
     expect(errors).toEqual([]);
-    // A phone viewport and a keyboard-sized resize keep the composer visible.
+    // A phone viewport and a keyboard-sized resize keep the composer visible. The language dance above left the
+    // first page on the chat list in Chinese, so reopen the chat and find the composer in either language.
+    await page.getByRole('link', { name: /Hello from Swiftnest/ }).first().click();
+    const phoneComposer = page.getByRole('textbox', { name: /^(Write a message|输入消息)$/ });
     for (const height of [844, 440]) {
       await page.setViewportSize({ width: 390, height });
-      await composer.focus();
-      const rect = await composer.boundingBox();
+      await phoneComposer.focus();
+      const rect = await phoneComposer.boundingBox();
       expect(rect).not.toBeNull();
       expect(rect!.y).toBeGreaterThanOrEqual(0);
       expect(rect!.y + rect!.height).toBeLessThanOrEqual(height);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
     }
-    await page.getByRole('button', { name: 'Go back' }).click();
-    await page.getByRole('button', { name: 'Open preferences' }).click();
+    await page.getByRole('button', { name: /^(Go back|返回)$/ }).click();
+    await page.getByRole('button', { name: /^(Open preferences|打开偏好设置)$/ }).click();
     await page.getByRole('dialog').waitFor({ state: 'visible' });
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
