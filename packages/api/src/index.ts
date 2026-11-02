@@ -75,6 +75,9 @@ export class SwiftnestClient {
     if (!response.ok) throw new ApiError('http-error', `Health returned HTTP ${response.status}`);
     return await response.json() as Health;
   }
+  listTransfers(): Promise<import('./devices.js').Transfer[]> { return this.deviceRequest('/transfers'); }
+  startTransfer(request: import('./devices.js').TransferRequest): Promise<import('./devices.js').Transfer> { return this.deviceRequest('/transfers', 'POST', undefined, request); }
+  transferAction(id: string, action: 'pause'|'resume'|'cancel'|'retry'): Promise<import('./devices.js').Transfer> { return this.deviceRequest(`/transfers/${encodeURIComponent(id)}/${action}`, 'POST'); }
   listDevices(): Promise<Device[]> { return this.deviceRequest(''); }
   async openLiveView(device: string, options: { maxDimension?: number; displayId?: string; signal?: AbortSignal } = {}): Promise<LiveView> {
     this.assertConnected();
@@ -135,7 +138,7 @@ export class SwiftnestClient {
               const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
               if (!data) continue;
               const event = JSON.parse(data) as DeviceEvent;
-              if (!['devices-changed', 'approval-pending', 'approvals-changed', 'pairing-changed'].includes(event.type)) throw new ApiError('protocol-error', 'Unknown device event');
+              if (!['devices-changed', 'approval-pending', 'approvals-changed', 'pairing-changed', 'transfers-changed'].includes(event.type)) throw new ApiError('protocol-error', 'Unknown device event');
               inbox.push(event);
             }
           }
@@ -146,9 +149,9 @@ export class SwiftnestClient {
       return inbox;
     } catch (error) { signal.removeEventListener('abort', onAbort); abort.abort(); throw error; }
   }
-  private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal): Promise<T> {
+  private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
     this.assertConnected();
-    const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method, signal });
+    const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method, signal, ...(body === undefined ? {} : {headers:{"content-type":"application/json"},body:JSON.stringify(body)}) });
     if (!response.ok) throw new ApiError(response.status === 409 ? 'device-conflict' : 'http-error', `Device API returned HTTP ${response.status}`);
     return await response.json() as T;
   }

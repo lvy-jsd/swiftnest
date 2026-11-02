@@ -108,6 +108,14 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
     }
     return response;
   };
+  for (const [toolName,description,parameters,execute] of [
+    ['transfer_file','Start a large file transfer between paired devices or server storage. Returns immediately with a transfer id; device writes wait for owner approval.', {type:'object',properties:{source:{type:'object',properties:{device:{type:'string'},path:{type:'string'}},required:['device','path'],additionalProperties:false},destination:{type:'object',properties:{device:{type:'string'},path:{type:'string'}},required:['device','path'],additionalProperties:false},routing:{type:'string',enum:['auto','relay']}},required:['source','destination'],additionalProperties:false}, (args:unknown,exec:Execution)=>request('/transfers',{method:'POST',body:JSON.stringify(args),signal:exec.signal})],
+    ['transfer_status','List file transfer progress and ids.',{type:'object',properties:{},additionalProperties:false}, (_args:unknown,exec:Execution)=>request('/transfers',{signal:exec.signal})],
+    ['transfer_cancel','Cancel a file transfer by id.',{type:'object',properties:{id:{type:'string',pattern:'^[a-f0-9]{64}$'}},required:['id'],additionalProperties:false}, (args:unknown,exec:Execution)=>request(`/transfers/${encodeURIComponent((args as {id:string}).id)}/cancel`,{method:'POST',signal:exec.signal})],
+  ] as const) {
+    const dispose=ctx.tools.register({name:toolName,description,parameters,output:{schema:{type:'object',properties:{text:{type:'string'},data:{}},required:['text']},render:(_args,value)=>[{type:'text',text:value.text}]},execute:async(args,exec)=>{const data=await (await execute(args,exec)).json();return {text:JSON.stringify(data),data};}});
+    ctx.effect(()=>dispose,`swiftnest-devices: ${toolName}`);
+  }
   const invoke = async (tool: NativeDeviceTool, args: unknown, exec: Execution) => {
     let task: DeviceTask | undefined;
     try {

@@ -72,7 +72,7 @@ it('provides list/currentFor, emits pairing/online/offline/revocation, retains t
   t.emit.mockClear();
   await t.hub.nest.revoke('laptop');
   await expect.poll(() => t.service.list()).toEqual([]);
-  expect(t.tools.size).toBe(0);
+  expect([...t.tools.keys()].sort()).toEqual(['transfer_cancel','transfer_file','transfer_status']);
   expect(t.emit).toHaveBeenCalledWith('swiftnest/devices-changed', { slugs: ['laptop'] });
 });
 

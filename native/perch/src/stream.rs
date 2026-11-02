@@ -23,6 +23,7 @@ pub struct Offer {
     pub max_frame: usize,
     pub max_dimension: u32,
     pub display_id: String,
+    pub file: Option<crate::transfer::FileOffer>,
 }
 impl Offer {
     pub fn verify(&self, root: &[u8; 32]) -> Result<()> {
@@ -35,7 +36,8 @@ impl Offer {
                 .id
                 .bytes()
                 .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-            || self.purpose != "screen"
+            || !matches!(self.purpose.as_str(), "screen" | "file")
+            || (self.purpose == "file" && self.file.is_none())
             || self.direction != "duplex"
             || self.transport_candidates != ["websocket-relay-v1"]
             || self.max_frame < 1024

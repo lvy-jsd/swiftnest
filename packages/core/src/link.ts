@@ -8,6 +8,8 @@ import type { Perch } from "./perch.js";
 
 export interface PerchConnection {
   readonly device: string;
+  /** Nest-owned endpoint, excluded from the paired-device directory and agent catalog. */
+  readonly internal?: boolean;
   readonly publicKey: string;
   /** Which link plugin carries it ("memory", "lan", "relay", "headscale"…), shown in the panel. */
   readonly via: string;
@@ -15,6 +17,7 @@ export interface PerchConnection {
   classify(capability: string, tool: string, args: Record<string, unknown>): Promise<{ risk: Risk; reason?: string }>;
   invoke(req: Omit<z.infer<typeof InvokeRequest>, "type">): Promise<z.infer<typeof InvokeResult>>;
   openOwnerStream?(options: { maxDimension: number; displayId: string }): Promise<import("./streams.js").StreamOffer>;
+  openFileStream?(options: import("./streams.js").FileStreamOptions): Promise<import("./streams.js").StreamOffer>;
   cancel(taskId: string): void;
   onCapabilitiesChanged(fn: () => void): () => void;
   onClose(fn: () => void): () => void;

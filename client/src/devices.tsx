@@ -1,16 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
-import type { Device, DeviceApproval, DevicePairing, DevicePairingCandidate } from '@swiftnest/api';
+import type { Device, DeviceApproval, DevicePairing, DevicePairingCandidate, Transfer } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { Button } from './components/Button';
 import { Card } from './components/Card';
 import { HubPage, SheetPage } from './components/pages';
+import { SendFile } from './transfers';
 import { ThisDevice } from './thisDevice';
 import { VirtualList } from './components/VirtualList';
 
 type Hub = {
-  devices: Device[]; approvals: DeviceApproval[]; candidates: DevicePairingCandidate[];
+  transfers: Transfer[]; devices: Device[]; approvals: DeviceApproval[]; candidates: DevicePairingCandidate[];
   error: boolean; busy: boolean;
   act: (action: () => Promise<unknown>) => Promise<boolean>;
 };
@@ -18,6 +19,7 @@ const Context = createContext<Hub | null>(null);
 export function DeviceHubProvider({ children }: PropsWithChildren) {
   const { store, status } = useConnection();
   const client = status === 'connected' ? store.client : undefined;
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [approvals, setApprovals] = useState<DeviceApproval[]>([]);
   const [candidates, setCandidates] = useState<DevicePairingCandidate[]>([]);
@@ -27,14 +29,14 @@ export function DeviceHubProvider({ children }: PropsWithChildren) {
   const refresh = useCallback(async () => {
     if (!client) return;
     const version = ++refreshVersion.current;
-    const [d, a, p] = await Promise.all([client.listDevices(), client.listDeviceApprovals(), client.listDevicePairings()]);
+    const [d, a, p, transfers] = await Promise.all([client.listDevices(), client.listDeviceApprovals(), client.listDevicePairings(), client.listTransfers()]);
     if (store.client !== client || version !== refreshVersion.current) return;
     await store.updateDeviceContext(d);
     if (store.client !== client || version !== refreshVersion.current) return;
-    setDevices(d); setApprovals(a); setCandidates(p); setError(false);
+    setTransfers(transfers); setDevices(d); setApprovals(a); setCandidates(p); setError(false);
   }, [client, store]);
   useEffect(() => {
-    setDevices([]); setApprovals([]); setCandidates([]); setError(false);
+    setTransfers([]); setDevices([]); setApprovals([]); setCandidates([]); setError(false);
     if (!client) return;
     const abort = new AbortController();
     let retry: ReturnType<typeof setTimeout>;
@@ -59,7 +61,7 @@ export function DeviceHubProvider({ children }: PropsWithChildren) {
     catch { if (store.client === client) setError(true); return false; }
     finally { setBusy(false); }
   };
-  return <Context value={{ devices, approvals, candidates, error, busy, act }}>{children}</Context>;
+  return <Context value={{ transfers, devices, approvals, candidates, error, busy, act }}>{children}</Context>;
 }
 export function useDevices() { const value = useContext(Context); if (!value) throw new Error('DeviceHubProvider required'); return value; }
 
@@ -100,6 +102,8 @@ export function DevicesPage({ onBack }: { onBack: () => void }) {
   const active = pairing && Date.parse(pairing.expiresAt) > now;
   return <HubPage title={t('devices')} subtitle={t('devicesHelp')} onBack={onBack}>
     <ThisDevice />
+    <a href="#/transfers">{t("transfers")}</a>
+    <SendFile />
     {status !== 'connected' ? <a href="#/pair">{t('pair')}</a> : <Button variant="primary" disabled={busy} onClick={() => void act(async () => setPairing(await store.client!.createDevicePairing()))}>{t('pairDevice')}</Button>}
     {pairing && <Card className="device-card" aria-label={t('pairDevice')}>
       <h2>{t(active ? 'pairingCode' : 'pairingExpired')}</h2>
@@ -118,6 +122,7 @@ export function DevicesPage({ onBack }: { onBack: () => void }) {
       <p><code>{d.fingerprint}</code></p>
       {d.lastSeen && <p>{t('lastSeen')}: {new Date(d.lastSeen).toLocaleString(locale)}</p>}
       <p>{t('capabilities')}: {d.capabilities.map(c => `${c.id} (${c.tools.join(', ')})`).join(' · ') || t('none')}</p>
+      <SendFile source={d.slug} />
       <Button disabled={busy} onClick={() => setRevoking(d)}>{t('revokeDevice')}</Button>
     </Card>} />
     <SheetPage open={!!revoking} title={t('revokeDevice')} onClose={() => setRevoking(undefined)} actions={<><Button onClick={() => setRevoking(undefined)}>{t('cancel')}</Button><Button variant="primary" disabled={busy} onClick={() => revoking && void act(() => store.client!.revokeDevice(revoking.device)).then(ok => { if (ok) setRevoking(undefined); })}>{t('revokeDevice')}</Button></>}>
