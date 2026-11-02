@@ -1,3 +1,4 @@
+import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent, PointerEvent } from 'react';
@@ -141,6 +142,7 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
   return <DetailPage title={sessions.find(s => s.sessionId === sessionId)?.title || t('untitledChat')} subtitle={root || t(status)} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}><Options size={24} /></Button>}>
     <ConnectionStatus />
     <DeviceApprovals compact />
+    <LiveDeviceButton />
     <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
     <div className="composer-area glass">{state.waiting && <Thinking />}<p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p><form className="composer" onSubmit={send}>
       <textarea aria-label={t('composer')} placeholder={t('composer')} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
@@ -207,6 +209,7 @@ function AppContent() {
           <ConnectionStatus />
           <a className="devices-link" href="#/devices">{t("devices")}</a>
           <DeviceApprovals compact />
+    <LiveDeviceButton />
           {status === 'connected' && <Button variant="primary" disabled={creating} onClick={() => void newChat()}>{t('newChat')}</Button>}
           <label className="search-field"><input type="search" value={query} placeholder={t('search')} aria-label={t('search')} onChange={event => setQuery(event.target.value)} /></label>
           {visibleChats.length ? <VirtualList items={visibleChats} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} />} /> : <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>}

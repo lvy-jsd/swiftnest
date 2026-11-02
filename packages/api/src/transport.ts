@@ -21,8 +21,8 @@ export class Inbox<T> implements AsyncIterableIterator<T> {
   private wake?: () => void;
   private ended = false;
   private failure?: Error;
-  constructor(private readonly dispose: () => void = () => {}) {}
-  push(item: T): void { if (!this.ended) { this.items.push(item); this.wake?.(); } }
+  constructor(private readonly dispose: () => void = () => {}, private readonly capacity = Infinity) {}
+  push(item: T): void { if (!this.ended) { if (this.items.length >= this.capacity) this.items.shift(); this.items.push(item); this.wake?.(); } }
   end(error?: Error): void { this.ended = true; this.failure = error; this.wake?.(); }
   close(): void { this.items = []; this.end(); this.dispose(); }
   [Symbol.asyncIterator](): AsyncIterableIterator<T> { return this; }

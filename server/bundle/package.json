@@ -5,12 +5,35 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    "./native-devices": { "types": "./dist/native-devices.d.ts", "default": "./dist/native-devices.js" },
-    "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
+    "./native-devices": {
+      "types": "./dist/native-devices.d.ts",
+      "default": "./dist/native-devices.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["dist", "cordis.patch.yml"],
-  "scripts": { "build": "tsc -b" },
-  "dsh": { "bundle": { "patch": ["./cordis.patch.yml"] } }
+  "files": [
+    "dist",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./cordis.patch.yml"
+      ]
+    }
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
+  }
 }

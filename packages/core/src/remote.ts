@@ -180,7 +180,7 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
   if (record && ((h.kind && record.kind !== h.kind) || (h.name && record.name !== h.name))) {
     await o.devices.add({ ...record, kind: h.kind ?? record.kind, name: h.name ?? record.name });
   }
-  const conn = remoteConnection(channel, box, { device, publicKey: key, via: o.via, capabilities: h.capabilities, logger });
+  const conn = remoteConnection(channel, box, { device, publicKey: key, via: o.via, capabilities: h.capabilities, extensions: h.extensions, nest, logger });
   try {
     nest.attach(conn);
   } catch (e) {
@@ -195,7 +195,7 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
 function remoteConnection(
   channel: SecureChannel,
   box: ReturnType<typeof mailbox>,
-  o: { device: string; publicKey: string; via: string; capabilities: CapabilityManifest[]; logger: Logger },
+  o: { device: string; publicKey: string; via: string; capabilities: CapabilityManifest[]; extensions?: string[]; nest: Nest; logger: Logger },
 ): PerchConnection {
   let caps = o.capabilities;
   let seq = 0;
@@ -207,6 +207,8 @@ function remoteConnection(
 
   box.handle((m) => {
     switch (m.type) {
+      case "stream_accept": o.nest.streams.accept(m.id, channel); return;
+      case "stream_close": o.nest.streams.close(m.id, channel, m.reason); return;
       case "result":
         results.get(m.taskId)?.(m);
         results.delete(m.taskId);
@@ -230,6 +232,7 @@ function remoteConnection(
   });
   box.onClose(() => {
     closed = true;
+    o.nest.streams.closeParent(channel);
     const offline = new SwiftnestFailure("DEVICE_OFFLINE", `${o.device} went offline.`, "Check that the device is running and on the network, then retry.", true).toJSON();
     for (const [taskId, done] of results) done({ type: "result", taskId, ok: false, error: offline });
     results.clear();
@@ -248,6 +251,7 @@ function remoteConnection(
     publicKey: o.publicKey,
     via: o.via,
     capabilities: () => caps,
+    ...(o.extensions?.includes("streams-v1") ? { openOwnerStream: (options: { maxDimension: number; displayId: string }) => o.nest.streams.open(channel, options) } : {}),
     classify(capability, tool, args) {
       const requestId = `c${++seq}`;
       return new Promise((resolve, reject) => {

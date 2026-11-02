@@ -1,3 +1,5 @@
+import { LiveView } from './live.js';
+export * from './live.js';
 import type { Device, DeviceApproval, DeviceAuditEntry, DevicePairing, DevicePairingCandidate, DeviceEvent, DeviceSubscription } from './devices.js';
 export type * from './devices.js';
 import type { SessionFollowFrame, SessionListValue, SessionCreateValue, SessionPromptValue } from '@deepseek-ai/dsh-api-session-controller/types';
@@ -74,6 +76,22 @@ export class SwiftnestClient {
     return await response.json() as Health;
   }
   listDevices(): Promise<Device[]> { return this.deviceRequest(''); }
+  async openLiveView(device: string, options: { maxDimension?: number; displayId?: string; signal?: AbortSignal } = {}): Promise<LiveView> {
+    this.assertConnected();
+    if(this.root?.protocol!=='https:' && !['localhost','127.0.0.1','[::1]'].includes(this.root?.hostname ?? '')) throw new ApiError('tls-required','Use an HTTPS server connection for live view');
+    if(!globalThis.crypto?.subtle) throw new ApiError('secure-context-required','Live view requires a secure App context');
+    const query=new URLSearchParams({device,maxDimension:String(options.maxDimension ?? 1280),displayId:options.displayId ?? ''});
+    const offer=await this.deviceRequest<import('./live.js').LiveOffer>(`/live?${query}`,'POST',options.signal);
+    options.signal?.throwIfAborted();
+    const url=this.url(`swiftnest/api/devices/live?id=${encodeURIComponent(offer.id)}`);url.protocol=url.protocol==='https:'?'wss:':'ws:';
+    const socket=this.options.createWebSocket ? this.options.createWebSocket(url.href,{headers:this.headers()}) : new WebSocket(url.href);
+    if ('binaryType' in socket) socket.binaryType='arraybuffer';
+    const signal=AbortSignal.any([this.lifetime.signal,...(options.signal?[options.signal]:[])]);
+    const close=() => socket.close();signal.addEventListener('abort',close,{once:true});
+    try {const live=await LiveView.open(socket,offer,this.timeoutMs);void live.closed.then(()=>signal.removeEventListener('abort',close));return live;}
+    catch(error){signal.removeEventListener('abort',close);socket.close();throw error;}
+  }
+
   createDevicePairing(): Promise<DevicePairing> { return this.deviceRequest('/pairing', 'POST'); }
   listDevicePairings(): Promise<DevicePairingCandidate[]> { return this.deviceRequest('/pairing'); }
   confirmDevicePairing(id: string, accept: boolean): Promise<{ id: string }> {
@@ -128,9 +146,9 @@ export class SwiftnestClient {
       return inbox;
     } catch (error) { signal.removeEventListener('abort', onAbort); abort.abort(); throw error; }
   }
-  private async deviceRequest<T>(path: string, method = 'GET'): Promise<T> {
+  private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal): Promise<T> {
     this.assertConnected();
-    const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method });
+    const response = await this.request(this.url(`swiftnest/api/devices${path}`), { method, signal });
     if (!response.ok) throw new ApiError(response.status === 409 ? 'device-conflict' : 'http-error', `Device API returned HTTP ${response.status}`);
     return await response.json() as T;
   }
@@ -293,7 +311,7 @@ export class SwiftnestClient {
   private url(path: string): URL { if (!this.root) throw new ApiError('not-connected', 'Connect the client first'); return new URL(path, this.root); }
   private headers(): Record<string, string> { return this.manualCookies && this.cookie ? { cookie: this.cookie } : {}; }
   private request(url: URL, init: RequestInit = {}): Promise<Response> {
-    return this.doFetch(url, { ...init, credentials: 'include', headers: { ...this.headers(), ...init.headers }, signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(this.timeoutMs)]) });
+    return this.doFetch(url, { ...init, credentials: 'include', headers: { ...this.headers(), ...init.headers }, signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(this.timeoutMs), ...(init.signal ? [init.signal] : [])]) });
   }
   private async rpc<T>(endpoint: string, args: unknown): Promise<T> {
     this.assertConnected();

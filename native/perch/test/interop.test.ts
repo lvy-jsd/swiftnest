@@ -45,7 +45,7 @@ it.skipIf(process.env.SWIFTNEST_PERCH_E2E !== '1')('TS Nest ↔ Rust Perch: code
     const device = nest.devices()[0]!.device;
     expect(nest.devicesStore.get(device)?.name).toBe('Rust laptop');
     expect(nest.tools().map(t=>t.name)).toContain(`${device}__files__read`);
-    expect(nest.tools()).toHaveLength(8);
+    expect(nest.tools()).toHaveLength(16);
     const slug = nest.devicesStore.get(device)!.slug;
     send({op:'start',settings:{...last().settings,name:'Renamed Rust laptop'}});
     await wait(()=>last()?.phase==='online' && nest.devicesStore.get(device)?.name==='Renamed Rust laptop');

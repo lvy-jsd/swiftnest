@@ -38,7 +38,10 @@ included in the Nix development shell. Missing sandboxes fail closed. macOS uses
 until a filesystem-isolating executor is available (the selected command syntax is `cmd.exe /D /S /C`).
 Approved commands still cannot use user files outside shared folders. Shell access includes the read-only
 system programs/libraries necessary to run commands. Output is capped at 64 KiB; file reads at 512 KiB.
-Screen capture, keyboard/pointer control, live view, take-over and large file transfer are future work.
+Screen capture and approved keyboard/pointer tools are available when the tray is working. Enable the
+separate, default-off **Allow live view** toggle for owner viewing and take-over. See
+[Live view and take-over](./live-view) for dependencies, gestures and platform validation limits.
+Resumable large file transfer remains E2c.
 
 Local pairing data and the private device key are under the Tauri App data directory's `perch/` folder.
 Keep this directory private. OS file permissions protect the seed; keyring integration is planned.

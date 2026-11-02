@@ -3,8 +3,10 @@ use crate::{
     channel::{is_final, Channel},
     files::Files,
     paths::PathGuard,
+    screen::{Desktop, InputCapability, ScreenCapability},
     shell::Shell,
     store::{fingerprint, public_key, Settings, Store},
+    stream::Offer,
     Failure, Result,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -33,6 +35,8 @@ pub struct Snapshot {
     pub error: Option<Failure>,
     pub desktop: bool,
     pub confirmation_pending: bool,
+    pub watching: bool,
+    pub owner_control: bool,
 }
 struct Live {
     phase: String,
@@ -48,6 +52,8 @@ pub struct Controller {
     store: Arc<Mutex<Store>>,
     live: Arc<Mutex<Live>>,
     run: AsyncMutex<Option<Run>>,
+    desktop: Arc<Mutex<Arc<Desktop>>>,
+    indicator_ready: std::sync::atomic::AtomicBool,
 }
 impl Controller {
     pub fn open(dir: impl AsRef<Path>) -> Result<Arc<Self>> {
@@ -60,12 +66,22 @@ impl Controller {
                 confirm: None,
             })),
             run: AsyncMutex::new(None),
+            desktop: Arc::new(Mutex::new(Arc::new(Desktop::default()))),
+            indicator_ready: std::sync::atomic::AtomicBool::new(false),
         }))
+    }
+    /// Hosts must install visible observation UI before advertising screen/input.
+    pub fn set_indicator_ready(&self, ready: bool) {
+        self.indicator_ready
+            .store(ready, std::sync::atomic::Ordering::SeqCst);
     }
     pub fn snapshot(&self) -> Snapshot {
         let store = self.store.lock().unwrap();
         let live = self.live.lock().unwrap();
+        let desktop = self.desktop.lock().unwrap().clone();
         Snapshot {
+            watching: desktop.is_watching(),
+            owner_control: desktop.gate.owned(),
             settings: store.settings.clone(),
             phase: live.phase.clone(),
             fingerprint: fingerprint(&public_key(&store.identity)).expect("own key"),
@@ -197,6 +213,13 @@ impl Controller {
         self.set_phase("stopped", None);
         Ok(())
     }
+    pub fn stop_view(&self) -> Result<()> {
+        let mut store = self.store.lock().unwrap();
+        store.settings.allow_live_view = false;
+        store.save()?;
+        self.desktop.lock().unwrap().stop_all();
+        Ok(())
+    }
     pub async fn unpair(&self) -> Result<()> {
         let mut run = self.run.lock().await;
         if let Some(old) = run.take() {
@@ -227,6 +250,11 @@ impl Controller {
     fn start(&self, code: Option<String>) -> Run {
         let store = self.store.clone();
         let live = self.live.clone();
+        let host_desktop = self.desktop.clone();
+        let screen_available = self
+            .indicator_ready
+            .load(std::sync::atomic::Ordering::SeqCst)
+            && cfg!(any(target_os = "linux", target_os = "windows"));
         let cancel = CancellationToken::new();
         let stop = cancel.clone();
         let task = tokio::spawn(async move {
@@ -244,7 +272,7 @@ impl Controller {
                 let connected = tokio::select! {
                     biased;
                     _ = stop.cancelled() => break,
-                    result = establish(&store, &live, code.as_deref()) => result,
+                    result = establish(&store, &live, code.as_deref(),screen_available) => result,
                 };
                 let result = match connected {
                     Ok(channel) => {
@@ -260,15 +288,17 @@ impl Controller {
                             (s.settings.clone(), s.dir.clone())
                         };
                         let guard = PathGuard::new(settings.roots, vec![dir]);
+                        let mut desktop = Desktop::default();
+                        desktop.stop = stop.child_token();
+                        let desktop = Arc::new(desktop);
+                        *host_desktop.lock().unwrap() = desktop.clone();
                         session(
                             channel,
-                            vec![
-                                Arc::new(Files {
-                                    guard: guard.clone(),
-                                }),
-                                Arc::new(Shell { guard }),
-                            ],
+                            host_capabilities(guard, desktop.clone(), screen_available),
                             stop.clone(),
+                            desktop,
+                            settings.allow_live_view && screen_available,
+                            settings.url,
                         )
                         .await
                     }
@@ -300,10 +330,28 @@ impl Controller {
         Run { cancel, task }
     }
 }
+fn host_capabilities(
+    guard: PathGuard,
+    desktop: Arc<Desktop>,
+    screen_available: bool,
+) -> Vec<Arc<dyn Capability>> {
+    let mut caps: Vec<Arc<dyn Capability>> = vec![
+        Arc::new(Files {
+            guard: guard.clone(),
+        }),
+        Arc::new(Shell { guard }),
+    ];
+    if screen_available {
+        caps.push(Arc::new(ScreenCapability(desktop.clone())));
+        caps.push(Arc::new(InputCapability(desktop)));
+    }
+    caps
+}
 async fn establish(
     store: &Arc<Mutex<Store>>,
     live: &Arc<Mutex<Live>>,
     code: Option<&str>,
+    screen_available: bool,
 ) -> Result<Channel> {
     let (settings, identity, dir) = {
         let store = store.lock().unwrap();
@@ -371,14 +419,11 @@ async fn establish(
         store.save()?;
     }
     let guard = PathGuard::new(settings.roots, vec![dir]);
-    let caps = vec![
-        Files {
-            guard: guard.clone(),
-        }
-        .manifest(),
-        Shell { guard }.manifest(),
-    ];
-    channel.send(&json!({"type":"hello","protocol":1,"device":settings.slug,"name":settings.name,"kind":if cfg!(target_os="android") { "android" } else { "desktop" },"publicKey":public_key(&identity),"capabilities":caps})).await?;
+    let caps = host_capabilities(guard, Arc::new(Desktop::default()), screen_available)
+        .iter()
+        .map(|c| c.manifest())
+        .collect::<Vec<_>>();
+    channel.send(&json!({"type":"hello","protocol":1,"device":settings.slug,"name":settings.name,"kind":if cfg!(target_os="android") { "android" } else { "desktop" },"publicKey":public_key(&identity),"extensions":["streams-v1"],"capabilities":caps})).await?;
     expect(&mut channel, "welcome", 10).await?;
     Ok(channel)
 }
@@ -421,6 +466,14 @@ enum Incoming {
     Cancel {
         task_id: String,
     },
+    StreamOpen {
+        #[serde(flatten)]
+        offer: Offer,
+    },
+    StreamClose {
+        id: String,
+        reason: String,
+    },
     Bye {
         code: String,
         message: String,
@@ -442,7 +495,14 @@ async fn session(
     mut channel: Channel,
     caps: Vec<Arc<dyn Capability>>,
     stop: CancellationToken,
+    desktop: Arc<Desktop>,
+    allow_live_view: bool,
+    url: String,
 ) -> Result<()> {
+    let stream_root = channel.stream_root;
+    let transcript = channel.transcript;
+    let mut streams = JoinSet::<(String, Result<()>)>::new();
+    let mut stream_stops = HashMap::<String, CancellationToken>::new();
     let (mut writer, mut reader) = channel.socket.split();
     let mut running = HashMap::<String, CancellationToken>::new();
     let mut jobs = JoinSet::new();
@@ -457,6 +517,10 @@ async fn session(
                     let bye = channel.cipher.seal(&json!({"type":"bye","code":"DEVICE_DISCONNECTED","message":"Disconnected on this device"}))?;
                     let _ = timeout(Duration::from_secs(1), writer.send(Message::Text(bye.into()))).await;
                     return Ok(());
+                },
+                done=streams.join_next(),if !streams.is_empty()=>{
+                    if let Some(Ok((id,result)))=done {stream_stops.remove(&id);let reason=result.err().map(|e:Failure|e.to_string()).unwrap_or_else(||"Viewer closed".into());
+                        let msg=json!({"type":"stream_close","id":id,"reason":reason.chars().take(256).collect::<String>()});send_frame(&mut writer,Message::Text(channel.cipher.seal(&msg)?.into()),&stop).await?;}
                 },
                 done = jobs.join_next(), if !jobs.is_empty() => {
                     if let Some(Ok((id, response))) = done {
@@ -479,6 +543,15 @@ async fn session(
                     };
                     let incoming: Incoming = serde_json::from_value(channel.cipher.open(&text)?)?;
                     match incoming {
+                        Incoming::StreamOpen{offer}=>{
+                            if !allow_live_view || desktop.stop.is_cancelled() || !stream_stops.is_empty() || offer.verify(&stream_root).is_err() {
+                                let msg=json!({"type":"stream_close","id":offer.id,"reason":"Live view is disabled, busy, or the offer is invalid"});send_frame(&mut writer,Message::Text(channel.cipher.seal(&msg)?.into()),&stop).await?;continue;
+                            }
+                            let cancel=stop.child_token();stream_stops.insert(offer.id.clone(),cancel.clone());
+                            let msg=json!({"type":"stream_accept","id":offer.id});send_frame(&mut writer,Message::Text(channel.cipher.seal(&msg)?.into()),&stop).await?;
+                            let desktop=desktop.clone();let url=url.clone();streams.spawn(async move {let id=offer.id.clone();(id,crate::screen::live::run(desktop,url,offer,stream_root,transcript,cancel).await)});
+                        },
+                        Incoming::StreamClose{id,reason}=>{let _=reason;if let Some(cancel)=stream_stops.remove(&id){cancel.cancel();}},
                         Incoming::Bye { code, message } => return Err(Failure::new(&code, message)),
                         Incoming::Cancel { task_id } => { if let Some(cancel) = running.get(&task_id) { cancel.cancel(); } },
                         Incoming::Classify { request_id, capability, tool, args } => {
@@ -515,10 +588,17 @@ async fn session(
             }
         }
     }.await;
+    desktop.stop.cancel();
+    for cancel in stream_stops.values() {
+        cancel.cancel();
+    }
+    while streams.join_next().await.is_some() {}
     for cancel in running.values() {
         cancel.cancel();
     }
     while jobs.join_next().await.is_some() {}
+    let d = desktop.clone();
+    let _ = tokio::task::spawn_blocking(move || d.stop_all()).await;
     let _ = timeout(Duration::from_secs(1), writer.close()).await;
     outcome
 }

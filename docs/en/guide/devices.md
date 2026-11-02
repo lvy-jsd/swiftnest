@@ -157,3 +157,10 @@ The admin and MCP ports are allocated by the OS and credentials change each proc
 passed through the environment, never written into generated patches. The owner API proxy cannot reach
 the private native call/control routes. No approval endpoint is exposed through MCP. These are local
 process trust boundaries, not a sandbox for hostile server plugins or code running as the server's OS user.
+
+## Live view
+
+On an Ivy chat, choose an online screen-capable computer to [watch and take over](./live-view).
+The computer must enable device control and the independent Allow live view permission. Only the owner
+session admitted by the existing devices API can open a stream; MCP/native agent tools have no viewer
+route. Input tools retain their normal approvals and fail during owner take-over.

@@ -99,6 +99,7 @@ pub struct Channel {
     pub cipher: Cipher,
     pub peer: String,
     pub transcript: [u8; 32],
+    pub stream_root: [u8; 32],
 }
 impl Channel {
     pub async fn connect(
@@ -162,11 +163,16 @@ impl Channel {
         Hkdf::<Sha256>::new(Some(&transcript), shared.as_bytes())
             .expand(b"swiftnest/keys/v1", &mut *keys)
             .map_err(|_| Failure::new("HANDSHAKE_FAILED", "Key derivation failed"))?;
+        let mut stream_root = [0; 32];
+        Hkdf::<Sha256>::new(Some(&transcript), shared.as_bytes())
+            .expand(b"swiftnest/streams/v1", &mut stream_root)
+            .map_err(|_| Failure::new("BAD_STREAM", "Exporter failed"))?;
         let mut channel = Self {
             socket,
             cipher: Cipher::new(&keys[..32], &keys[32..]),
             peer,
             transcript,
+            stream_root,
         };
         let mut payload = b"swiftnest/auth/v1/perch\0".to_vec();
         payload.extend(transcript);

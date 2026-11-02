@@ -8,7 +8,7 @@
  *   Nest   serveLan(nest)            — or install the plugin: `nest.use(lan, { port })`
  *   Perch  runLanPerch(perch, {...}) — discover or dial, pair if asked, stay connected, reconnect with backoff
  */
-import { acceptPerch, connectToNest, definePlugin, fingerprintOf, SwiftnestFailure, type ConnectOptions, type FrameTransport, type Identity, type Logger, type Nest, type NestSession, type Perch } from "@swiftnest/core";
+import { acceptPerch, connectToNest, definePlugin, fingerprintOf, SwiftnestFailure, type ConnectOptions, type FrameTransport, type Identity, type Logger, type Nest, type NestSession, type Perch, type BinaryPeer } from "@swiftnest/core";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertise, discover, type DiscoveredNest } from "./mdns.js";
 
@@ -38,6 +38,12 @@ export function wsTransport(ws: WebSocket): FrameTransport {
     },
     close: (reason) => ws.close(4000, (reason ?? "").slice(0, 120)),
   };
+}
+
+export function binaryPeer(ws: WebSocket): BinaryPeer {
+  return { get bufferedAmount() { return ws.bufferedAmount; }, send: data => ws.send(data),
+    onData: fn => { ws.on('message', (data, binary) => { if (!binary) return ws.close(4000, 'Binary required'); fn(new Uint8Array(data as Buffer)); }); },
+    onEnd: fn => { ws.once('close', fn); ws.once('error', fn); }, close: () => ws.terminate() };
 }
 
 // ---------------------------------------------------------------- Nest side
@@ -75,6 +81,11 @@ export async function serveLan(nest: Nest, o: LanNestOptions = {}): Promise<LanS
   const port = (wss.address() as { port: number }).port;
 
   wss.on("connection", (ws, req) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.searchParams.has('stream')) {
+      nest.streams.attachDevice(url.searchParams.get('stream')!, url.searchParams.get('ticket') ?? '', binaryPeer(ws));
+      return;
+    }
     if (handshakes >= maxHandshakes) return ws.close(4029, "BUSY");
     handshakes++;
     let counted = true;

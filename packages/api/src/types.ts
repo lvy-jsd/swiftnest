@@ -56,7 +56,7 @@ export interface SocketEventMap {
 /** Structural subset supported by browser WebSocket and the Node `ws` package. */
 export interface ApiWebSocket {
   readonly readyState: number;
-  send(data: string): void;
+  send(data: string | Uint8Array<ArrayBuffer>): void;
   close(code?: number, reason?: string): void;
   addEventListener<K extends keyof SocketEventMap>(type: K, listener: (event: SocketEventMap[K]) => void, options?: { once?: boolean }): void;
   removeEventListener<K extends keyof SocketEventMap>(type: K, listener: (event: SocketEventMap[K]) => void): void;

@@ -61,7 +61,7 @@ export function DeviceHubProvider({ children }: PropsWithChildren) {
   };
   return <Context value={{ devices, approvals, candidates, error, busy, act }}>{children}</Context>;
 }
-function useDevices() { const value = useContext(Context); if (!value) throw new Error('DeviceHubProvider required'); return value; }
+export function useDevices() { const value = useContext(Context); if (!value) throw new Error('DeviceHubProvider required'); return value; }
 
 export function DeviceApprovals({ compact = false }: { compact?: boolean }) {
   const { approvals, error, busy, act } = useDevices();
