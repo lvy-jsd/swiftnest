@@ -28,11 +28,11 @@ It is not a personal assistant: conversation, memory, and personality are up to 
 
 ## Concepts
 
-| Term | What It Is |
-|---|---|
-| **Server (Nest)** | An always-on machine that handles device registration, permissions, approvals, and auditing, and exposes all device capabilities to agents |
-| **Device (Perch)** | The program running on each controlled device |
-| **Plugin** | Everything: device capabilities, connection methods, interaction entry points, permission policies, … |
+| Term               | What It Is                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Server (Nest)**  | An always-on machine that handles device registration, permissions, approvals, and auditing, and exposes all device capabilities to agents |
+| **Device (Perch)** | The program running on each controlled device                                                                                              |
+| **Plugin**         | Everything: device capabilities, connection methods, interaction entry points, permission policies, …                                      |
 
 ## Quick Start
 

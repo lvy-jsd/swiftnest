@@ -2,9 +2,9 @@
  * Append-only audit log. Every task state change lands here with the raw arguments, so a person can always
  * see exactly what an agent asked a device to do. Plugins get no handle to rewrite it.
  */
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import type { AuditEntry } from "@swiftnest/protocol";
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import type { AuditEntry } from '@swiftnest/protocol';
 
 export interface AuditQuery {
   taskId?: string;
@@ -44,19 +44,22 @@ export class JsonlAuditLog implements AuditLog {
     // serialize writes so concurrent tasks never interleave lines
     this.queue = this.queue.then(async () => {
       await this.ready;
-      await appendFile(this.path, JSON.stringify(entry) + "\n", { mode: 0o600 });
+      await appendFile(this.path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
     });
     return this.queue;
   }
   async query(q?: AuditQuery) {
     await this.queue;
-    let text = "";
+    let text = '';
     try {
-      text = await readFile(this.path, "utf8");
+      text = await readFile(this.path, 'utf8');
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
-    const entries = text.split("\n").filter(Boolean).map((l) => JSON.parse(l) as AuditEntry);
+    const entries = text
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as AuditEntry);
     return filter(entries, q);
   }
 }

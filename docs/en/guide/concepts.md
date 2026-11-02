@@ -14,12 +14,12 @@ The tool name agents see is `<device>__<capability>__<tool>`, for example `lapto
 
 There are also a few task tools:
 
-| Tool | Purpose |
-|---|---|
-| `swiftnest__devices` | List online devices and their capabilities |
-| `swiftnest__task_status` | Check task status and results |
-| `swiftnest__task_wait` | Wait for a task to finish (e.g., waiting for the owner to approve) |
-| `swiftnest__task_cancel` | Cancel a pending or running task |
+| Tool                     | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `swiftnest__devices`     | List online devices and their capabilities                         |
+| `swiftnest__task_status` | Check task status and results                                      |
+| `swiftnest__task_wait`   | Wait for a task to finish (e.g., waiting for the owner to approve) |
+| `swiftnest__task_cancel` | Cancel a pending or running task                                   |
 
 **There is no "approve" tool**: an agent can never approve its own request; only a human can approve, from the terminal or the dashboard.
 
@@ -27,11 +27,11 @@ There are also a few task tools:
 
 Each tool declares a default risk level. Capabilities can also re-evaluate based on specific parameters (for example, the shell capability classifies `ls` as "read" and `rm` as "sensitive").
 
-| Risk | Meaning | Default |
-|---|---|---|
-| `read` | Observe only; change nothing | Allow |
-| `write` | Change local state | Ask |
-| `exec` | Execute code | Ask |
+| Risk        | Meaning                                                      | Default                                        |
+| ----------- | ------------------------------------------------------------ | ---------------------------------------------- |
+| `read`      | Observe only; change nothing                                 | Allow                                          |
+| `write`     | Change local state                                           | Ask                                            |
+| `exec`      | Execute code                                                 | Ask                                            |
 | `sensitive` | Delete, modify system, spend money, send messages externally | Ask (rules cannot override this to auto-allow) |
 
 Rules can tighten or loosen permissions by client, device, capability, tool, and risk level (sensitive operations excluded).
@@ -64,9 +64,9 @@ All errors use a unified format: `code` (error code), `message` (what went wrong
 
 ## Capabilities on a device
 
-| Capability | Tools | Risk |
-|---|---|---|
-| Shell `shell` | `run` | read-only commands are reads; pipes, redirects and the like are exec; `rm`, `sudo`… are sensitive |
-| Files `files` | `list`, `read`, `stat` / `write`, `mkdir`, `move` / `delete` | read / write / sensitive; any path outside the shared folders is sensitive and refused |
+| Capability    | Tools                                                        | Risk                                                                                              |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Shell `shell` | `run`                                                        | read-only commands are reads; pipes, redirects and the like are exec; `rm`, `sudo`… are sensitive |
+| Files `files` | `list`, `read`, `stat` / `write`, `mkdir`, `move` / `delete` | read / write / sensitive; any path outside the shared folders is sensitive and refused            |
 
 The files capability works only inside the shared folders (the home directory by default). Paths are resolved to their real location before the check, so a symlink cannot lead out; keys, credentials and browser data are always refused.

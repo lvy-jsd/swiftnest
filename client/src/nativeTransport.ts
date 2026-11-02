@@ -10,19 +10,28 @@ export class NativeSocket implements ApiWebSocket {
   private listeners = new Map<keyof SocketEventMap, Map<(event: never) => void, boolean>>();
   private writes = Promise.resolve();
   constructor(url: string, headers: Readonly<Record<string, string>>) {
-    void NativeWebSocket.connect(url, { headers }).then(socket => {
-      if (this.readyState === 3) { void socket.disconnect().catch(() => {}); return; }
-      this.socket = socket;
-      this.unlisten = socket.addListener(message => {
-        if (message.type === 'Text') this.emit('message', { data: message.data });
-        else if (message.type === 'Binary') this.emit('message', { data: new Uint8Array(message.data) });
-        else if (message.type === 'Close') this.close();
-      });
-      this.readyState = 1;
-      this.emit('open', {});
-    }).catch(() => this.fail());
+    void NativeWebSocket.connect(url, { headers })
+      .then((socket) => {
+        if (this.readyState === 3) {
+          void socket.disconnect().catch(() => {});
+          return;
+        }
+        this.socket = socket;
+        this.unlisten = socket.addListener((message) => {
+          if (message.type === 'Text') this.emit('message', { data: message.data });
+          else if (message.type === 'Binary') this.emit('message', { data: new Uint8Array(message.data) });
+          else if (message.type === 'Close') this.close();
+        });
+        this.readyState = 1;
+        this.emit('open', {});
+      })
+      .catch(() => this.fail());
   }
-  addEventListener<K extends keyof SocketEventMap>(type: K, listener: (event: SocketEventMap[K]) => void, options?: { once?: boolean }): void {
+  addEventListener<K extends keyof SocketEventMap>(
+    type: K,
+    listener: (event: SocketEventMap[K]) => void,
+    options?: { once?: boolean },
+  ): void {
     const group = this.listeners.get(type) ?? new Map();
     group.set(listener as (event: never) => void, options?.once ?? false);
     this.listeners.set(type, group);
@@ -39,9 +48,18 @@ export class NativeSocket implements ApiWebSocket {
   send(data: string | Uint8Array<ArrayBuffer>): void {
     if (this.readyState !== 1) throw new Error('Socket is closed');
     // Preserve RPC/stream ordering even though the plugin sends asynchronously.
-    this.writes = this.writes.then(async () => { if (this.readyState === 1) await this.socket!.send(typeof data === 'string' ? data : Array.from(data)); }).catch(() => this.fail());
+    this.writes = this.writes
+      .then(async () => {
+        if (this.readyState === 1) await this.socket!.send(typeof data === 'string' ? data : Array.from(data));
+      })
+      .catch(() => this.fail());
   }
-  private fail() { if (this.readyState !== 3) { this.emit('error', {}); this.close(); } }
+  private fail() {
+    if (this.readyState !== 3) {
+      this.emit('error', {});
+      this.close();
+    }
+  }
   close(): void {
     if (this.readyState === 3) return;
     this.readyState = 3;

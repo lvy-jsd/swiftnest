@@ -17,14 +17,14 @@ Without a permission, the matching tools fail clearly and do nothing.
 
 ## What the assistant can do
 
-| Ability | Tools | Needs your approval |
-|---|---|---|
-| Read what is on screen (text, buttons and their positions) | `ui_ui_tree` | No |
-| Screen size, screenshot | `screen_screen_info`, `screen_screen_capture` | No |
-| Tap, swipe, type, press back/home/recents | `input_input_tap` etc. | Every time |
-| List apps / open an app | `apps_apps_list` / `apps_apps_open` | Listing no, opening yes |
-| Post / read notifications | `notify_notify_post` / `notify_notify_list` | Both (reading is sensitive) |
-| Send and receive files | `files_*`, transfers | Writes yes |
+| Ability                                                    | Tools                                         | Needs your approval         |
+| ---------------------------------------------------------- | --------------------------------------------- | --------------------------- |
+| Read what is on screen (text, buttons and their positions) | `ui_ui_tree`                                  | No                          |
+| Screen size, screenshot                                    | `screen_screen_info`, `screen_screen_capture` | No                          |
+| Tap, swipe, type, press back/home/recents                  | `input_input_tap` etc.                        | Every time                  |
+| List apps / open an app                                    | `apps_apps_list` / `apps_apps_open`           | Listing no, opening yes     |
+| Post / read notifications                                  | `notify_notify_post` / `notify_notify_list`   | Both (reading is sensitive) |
+| Send and receive files                                     | `files_*`, transfers                          | Writes yes                  |
 
 Full tool names are `device__<device slug>__<capability>_<tool>`, e.g. `device__phone-1d45d9c51479__input_input_tap`.
 

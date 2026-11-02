@@ -6,25 +6,44 @@ afterEach(() => vi.unstubAllGlobals());
 function setup(connect = vi.fn(async (_url: string) => {})) {
   const storage = { getItem: vi.fn(() => null), setItem: vi.fn() };
   vi.stubGlobal('localStorage', storage);
-  const clients: { connect: typeof connect; close: ReturnType<typeof vi.fn>; listSessions: ReturnType<typeof vi.fn>; createSession: ReturnType<typeof vi.fn> }[] = [];
-  const store = new ConnectionStore(async () => ({ cookieMode: 'browser' }), (_options: ClientOptions) => {
-    const client = { connect, close: vi.fn(), listSessions: vi.fn(async () => [
-      { sessionId: 'old', updatedAt: 1, running: false, blank: false },
-      { sessionId: 'new', updatedAt: 2, running: false, blank: false, title: 'Hi' },
-    ]), createSession: vi.fn(async () => ({ sessionId: 'created' })) };
-    clients.push(client); return client as unknown as SwiftnestClient;
-  });
+  const clients: {
+    connect: typeof connect;
+    close: ReturnType<typeof vi.fn>;
+    listSessions: ReturnType<typeof vi.fn>;
+    createSession: ReturnType<typeof vi.fn>;
+  }[] = [];
+  const store = new ConnectionStore(
+    async () => ({ cookieMode: 'browser' }),
+    (_options: ClientOptions) => {
+      const client = {
+        connect,
+        close: vi.fn(),
+        listSessions: vi.fn(async () => [
+          { sessionId: 'old', updatedAt: 1, running: false, blank: false },
+          { sessionId: 'new', updatedAt: 2, running: false, blank: false, title: 'Hi' },
+        ]),
+        createSession: vi.fn(async () => ({ sessionId: 'created' })),
+      };
+      clients.push(client);
+      return client as unknown as SwiftnestClient;
+    },
+  );
   return { store, clients, storage };
 }
 const url = 'http://127.0.0.1:3077/connect?token=SECRET&interactions=answer';
 describe('connection store', () => {
   it('pairs once, lists real sessions, creates, persists only the root, and closes on reconnect', async () => {
     const { store, clients, storage } = setup();
-    const changed = vi.fn(); const unsubscribe = store.subscribe(changed);
+    const changed = vi.fn();
+    const unsubscribe = store.subscribe(changed);
     const pairing = store.pair(url);
     expect(store.getSnapshot().status).toBe('connecting');
     expect(await pairing).toBe(true);
-    expect(store.getSnapshot()).toMatchObject({ status: 'connected', root: 'http://127.0.0.1:3077/', sessions: [{ sessionId: 'new' }, { sessionId: 'old' }] });
+    expect(store.getSnapshot()).toMatchObject({
+      status: 'connected',
+      root: 'http://127.0.0.1:3077/',
+      sessions: [{ sessionId: 'new' }, { sessionId: 'old' }],
+    });
     expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(ROOT_KEY, 'http://127.0.0.1:3077/');
     expect(JSON.stringify(store.getSnapshot())).not.toContain('SECRET');
     expect(await store.newChat()).toBe('created');
@@ -34,10 +53,15 @@ describe('connection store', () => {
     store.disconnect();
     expect(clients[1]!.close).toHaveBeenCalledOnce();
     expect(store.getSnapshot().status).toBe('disconnected');
-    expect(changed).toHaveBeenCalled(); unsubscribe();
+    expect(changed).toHaveBeenCalled();
+    unsubscribe();
   });
   it('does not expose or persist failed pairing URLs/errors', async () => {
-    const { store, storage, clients } = setup(vi.fn(async () => { throw new Error(url); }));
+    const { store, storage, clients } = setup(
+      vi.fn(async () => {
+        throw new Error(url);
+      }),
+    );
     expect(await store.pair(url)).toBe(false);
     expect(clients[0]!.close).toHaveBeenCalledOnce();
     expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'pairFailed' });
@@ -47,12 +71,18 @@ describe('connection store', () => {
   });
   it('cancels a stale in-flight pairing without replacing the newer client', async () => {
     let finish!: () => void;
-    const { store, clients } = setup(vi.fn().mockImplementationOnce(() => new Promise<void>(resolve => finish = resolve)).mockResolvedValue(undefined));
+    const { store, clients } = setup(
+      vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)))
+        .mockResolvedValue(undefined),
+    );
     const first = store.pair(url);
     await vi.waitFor(() => expect(clients).toHaveLength(1));
     expect(await store.pair(url)).toBe(true);
     const current = store.client;
-    finish(); expect(await first).toBe(false);
+    finish();
+    expect(await first).toBe(false);
     expect(store.client).toBe(current);
     expect(store.getSnapshot().status).toBe('connected');
     store.disconnect();
@@ -73,33 +103,58 @@ describe('connection store', () => {
 
   it('reports only this server’s namespace for the native identity and clears it on revoke or iOS', async () => {
     let active: ClientOptions = {};
-    const invoke = vi.fn(async () => ({ platform: 'desktop', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } }));
+    const invoke = vi.fn(async () => ({
+      platform: 'desktop',
+      fingerprint: 'own-fingerprint',
+      settings: { slug: 'own-device' },
+    }));
     vi.stubGlobal('window', { __TAURI_INTERNALS__: { invoke } });
-    const store = new ConnectionStore(async () => ({}), options => {
-      active = options;
-      return { connect: async () => {}, listSessions: async () => [], close: () => {} } as unknown as SwiftnestClient;
-    });
+    const store = new ConnectionStore(
+      async () => ({}),
+      (options) => {
+        active = options;
+        return { connect: async () => {}, listSessions: async () => [], close: () => {} } as unknown as SwiftnestClient;
+      },
+    );
     expect(await store.pair(url)).toBe(true);
     const device = { device: 'own-device', fingerprint: 'different', slug: 'server-slug' } as Device;
-    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBeUndefined();
+    await store.updateDeviceContext([device]);
+    expect(active.deviceSlug).toBeUndefined();
     device.fingerprint = 'own-fingerprint';
-    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBe('server-slug');
-    await store.updateDeviceContext([]); expect(active.deviceSlug).toBeUndefined();
-    invoke.mockResolvedValueOnce({ platform: 'android', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
-    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBe('server-slug');
+    await store.updateDeviceContext([device]);
+    expect(active.deviceSlug).toBe('server-slug');
+    await store.updateDeviceContext([]);
+    expect(active.deviceSlug).toBeUndefined();
+    invoke.mockResolvedValueOnce({
+      platform: 'android',
+      fingerprint: 'own-fingerprint',
+      settings: { slug: 'own-device' },
+    });
+    await store.updateDeviceContext([device]);
+    expect(active.deviceSlug).toBe('server-slug');
     invoke.mockResolvedValueOnce({ platform: 'ios', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
-    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBeUndefined();
+    await store.updateDeviceContext([device]);
+    expect(active.deviceSlug).toBeUndefined();
     store.disconnect();
   });
 
   it('reports socket loss even with no open chat and disposes the client', async () => {
     const listeners = new Map<string, () => void>();
-    const socket = { addEventListener: vi.fn((type: string, callback: () => void) => listeners.set(type, callback)) } as unknown as ApiWebSocket;
+    const socket = {
+      addEventListener: vi.fn((type: string, callback: () => void) => listeners.set(type, callback)),
+    } as unknown as ApiWebSocket;
     const close = vi.fn();
-    const store = new ConnectionStore(async () => ({ createWebSocket: () => socket }), options => ({
-      connect: async () => { options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} }); },
-      listSessions: async () => [], close,
-    }) as unknown as SwiftnestClient);
+    const store = new ConnectionStore(
+      async () => ({ createWebSocket: () => socket }),
+      (options) =>
+        ({
+          connect: async () => {
+            options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} });
+          },
+          listSessions: async () => [],
+          close,
+        }) as unknown as SwiftnestClient,
+    );
     expect(await store.pair(url)).toBe(true);
     listeners.get('close')!();
     expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'connectionLost' });
@@ -111,16 +166,31 @@ describe('connection store', () => {
     const sockets: EventTarget[] = [];
     let active: ClientOptions = {};
     const close = vi.fn();
-    const store = new ConnectionStore(async () => ({ createWebSocket: () => {
-      const socket = new EventTarget();sockets.push(socket);return socket as unknown as ApiWebSocket;
-    } }), options => {
-      active = options;
-      return { connect: async () => { options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} }); }, listSessions: async () => [], close } as unknown as SwiftnestClient;
-    });
+    const store = new ConnectionStore(
+      async () => ({
+        createWebSocket: () => {
+          const socket = new EventTarget();
+          sockets.push(socket);
+          return socket as unknown as ApiWebSocket;
+        },
+      }),
+      (options) => {
+        active = options;
+        return {
+          connect: async () => {
+            options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} });
+          },
+          listSessions: async () => [],
+          close,
+        } as unknown as SwiftnestClient;
+      },
+    );
     expect(await store.pair(url)).toBe(true);
     active.createWebSocket!('ws://127.0.0.1:3077/swiftnest/api/devices/live?id=test', { headers: {} });
-    sockets[1]!.dispatchEvent(new Event('error'));sockets[1]!.dispatchEvent(new Event('close'));
-    expect(store.getSnapshot().status).toBe('connected');expect(close).not.toHaveBeenCalled();
+    sockets[1]!.dispatchEvent(new Event('error'));
+    sockets[1]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot().status).toBe('connected');
+    expect(close).not.toHaveBeenCalled();
     sockets[0]!.dispatchEvent(new Event('close'));
     expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'connectionLost' });
     expect(close).toHaveBeenCalledOnce();

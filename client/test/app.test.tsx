@@ -1,51 +1,61 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
-import { App, chatFromHash } from "../src/App";
-import { ThemeProvider } from "../src/design/theme";
-import { I18nProvider, en, translate, zhCN, savedLocale, LOCALE_KEY } from "../src/i18n";
-import { hasPrecisePointer, isTauriRuntime } from "../src/runtime";
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import { App, chatFromHash } from '../src/App';
+import { ThemeProvider } from '../src/design/theme';
+import { I18nProvider, en, translate, zhCN, savedLocale, LOCALE_KEY } from '../src/i18n';
+import { hasPrecisePointer, isTauriRuntime } from '../src/runtime';
 import { ConnectionProvider } from '../src/connection';
 
-describe("web shell and translations", () => {
-  it("renders in English and Chinese without a native runtime", () => {
+describe('web shell and translations', () => {
+  it('renders in English and Chinese without a native runtime', () => {
     expect(isTauriRuntime()).toBe(false);
-    for (const locale of ["en", "zh-CN"] as const) {
-      const html = renderToStaticMarkup(<ThemeProvider><I18nProvider initialLocale={locale}><ConnectionProvider><App /></ConnectionProvider></I18nProvider></ThemeProvider>);
-      expect(html).toContain(translate(locale, "chats"));
-      expect(html).toContain(translate(locale, "pair"));
+    for (const locale of ['en', 'zh-CN'] as const) {
+      const html = renderToStaticMarkup(
+        <ThemeProvider>
+          <I18nProvider initialLocale={locale}>
+            <ConnectionProvider>
+              <App />
+            </ConnectionProvider>
+          </I18nProvider>
+        </ThemeProvider>,
+      );
+      expect(html).toContain(translate(locale, 'chats'));
+      expect(html).toContain(translate(locale, 'pair'));
       expect(html).not.toContain('fresh-start');
     }
   });
-  it("keeps the string tables complete", () => { expect(Object.keys(zhCN).sort()).toEqual(Object.keys(en).sort()); });
-  it("detects the Tauri marker and leaves ordinary web windows native-free", () => {
+  it('keeps the string tables complete', () => {
+    expect(Object.keys(zhCN).sort()).toEqual(Object.keys(en).sort());
+  });
+  it('detects the Tauri marker and leaves ordinary web windows native-free', () => {
     try {
-      vi.stubGlobal("window", {});
+      vi.stubGlobal('window', {});
       expect(isTauriRuntime()).toBe(false);
-      vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+      vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
       expect(isTauriRuntime()).toBe(true);
-      vi.stubGlobal("window", { __TAURI_INTERNALS__: undefined });
+      vi.stubGlobal('window', { __TAURI_INTERNALS__: undefined });
       expect(isTauriRuntime()).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
   });
-  it("shows keyboard hints only with a precise pointer", () => {
+  it('shows keyboard hints only with a precise pointer', () => {
     try {
-      vi.stubGlobal("window", { matchMedia: (query: string) => ({ matches: query === "(pointer: fine)" }) });
+      vi.stubGlobal('window', { matchMedia: (query: string) => ({ matches: query === '(pointer: fine)' }) });
       expect(hasPrecisePointer()).toBe(true);
-      vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+      vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
       expect(hasPrecisePointer()).toBe(false);
-      vi.stubGlobal("window", {});
+      vi.stubGlobal('window', {});
       expect(hasPrecisePointer()).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
   });
-  it("recognizes chat deep links and falls back for unknown paths", () => {
-    expect(chatFromHash("#/chats/real-chat")).toBe("real-chat");
-    expect(chatFromHash("#/chats/encoded%20chat")).toBe("encoded chat");
-    expect(chatFromHash("#/chats/%zz")).toBeUndefined();
-    expect(chatFromHash("#/")).toBeUndefined();
+  it('recognizes chat deep links and falls back for unknown paths', () => {
+    expect(chatFromHash('#/chats/real-chat')).toBe('real-chat');
+    expect(chatFromHash('#/chats/encoded%20chat')).toBe('encoded chat');
+    expect(chatFromHash('#/chats/%zz')).toBeUndefined();
+    expect(chatFromHash('#/')).toBeUndefined();
   });
 });
 
@@ -54,8 +64,20 @@ it('defaults to Chinese on an English system and restores an explicit English ch
   vi.stubGlobal('localStorage', { getItem: () => null });
   try {
     expect(savedLocale()).toBe('zh-CN');
-    expect(renderToStaticMarkup(<ThemeProvider><I18nProvider><ConnectionProvider><App /></ConnectionProvider></I18nProvider></ThemeProvider>)).toContain('配对服务器');
-    vi.stubGlobal('localStorage', { getItem: (key: string) => key === LOCALE_KEY ? 'en' : null });
+    expect(
+      renderToStaticMarkup(
+        <ThemeProvider>
+          <I18nProvider>
+            <ConnectionProvider>
+              <App />
+            </ConnectionProvider>
+          </I18nProvider>
+        </ThemeProvider>,
+      ),
+    ).toContain('配对服务器');
+    vi.stubGlobal('localStorage', { getItem: (key: string) => (key === LOCALE_KEY ? 'en' : null) });
     expect(savedLocale()).toBe('en');
-  } finally { vi.unstubAllGlobals(); }
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

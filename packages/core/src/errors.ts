@@ -1,5 +1,5 @@
-import { localizedError } from "@swiftnest/protocol";
-import type { SwiftnestError } from "@swiftnest/protocol";
+import { localizedError } from '@swiftnest/protocol';
+import type { SwiftnestError } from '@swiftnest/protocol';
 
 /** An error that carries a fix: every failure a user can hit should say what to do next. */
 export class SwiftnestFailure extends Error {
@@ -10,7 +10,7 @@ export class SwiftnestFailure extends Error {
     readonly retryable = false,
   ) {
     super(message);
-    this.name = "SwiftnestFailure";
+    this.name = 'SwiftnestFailure';
   }
 
   toJSON(): SwiftnestError {
@@ -18,11 +18,14 @@ export class SwiftnestFailure extends Error {
     return { ...localized, suggestion: localized.hint, retryable: this.retryable };
   }
 
-  static from(e: unknown, fallbackCode = "INTERNAL"): SwiftnestError {
+  static from(e: unknown, fallbackCode = 'INTERNAL'): SwiftnestError {
     if (e instanceof SwiftnestFailure) return e.toJSON();
     const err = e as { code?: unknown; message?: unknown };
     return {
-      ...localizedError({ code: typeof err?.code === "string" ? err.code : fallbackCode, message: typeof err?.message === "string" ? err.message : String(e) }),
+      ...localizedError({
+        code: typeof err?.code === 'string' ? err.code : fallbackCode,
+        message: typeof err?.message === 'string' ? err.message : String(e),
+      }),
       retryable: false,
     };
   }

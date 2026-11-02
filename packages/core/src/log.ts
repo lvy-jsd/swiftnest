@@ -11,21 +11,27 @@ export interface Logger {
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40, silent: 100 } as const;
 type Level = keyof typeof LEVELS;
 
-export function createLogger(scope = "swiftnest", level: Level = (process.env.SWIFTNEST_LOG as Level) ?? "info"): Logger {
+export function createLogger(
+  scope = 'swiftnest',
+  level: Level = (process.env.SWIFTNEST_LOG as Level) ?? 'info',
+): Logger {
   const min = LEVELS[level] ?? LEVELS.info;
   const emit = (lv: Level, msg: string, extra?: unknown) => {
     if (LEVELS[lv] < min) return;
-    const tail = extra === undefined ? "" : " " + (extra instanceof Error ? extra.stack ?? extra.message : JSON.stringify(extra));
-    process.stderr.write(`[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${translateMessage(msg)}${tail}\n`);
+    const tail =
+      extra === undefined ? '' : ` ${extra instanceof Error ? (extra.stack ?? extra.message) : JSON.stringify(extra)}`;
+    process.stderr.write(
+      `[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${translateMessage(msg)}${tail}\n`,
+    );
   };
   return {
-    debug: (m, e) => emit("debug", m, e),
-    info: (m, e) => emit("info", m, e),
-    warn: (m, e) => emit("warn", m, e),
-    error: (m, e) => emit("error", m, e),
+    debug: (m, e) => emit('debug', m, e),
+    info: (m, e) => emit('info', m, e),
+    warn: (m, e) => emit('warn', m, e),
+    error: (m, e) => emit('error', m, e),
     child: (s) => createLogger(`${scope}/${s}`, level),
   };
 }
 
 /** A logger that drops everything (tests, quiet embedding). */
-export const silentLogger: Logger = createLogger("silent", "silent");
+export const silentLogger: Logger = createLogger('silent', 'silent');

@@ -4,5 +4,9 @@ import { chromium, type Browser } from '@playwright/test';
 /** Opting in with SWIFTNEST_WEB_E2E=1 means the browser must start: a missing one fails the test instead of skipping it. */
 export function launchChromium(): Promise<Browser> {
   const executablePath = process.env.SWIFTNEST_CHROMIUM;
-  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), args: ['--no-sandbox', '--no-proxy-server'] });
+  return chromium.launch({
+    headless: true,
+    ...(executablePath ? { executablePath } : {}),
+    args: ['--no-sandbox', '--no-proxy-server'],
+  });
 }

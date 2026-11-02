@@ -61,7 +61,9 @@ function adminServer(hub: DeviceHub, adminToken: string) {
   admin.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (!hasBearer(req, adminToken) || req.headers.origin || url.pathname !== `${PREFIX}/live`) return socket.destroy();
-    bulk.handleUpgrade(req, socket, head, (ws) => nest.streams.attachOwner(url.searchParams.get('id') ?? '', binaryPeer(ws)));
+    bulk.handleUpgrade(req, socket, head, (ws) =>
+      nest.streams.attachOwner(url.searchParams.get('id') ?? '', binaryPeer(ws)),
+    );
   });
   return { admin, bulk };
 }
@@ -119,7 +121,11 @@ export async function startDevices(config: ServerConfig) {
     })());
 
   try {
-    lan = await serveLan(nest, { host: config.devices.host, port: config.devices.port, advertise: config.devices.mdns });
+    lan = await serveLan(nest, {
+      host: config.devices.host,
+      port: config.devices.port,
+      advertise: config.devices.mdns,
+    });
     mcp = await serveMcpHttp(nest, { host: '127.0.0.1', port: 0, bearerToken: mcpToken });
     await new Promise<void>((resolve, reject) => {
       admin.once('error', reject);

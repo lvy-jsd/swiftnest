@@ -15,16 +15,16 @@ pnpm test         # run all tests (tests source directly, no build step needed)
 
 ## Repository Structure
 
-| Directory | Contents |
-|---|---|
-| `packages/protocol` | Shared data schemas for all components (zod) |
-| `packages/core` | Core: plugin host, identity, capability registry, permission proxy, audit, task state machine, server and device |
-| `packages/sdk` | Developer package for writing plugins, with mock server and mock device |
-| `packages/cli` | `swiftnest` CLI |
-| `packages/create-swiftnest-plugin` | `npm create swiftnest-plugin` |
-| `plugins/*` | Official plugins, with the same status as community plugins |
-| `templates/*` | Plugin templates |
-| `docs/zh`, `docs/en` | Documentation (Chinese and English) |
+| Directory                          | Contents                                                                                                         |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `packages/protocol`                | Shared data schemas for all components (zod)                                                                     |
+| `packages/core`                    | Core: plugin host, identity, capability registry, permission proxy, audit, task state machine, server and device |
+| `packages/sdk`                     | Developer package for writing plugins, with mock server and mock device                                          |
+| `packages/cli`                     | `swiftnest` CLI                                                                                                  |
+| `packages/create-swiftnest-plugin` | `npm create swiftnest-plugin`                                                                                    |
+| `plugins/*`                        | Official plugins, with the same status as community plugins                                                      |
+| `templates/*`                      | Plugin templates                                                                                                 |
+| `docs/zh`, `docs/en`               | Documentation (Chinese and English)                                                                              |
 
 ## Writing Plugins
 

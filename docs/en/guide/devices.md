@@ -27,7 +27,7 @@ host: 192.168.1.20
 devices:
   host: 192.168.1.20
   port: 7711
-  mdns: true   # false disables discovery; the displayed address still works
+  mdns: true # false disables discovery; the displayed address still works
 ```
 
 The desktop App includes a Rust Perch under **This device**, off by default. Follow
@@ -62,17 +62,17 @@ Recent entries are available through `SwiftnestClient.deviceAudit(limit)` (defau
 All paths below are under `/swiftnest/api/devices` and use the same signed owner session and Host/Origin
 fence as the existing App API. Cross-site requests and unauthenticated requests are rejected.
 
-| Method | Path | Result |
-|---|---|---|
-| GET | `/` | Online and paired devices |
-| POST | `/pairing` | Code, expiry, dial URL, address/port and server fingerprint |
-| GET | `/pairing` | Pending fingerprint confirmations |
-| POST | `/pairing/:id/approve` or `/deny` | Confirm or reject a candidate |
-| POST | `/revoke/:device` | Disconnect and forget a device |
-| GET | `/approvals` | Pending tasks with original arguments |
-| POST | `/approvals/:id/approve` or `/deny` | Answer once; stale decisions return 409 |
-| GET | `/audit?limit=100` | Recent audit entries |
-| GET | `/events` | SSE invalidations: devices-changed, approval-pending, approvals-changed, pairing-changed |
+| Method | Path                                | Result                                                                                   |
+| ------ | ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| GET    | `/`                                 | Online and paired devices                                                                |
+| POST   | `/pairing`                          | Code, expiry, dial URL, address/port and server fingerprint                              |
+| GET    | `/pairing`                          | Pending fingerprint confirmations                                                        |
+| POST   | `/pairing/:id/approve` or `/deny`   | Confirm or reject a candidate                                                            |
+| POST   | `/revoke/:device`                   | Disconnect and forget a device                                                           |
+| GET    | `/approvals`                        | Pending tasks with original arguments                                                    |
+| POST   | `/approvals/:id/approve` or `/deny` | Answer once; stale decisions return 409                                                  |
+| GET    | `/audit?limit=100`                  | Recent audit entries                                                                     |
+| GET    | `/events`                           | SSE invalidations: devices-changed, approval-pending, approvals-changed, pairing-changed |
 
 `POST /swiftnest/api/chat` accepts `{ request, deviceSlug? }` under the same owner admission;
 `request` is the existing DSH session prompt request. Prefer `SwiftnestClient.sendMessage()`.
@@ -100,8 +100,8 @@ Plugins can inject `swiftnestDevices` (types exported from `@swiftnest/server-bu
 
 ```ts
 interface SwiftnestDevices {
-  list(): { slug: string; name: string; kind: 'desktop' | 'android'; online: boolean; lastSeen?: string }[]
-  currentFor(sessionId: string): string | undefined
+  list(): { slug: string; name: string; kind: 'desktop' | 'android'; online: boolean; lastSeen?: string }[];
+  currentFor(sessionId: string): string | undefined;
 }
 // Swiftnest provides it via ctx.provide('swiftnestDevices', service).
 ```
@@ -118,7 +118,7 @@ to execute a device tool. It is held in memory and refreshed by the next chat af
 On pairing, revocation, online and offline transitions, the bundle emits:
 
 ```ts
-ctx.emit('swiftnest/devices-changed', { slugs: ['laptop'] })
+ctx.emit('swiftnest/devices-changed', { slugs: ['laptop'] });
 ```
 
 `slugs` identifies affected namespaces, including a revoked slug. Subscribe and reread `list()`; startup
@@ -134,7 +134,7 @@ connection supplies full metadata. Offline calls always fail before execution.
 If `toolCatalog` exists, each tool receives:
 
 ```ts
-toolCatalog.annotate(name, { category: 'device', group: slug, risk, summary })
+toolCatalog.annotate(name, { category: 'device', group: slug, risk, summary });
 ```
 
 `risk` comes from the capability's tool metadata (`read | write | exec | sensitive`); `summary` is its

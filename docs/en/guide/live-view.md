@@ -58,13 +58,13 @@ literal, keys use names such as `Return` or combos such as `ctrl+c`.
 
 ## Backends and dependencies
 
-| Session | Capture | Input | Validation in E2b |
-| --- | --- | --- | --- |
+| Session                                        | Capture                                            | Input                                                   | Validation in E2b                                                                     |
+| ---------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | Linux wlroots protocols (including niri/labwc) | grim 1.5, wlr-screencopy or ext-image-copy-capture | output-bound virtual pointer v2; wtype virtual keyboard | Actual headless labwc/pixman capture/pointer e2e; niri and native keyboard unverified |
-| Linux GNOME/KDE Wayland | ScreenCast portal + PipeWire/GStreamer | RemoteDesktop portal | Compiled; needs real desktop validation |
-| Linux X11 | XGetImage | xdotool/XTest | Compiled; needs X11 validation |
-| Windows | GDI fallback | SendInput | Implemented; Windows toolchain/hardware validation pending |
-| macOS | Not supported yet | Not supported yet | Screen/input are not advertised |
+| Linux GNOME/KDE Wayland                        | ScreenCast portal + PipeWire/GStreamer             | RemoteDesktop portal                                    | Compiled; needs real desktop validation                                               |
+| Linux X11                                      | XGetImage                                          | xdotool/XTest                                           | Compiled; needs X11 validation                                                        |
+| Windows                                        | GDI fallback                                       | SendInput                                               | Implemented; Windows toolchain/hardware validation pending                            |
+| macOS                                          | Not supported yet                                  | Not supported yet                                       | Screen/input are not advertised                                                       |
 
 Backends are selected from the current session's protocols, never silently from XWayland. The portal
 opens the desktop's own permission chooser, requests one monitor plus keyboard/pointer, and does not

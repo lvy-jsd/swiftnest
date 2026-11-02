@@ -1,4 +1,15 @@
-import { ArrowLeftIcon, ArrowUpIcon, ChatCircleIcon, CheckIcon, DesktopIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, UserCircleIcon, XIcon } from "@phosphor-icons/react";
+import {
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  ChatCircleIcon,
+  CheckIcon,
+  DesktopIcon,
+  GearSixIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  UserCircleIcon,
+  XIcon,
+} from '@phosphor-icons/react';
 
 /** Screens reference semantic roles here; default weight is regular, 24 px. */
 export const icons = {

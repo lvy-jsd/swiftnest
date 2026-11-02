@@ -18,17 +18,17 @@ npm test
 `src/index.ts` 里有两部分：
 
 ```ts
-export function helloCapability(greeting = "Hello"): Capability {
+export function helloCapability(greeting = 'Hello'): Capability {
   return {
     manifest: {
-      id: "hello",                       // 能力 id，工具名的中间那段
-      title: { en: "Hello", zh: "打招呼" },
+      id: 'hello', // 能力 id，工具名的中间那段
+      title: { en: 'Hello', zh: '打招呼' },
       tools: [
         {
-          name: "greet",                 // 工具名的最后一段
-          description: { en: "Greet someone by name.", zh: "按名字跟人打招呼。" },
-          inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
-          risk: "read",                  // 只观察：默认直接放行
+          name: 'greet', // 工具名的最后一段
+          description: { en: 'Greet someone by name.', zh: '按名字跟人打招呼。' },
+          inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+          risk: 'read', // 只观察：默认直接放行
         },
       ],
     },
@@ -39,12 +39,12 @@ export function helloCapability(greeting = "Hello"): Capability {
 }
 
 export default definePlugin({
-  name: "swiftnest-plugin-weather",
-  kind: "capability",
+  name: 'swiftnest-plugin-weather',
+  kind: 'capability',
   apiVersion: 1,
-  runsOn: "perch",                       // 能力插件装在设备上
+  runsOn: 'perch', // 能力插件装在设备上
   setup(ctx) {
-    if (ctx.role !== "perch") return;
+    if (ctx.role !== 'perch') return;
     ctx.provideCapability(helloCapability(/* ctx.config 里有用户配置 */));
   },
 });
@@ -68,9 +68,9 @@ export default definePlugin({
 `test/plugin.test.ts` 用 SDK 的 `createTestNest` 在内存里搭一个服务器和设备：
 
 ```ts
-const t = await createTestNest({ devices: [{ name: "sim", plugins: [plugin] }] });
-const task = await t.call("sim__hello__greet", { name: "Swift" });
-expect(task.result?.text).toBe("Hello, Swift!");
+const t = await createTestNest({ devices: [{ name: 'sim', plugins: [plugin] }] });
+const task = await t.call('sim__hello__greet', { name: 'Swift' });
+expect(task.result?.text).toBe('Hello, Swift!');
 ```
 
 需要批准的工具，测试里可以用 `t.call(name, args, { approve: true })` 模拟主人批准。

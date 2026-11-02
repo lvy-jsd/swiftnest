@@ -51,8 +51,7 @@ class WithStatus {
   ) {}
 }
 const withStatus = (status: number, body: unknown) => new WithStatus(status, body);
-const reply = (r: Request, status: number, value: unknown) =>
-  sendJson(r.res, status, value, r.hub.preferences.lang);
+const reply = (r: Request, status: number, value: unknown) => sendJson(r.res, status, value, r.hub.preferences.lang);
 const route = (method: Route['method'], path: string, handle: Handler): Route => ({
   method,
   path: new RegExp(`^${path}$`),
@@ -261,6 +260,7 @@ export async function handleDeviceRequest(hub: DeviceHub, req: IncomingMessage, 
     reply(request, 404, { error: 'Not found' });
   } catch (error) {
     if (!(error instanceof HttpError)) throw error;
-    if (!res.headersSent) reply(request, error.status, { error: error.message, ...(error.code ? { code: error.code } : {}) });
+    if (!res.headersSent)
+      reply(request, error.status, { error: error.message, ...(error.code ? { code: error.code } : {}) });
   }
 }

@@ -51,13 +51,13 @@
 
 ## 后端与依赖
 
-| 会话 | 采集 | 输入 | E2b 验证情况 |
-| --- | --- | --- | --- |
+| 会话                                | 采集                                               | 输入                                  | E2b 验证情况                                                  |
+| ----------------------------------- | -------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------- |
 | Linux wlroots 协议（含 niri/labwc） | grim 1.5，wlr-screencopy 或 ext-image-copy-capture | 绑定输出的虚拟指针 v2、wtype 虚拟键盘 | 无头 labwc/pixman 采集和指针端到端通过；niri 和原生键盘未验证 |
-| Linux GNOME/KDE Wayland | ScreenCast Portal + PipeWire/GStreamer | RemoteDesktop Portal | 编译通过，待真实桌面验证 |
-| Linux X11 | XGetImage | xdotool/XTest | 编译通过，待 X11 验证 |
-| Windows | GDI 回退 | SendInput | 已实现，待 Windows 工具链和硬件验证 |
-| macOS | 暂不支持 | 暂不支持 | 不公布屏幕和输入能力 |
+| Linux GNOME/KDE Wayland             | ScreenCast Portal + PipeWire/GStreamer             | RemoteDesktop Portal                  | 编译通过，待真实桌面验证                                      |
+| Linux X11                           | XGetImage                                          | xdotool/XTest                         | 编译通过，待 X11 验证                                         |
+| Windows                             | GDI 回退                                           | SendInput                             | 已实现，待 Windows 工具链和硬件验证                           |
+| macOS                               | 暂不支持                                           | 暂不支持                              | 不公布屏幕和输入能力                                          |
 
 按当前会话协议选择后端，不会悄悄改用 XWayland 截取不完整桌面。Portal 会弹出系统权限选择器，
 选择一个显示器并申请键盘和指针权限，不保存恢复令牌。其尺寸和缩放描述归一化的流，不代表物理 DPI。
