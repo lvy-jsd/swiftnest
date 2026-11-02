@@ -39,7 +39,7 @@ async function setup(catalog = true) {
   }, { devicesAdminUrl: hub.env[ADMIN_URL_ENV], devicesAdminToken: hub.env[ADMIN_TOKEN_ENV] });
   cleanup.push(() => { for (const dispose of disposers.reverse()) dispose(); });
   return { hub, home, tools, registered, service, emit, annotate, routes, admit, invoke,
-    addCatalog: () => { catalogAvailable = true; catalogReady?.({ get: () => ({ annotate }) }); } };
+    addCatalog: () => { catalogAvailable = true; catalogReady?.({ get: () => ({ annotate }), effect: fn => { disposers.push(fn()); } }); } };
 }
 async function pair(t: Awaited<ReturnType<typeof setup>>) {
   const perch = await new Perch({ device: 'laptop', kind: 'android' }).use(files, { roots: [t.home] });
@@ -142,6 +142,21 @@ it('annotates tools when an optional catalog appears after registration', async 
   expect(t.annotate).not.toHaveBeenCalled();
   t.addCatalog();
   expect(t.annotate).toHaveBeenCalledWith('device__laptop__files_read', expect.objectContaining({ category: 'device', group: 'laptop', risk: 'read' }));
+});
+
+it('keeps one catalog annotation per tool across reconnects', async () => {
+  const t = await setup();
+  const live = new Map<string, number>();
+  t.annotate.mockImplementation((name: string) => { live.set(name, (live.get(name) ?? 0) + 1); return () => live.set(name, live.get(name)! - 1); });
+  const perch = await pair(t);
+  t.hub.nest.detach(perch.device);
+  await expect.poll(() => t.service.list()[0]?.online).toBe(false);
+  t.hub.nest.attach(memoryLink(perch));
+  await expect.poll(() => t.service.list()[0]?.online).toBe(true);
+  expect(Math.max(...live.values())).toBe(1);
+  await t.hub.nest.revoke('laptop');
+  await expect.poll(() => t.tools.has('device__laptop__files_read')).toBe(false);
+  expect(live.get('device__laptop__files_read')).toBe(0);
 });
 
 it('cancels a call aborted before its submit acknowledgement arrives', async () => {

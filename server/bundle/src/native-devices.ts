@@ -41,8 +41,8 @@ interface Context {
   typertGateway: { invoke(request: { namespace: string; method: string; args: Record<string, unknown>; peer: unknown; signal: AbortSignal }): Promise<unknown> };
   provide(name: string, value: SwiftnestDevices): void;
   emit(event: string, payload: { slugs: string[] }): void;
-  get(name: string): { annotate(name: string, metadata: { category: 'device'; group: string; risk: NativeDeviceTool['risk']; summary: string }): void } | undefined;
-  inject(dependencies: string[], callback: (ctx: Pick<Context, 'get'>) => void): unknown;
+  get(name: string): { annotate(name: string, metadata: { category: 'device'; group: string; risk: NativeDeviceTool['risk']; summary: string }): (() => void) | void } | undefined;
+  inject(dependencies: string[], callback: (ctx: Pick<Context, 'get' | 'effect'>) => void): unknown;
   effect(fn: () => () => void, label?: string): void;
   logger: { warn(message: string): void };
 }
@@ -84,6 +84,18 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
   const directory = new DeviceDirectory();
   let knownTools: NativeDeviceTool[] = [];
   const registered = new Map<string, { key: string; dispose(): void }>();
+  // One live catalog annotation per tool: re-annotating on every refresh would stack them as devices reconnect.
+  const annotations = new Map<string, { key: string; dispose?: () => void }>();
+  type Catalog = ReturnType<typeof ctx.get>;
+  const unannotate = (name: string) => { annotations.get(name)?.dispose?.(); annotations.delete(name); };
+  const annotate = (catalog: Catalog, tool: NativeDeviceTool) => {
+    if (!catalog) return;
+    const key = JSON.stringify([tool.slug, tool.risk, tool.description]);
+    if (annotations.get(tool.name)?.key === key) return;
+    unannotate(tool.name);
+    const dispose = catalog.annotate(tool.name, { category: 'device', group: tool.slug, risk: tool.risk, summary: tool.description });
+    annotations.set(tool.name, { key, dispose: typeof dispose === 'function' ? dispose : undefined });
+  };
   const control = '/swiftnest/control/devices';
   const request = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(new URL(control + path, target), { ...init, redirect: 'error',
@@ -119,7 +131,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
     const before = new Map(directory.list().map(d => [d.slug, JSON.stringify(d)]));
     directory.update(snapshot.devices);
     const next = new Set(snapshot.tools.map(t => t.name));
-    for (const [name, entry] of registered) if (!next.has(name)) { entry.dispose(); registered.delete(name); }
+    for (const [name, entry] of registered) if (!next.has(name)) { entry.dispose(); registered.delete(name); unannotate(name); }
     for (const tool of snapshot.tools) {
       const key = JSON.stringify(tool);
       if (registered.get(tool.name)?.key !== key) {
@@ -133,17 +145,20 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
         });
         registered.set(tool.name, { key, dispose });
       }
-      ctx.get('toolCatalog')?.annotate(tool.name, { category: 'device', group: tool.slug, risk: tool.risk, summary: tool.description });
+      annotate(ctx.get('toolCatalog'), tool);
     }
     const after = new Map(snapshot.devices.map(d => [d.slug, JSON.stringify(d)]));
     const changed = [...new Set([...(slugs ?? []), ...[...new Set([...before.keys(), ...after.keys()])].filter(s => before.get(s) !== after.get(s))])];
     if (changed.length) ctx.emit('swiftnest/devices-changed', { slugs: changed });
   };
   ctx.provide('swiftnestDevices', { list: () => directory.list(), currentFor: sessionId => directory.currentFor(sessionId) });
-  ctx.effect(() => () => { lifetime.abort(); for (const entry of registered.values()) entry.dispose(); registered.clear(); }, 'swiftnest-devices: lifetime');
+  ctx.effect(() => () => { lifetime.abort(); for (const entry of registered.values()) entry.dispose(); registered.clear(); for (const name of [...annotations.keys()]) unannotate(name); }, 'swiftnest-devices: lifetime');
   await refresh();
   ctx.inject(['toolCatalog'], inner => {
-    for (const tool of knownTools) inner.get('toolCatalog')?.annotate(tool.name, { category: 'device', group: tool.slug, risk: tool.risk, summary: tool.description });
+    // A (re)loaded catalog starts empty: drop stale disposers, annotate everything once, release on unload.
+    annotations.clear();
+    for (const tool of knownTools) annotate(inner.get('toolCatalog'), tool);
+    inner.effect(() => () => { for (const name of [...annotations.keys()]) unannotate(name); }, 'swiftnest-devices: catalog annotations');
   });
   ctx.effect(() => {
     void (async () => {
