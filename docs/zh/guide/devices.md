@@ -25,7 +25,7 @@ devices:
   mdns: true         # false 关闭发现，仍可使用显示的地址连接
 ```
 
-本功能只实现服务器端，尚未集成桌面或 Android 设备端。需要兼容的 Perch；开发时可以使用已有 Node Perch 和能力插件。
+桌面 App 已集成 Rust Perch，入口为 **此设备**，默认关闭。参阅[控制这台电脑](./control-this-computer)。Android 暂时隐藏设备端控制，CLI Node Perch 仍可用于开发。
 
 ## 审批请求
 
@@ -136,3 +136,8 @@ MCP 发现仍反映在线设备，并发出 `tools/list_changed`，与 DSH 原�
 管理和 MCP 端点均使用系统分配的端口，每次进程启动更换凭据。密钥通过环境变量传递，不写入生成的 patch。
 主人 API 代理无法访问私有的原生工具调用及控制路由，MCP 不暴露审批入口。
 这是本机进程之间的信任边界，并非用于隔离恶意服务器插件或同一系统用户运行的代码。
+
+## 桌面本机控制
+
+桌面 App 的 **此设备** 区域已接入共享 Rust Perch，默认关闭。参阅[控制这台电脑](./control-this-computer)
+选择共享文件夹、配对并设置后台运行。Android 本机控制暂时隐藏，CLI Node Perch 仍可用于开发。

@@ -1,0 +1,31 @@
+[package]
+name = "swiftnest-perch"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Shared, Node-free Swiftnest device core for Tauri hosts"
+
+[dependencies]
+aes-gcm = "0.10"
+async-trait = "0.1"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+dirs = "6"
+ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
+futures-util = { version = "0.3", features = ["sink"] }
+hkdf = "0.12"
+hmac = "0.12"
+libc = "0.2"
+rand = "0.8"
+regex = "1"
+# tokio-tungstenite deliberately does not choose a rustls crypto provider.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "process", "io-util", "io-std", "fs"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
+zeroize = "1"

@@ -177,7 +177,9 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
   }
 
   const record = o.devices.get(device);
-  if (record && h.kind && record.kind !== h.kind) await o.devices.add({ ...record, kind: h.kind });
+  if (record && ((h.kind && record.kind !== h.kind) || (h.name && record.name !== h.name))) {
+    await o.devices.add({ ...record, kind: h.kind ?? record.kind, name: h.name ?? record.name });
+  }
   const conn = remoteConnection(channel, box, { device, publicKey: key, via: o.via, capabilities: h.capabilities, logger });
   try {
     nest.attach(conn);

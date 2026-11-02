@@ -161,6 +161,8 @@ export const PerchHello = z.object({
   device: Name,
   publicKey: z.string(),
   kind: z.enum(['desktop', 'android']).optional(),
+  /** Human-readable label; the protocol device identity and agent slug stay stable. */
+  name: z.string().min(1).max(128).optional(),
   capabilities: z.array(CapabilityManifest),
 });
 export const InvokeRequest = z.object({

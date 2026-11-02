@@ -30,8 +30,9 @@ devices:
   mdns: true   # false disables discovery; the displayed address still works
 ```
 
-This server feature does not ship desktop/Android device-side integration. A compatible Perch is needed;
-the existing Node Perch and capability plugins can be used for development.
+The desktop App includes a Rust Perch under **This device**, off by default. Follow
+[Control this computer](./control-this-computer) to choose folders and pair it. Android device control
+is hidden for now. The existing Node Perch remains available for CLI development.
 
 ## Approve a request
 

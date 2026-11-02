@@ -127,3 +127,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--color-accent);
 .approval-banner { padding: var(--space-sm) var(--page-gutter); background: var(--color-surface2); }
 .device-online { color: var(--color-success); }
 .pairing-code { font: var(--type-large-title-size) ui-monospace, monospace; letter-spacing: var(--space-xs); }
+.this-device { flex-shrink: 0; }
+.this-device input { min-width: 0; width: 100%; }
+.this-device input[type="checkbox"] { width: var(--min-target); height: var(--min-target); flex-shrink: 0; }
+.shared-folder { flex: 1; min-width: 0; overflow-wrap: anywhere; }

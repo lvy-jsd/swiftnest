@@ -1,0 +1,47 @@
+{
+  "id": "shell",
+  "version": "0.0.1",
+  "title": {
+    "en": "Shell",
+    "zh": "命令行"
+  },
+  "description": {
+    "en": "Run commands on this device.",
+    "zh": "在这台设备上运行命令。"
+  },
+  "permissions": [
+    "process.spawn"
+  ],
+  "tools": [
+    {
+      "name": "run",
+      "title": {
+        "en": "Run a command",
+        "zh": "运行命令"
+      },
+      "description": {
+        "en": "Run a command on the device and return its output. Read-only commands such as ls, cat or df run immediately when they only touch the shared folders; anything that changes the system, or reads a protected location, waits for the owner's approval.",
+        "zh": "在设备上运行一条命令并返回输出。只读命令（ls、cat、df 等）在只访问共享文件夹时直接执行；会改动系统或读取受保护位置（密钥、凭据）的命令需要主人批准。"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The command line, e.g. \"ls -la /tmp\" (read-only commands without shell operators run immediately)"
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Working directory (default: the user's home)"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "additionalProperties": false
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 60000
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { useI18n } from './i18n';
 import { Button } from './components/Button';
 import { Card } from './components/Card';
 import { HubPage, SheetPage } from './components/pages';
+import { ThisDevice } from './thisDevice';
 import { VirtualList } from './components/VirtualList';
 
 type Hub = {
@@ -27,6 +28,8 @@ export function DeviceHubProvider({ children }: PropsWithChildren) {
     if (!client) return;
     const version = ++refreshVersion.current;
     const [d, a, p] = await Promise.all([client.listDevices(), client.listDeviceApprovals(), client.listDevicePairings()]);
+    if (store.client !== client || version !== refreshVersion.current) return;
+    await store.updateDeviceContext(d);
     if (store.client !== client || version !== refreshVersion.current) return;
     setDevices(d); setApprovals(a); setCandidates(p); setError(false);
   }, [client, store]);
@@ -96,6 +99,7 @@ export function DevicesPage({ onBack }: { onBack: () => void }) {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const active = pairing && Date.parse(pairing.expiresAt) > now;
   return <HubPage title={t('devices')} subtitle={t('devicesHelp')} onBack={onBack}>
+    <ThisDevice />
     {status !== 'connected' ? <a href="#/pair">{t('pair')}</a> : <Button variant="primary" disabled={busy} onClick={() => void act(async () => setPairing(await store.client!.createDevicePairing()))}>{t('pairDevice')}</Button>}
     {pairing && <Card className="device-card" aria-label={t('pairDevice')}>
       <h2>{t(active ? 'pairingCode' : 'pairingExpired')}</h2>
@@ -110,7 +114,7 @@ export function DevicesPage({ onBack }: { onBack: () => void }) {
     <DeviceApprovals />
     {!devices.length && status === 'connected' && <p>{t('noDevices')}</p>}
     <VirtualList items={devices} itemKey={d => d.device} label={t('devices')} renderItem={d => <Card className="device-card">
-      <h2>{d.device}</h2><p className={d.online ? 'device-online' : undefined}>{t(d.online ? 'online' : 'offline')}{d.via ? ` · ${d.via}` : ''}</p>
+      <h2>{d.name ?? d.device}</h2><p className={d.online ? 'device-online' : undefined}>{t(d.online ? 'online' : 'offline')}{d.via ? ` · ${d.via}` : ''}</p>
       <p><code>{d.fingerprint}</code></p>
       {d.lastSeen && <p>{t('lastSeen')}: {new Date(d.lastSeen).toLocaleString(locale)}</p>}
       <p>{t('capabilities')}: {d.capabilities.map(c => `${c.id} (${c.tools.join(', ')})`).join(' · ') || t('none')}</p>

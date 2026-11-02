@@ -1,0 +1,4 @@
+[workspace]
+members = ["native/perch", "client/src-tauri"]
+exclude = ["packages/mesh"]
+resolver = "2"
