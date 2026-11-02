@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Phase 0 pairs to user-selected LAN IPs over HTTP. Android domain-config
+         cannot express private IP CIDRs, and the host is unknown at build time.
+         Tauri's local main-window HTTP capability still limits the API paths;
+         the WebView CSP keeps LAN requests on the native carrier.
+         Use only trusted LANs. Phase 2 adds encrypted transport. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

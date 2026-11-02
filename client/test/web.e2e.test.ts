@@ -165,6 +165,21 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('web App: pair → new chat →
     await second.screenshot({ path: 'client/test/screenshots/language-zh-CN-390.png', animations: 'disabled' });
     await second.close();
     expect(errors).toEqual([]);
+    // A phone viewport and a keyboard-sized resize keep the composer visible.
+    for (const height of [844, 440]) {
+      await page.setViewportSize({ width: 390, height });
+      await composer.focus();
+      const rect = await composer.boundingBox();
+      expect(rect).not.toBeNull();
+      expect(rect!.y).toBeGreaterThanOrEqual(0);
+      expect(rect!.y + rect!.height).toBeLessThanOrEqual(height);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+    }
+    await page.getByRole('button', { name: 'Go back' }).click();
+    await page.getByRole('button', { name: 'Open preferences' }).click();
+    await page.getByRole('dialog').waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.close();
   } catch (error) {
     const body = await page?.locator('body').innerText().catch(() => 'No page');

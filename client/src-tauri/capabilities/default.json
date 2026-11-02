@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Local main window only. HTTP pairing/API paths on user-selected HTTP(S) hosts; WebSocket connect/send for the paired host.",
+  "description": "Local main window on desktop and Android. HTTP pairing/API paths on user-selected HTTP(S) hosts; WebSocket connect/send for the paired host. No platform restriction or remote-origin IPC.",
   "windows": ["main"],
   "permissions": [
     "core:default",

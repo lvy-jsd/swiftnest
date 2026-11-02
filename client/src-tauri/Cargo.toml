@@ -1,7 +1,7 @@
 [package]
 name = "swiftnest-app"
 version = "0.0.1"
-description = "Swiftnest desktop app"
+description = "Swiftnest desktop and Android app"
 edition = "2021"
 license = "Apache-2.0"
 

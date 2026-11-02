@@ -27,18 +27,18 @@ input::placeholder, textarea::placeholder { color: var(--color-text-muted); opac
 @supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
   :root:not([data-reduce-transparency="true"]) .glass { background: color-mix(in srgb, var(--color-surface1) 88%, transparent); backdrop-filter: blur(var(--surface-blur)); -webkit-backdrop-filter: blur(var(--surface-blur)); }
 }
-.app-shell { display: flex; height: 100dvh; overflow: hidden; }
+.app-shell { display: flex; height: 100dvh; overflow: hidden; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 .main-content { flex: 1; min-width: 0; min-height: 0; overflow: hidden; outline: none; touch-action: pan-y; }
 .sidebar { display: none; }
 .page, .route-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .route-view { animation: push-in var(--duration-navigation) var(--easing-standard); }
 .route-view[data-direction="back"] { animation-name: push-back; }
-.page-header { padding: calc(var(--space-xl) + env(safe-area-inset-top, 0px)) var(--page-gutter) var(--space-xl); }
+.page-header { padding: var(--space-xl) var(--page-gutter); }
 .page-header__row { display: flex; align-items: center; gap: var(--space-md); }
 .page-header__titles { flex: 1; min-width: 0; }
 .page-header__titles h1 { overflow-wrap: anywhere; }
 .page-header__titles p { color: var(--color-text-secondary); font-size: var(--type-footnote-size); line-height: var(--type-footnote-line); margin-top: var(--space-xs); }
-.page-header--large { padding-top: calc(var(--space-xxxl) + env(safe-area-inset-top, 0px)); }
+.page-header--large { padding-top: var(--space-xxxl); }
 .page-header--large h1 { font-size: var(--type-large-title-size); line-height: var(--type-large-title-line); }
 .page__body { padding: var(--space-xxl) var(--page-gutter); overflow: auto; }
 .page__content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -64,7 +64,7 @@ input::placeholder, textarea::placeholder { color: var(--color-text-muted); opac
 .message__body strong { font-size: var(--type-footnote-size); line-height: var(--type-footnote-line); }
 .message__body p { margin-top: var(--space-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message--own .message__body { background: var(--color-surface2); border-radius: var(--radius-card); padding: var(--space-lg); }
-.composer-area { padding: var(--space-lg) var(--page-gutter) calc(var(--space-lg) + env(safe-area-inset-bottom, 0px)); }
+.composer-area { flex-shrink: 0; padding: var(--space-lg) var(--page-gutter); }
 .composer-notice { font-size: var(--type-footnote-size); line-height: var(--type-footnote-line); color: var(--color-text-muted); margin-bottom: var(--space-md); }
 .connection-status { padding: var(--space-md) var(--page-gutter); color: var(--color-text-secondary); font-size: var(--type-footnote-size); overflow-wrap: anywhere; }
 .connection-status a { display: inline-flex; align-items: center; min-height: var(--min-target); }

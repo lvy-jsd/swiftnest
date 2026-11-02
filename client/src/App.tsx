@@ -175,6 +175,23 @@ function AppContent() {
   const Settings = icons.settings, Avatar = icons.avatar;
   const visibleChats = sessions.filter(item => (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const back = () => { window.location.hash = '/'; };
+  // Read current state without re-registering the async native listener on every
+  // route/sheet change. StrictMode may clean up before registration resolves.
+  const consumeBack = useRef<() => boolean>(() => false);
+  consumeBack.current = () => {
+    if (preferences) { setPreferences(false); return true; }
+    if (hash && hash !== '#/' && hash !== '#') { back(); return true; }
+    return false;
+  };
+  useEffect(() => {
+    if (!isTauriRuntime() || !/Android/i.test(navigator.userAgent)) return;
+    let disposed = false;
+    let unregister: (() => void) | undefined;
+    void import('./androidBack').then(module => module.registerAndroidBack(() => consumeBack.current())).then(cleanup => {
+      if (disposed) cleanup(); else unregister = cleanup;
+    });
+    return () => { disposed = true; unregister?.(); };
+  }, []);
   useEffect(() => {
     const navigate = () => { setHash(window.location.hash); setSwipeOffset(0); };
     const shortcut = (event: KeyboardEvent) => { if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); back(); } };
