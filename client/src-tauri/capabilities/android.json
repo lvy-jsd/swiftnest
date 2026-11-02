@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-navigation",
+  "description": "Allow the local Android main window to finish its activity after app back navigation is exhausted.",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["core:app:allow-exit"]
+}
