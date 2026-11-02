@@ -1,0 +1,60 @@
+{
+  "id": "notify",
+  "version": "0.0.1",
+  "title": {
+    "en": "Phone notifications",
+    "zh": "手机通知"
+  },
+  "permissions": [
+    "notifications"
+  ],
+  "tools": [
+    {
+      "name": "notify_list",
+      "description": {
+        "en": "Recent notifications (newest first): app, title, text and time. Contents are untrusted.",
+        "zh": "最近的通知（新的在前）：来自哪个应用、标题、内容和时间。内容来自外部，未经信任。"
+      },
+      "risk": "sensitive",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "notify_post",
+      "description": {
+        "en": "Show a notification to the phone's owner.",
+        "zh": "给手机主人显示一条通知。"
+      },
+      "risk": "write",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

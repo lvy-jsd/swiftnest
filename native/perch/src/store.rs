@@ -27,7 +27,11 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            name: crate::i18n::text("native_0"),
+            name: crate::i18n::text(if cfg!(target_os = "android") {
+                "thisPhone"
+            } else {
+                "native_0"
+            }),
             slug: String::new(),
             enabled: false,
             background: false,
@@ -99,7 +103,12 @@ impl Store {
         };
         if settings.slug.is_empty() {
             settings.slug = format!(
-                "computer-{}",
+                "{}-{}",
+                if cfg!(target_os = "android") {
+                    "phone"
+                } else {
+                    "computer"
+                },
                 &fingerprint(&public_key(&identity))?.replace('-', "")[..12]
             );
         }

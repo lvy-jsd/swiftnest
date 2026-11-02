@@ -1,9 +1,11 @@
 //! Device-only core. The host owns consent/UI; the server owns the Nest and approvals.
 pub use swiftnest_locale as i18n;
+pub mod bridge;
 pub mod capability;
 pub mod channel;
 pub mod files;
 pub mod paths;
+pub mod phone;
 pub mod runtime;
 pub mod shell;
 pub mod store;

@@ -27,10 +27,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge co
       const page=await browser.newPage({viewport:{width:390,height:844},locale});
       await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale === 'en-US' ? 'en' : 'zh-CN');
       await page.addInitScript(()=>{
-        let value:any={settings:{name:'This computer',slug:'computer-fixed',enabled:false,background:false,roots:[],url:'ws://server:7711/swiftnest',nestKey:null},phase:'stopped',fingerprint:'aaaa-bbbb-cccc-dddd',nestFingerprint:null,confirmationPending:false,error:null,desktop:true};
-        (window as any).__deviceTest={calls:[],setDesktop:(desktop:boolean)=>{value.desktop=desktop;}};
+        let value:any={settings:{name:'This computer',slug:'computer-fixed',enabled:false,background:false,roots:[],url:'ws://server:7711/swiftnest',nestKey:null},phase:'stopped',fingerprint:'aaaa-bbbb-cccc-dddd',nestFingerprint:null,confirmationPending:false,error:null,platform:'desktop'};
+        (window as any).__deviceTest={calls:[],setPlatform:(platform:string)=>{value.platform=platform;}};
         (window as any).__TAURI_INTERNALS__={invoke:async(command:string,args:any)=>{
           (window as any).__deviceTest.calls.push({command,args});
+          if(command==='phone_status')return {accessibility:true,notifications:false};
           if(command==='perch_pick_folders')return ['/home/owner/Shared folder with a deliberately very long name/notes'];
           if(command==='perch_configure'){
             value.settings={...args.settings,nestKey:value.settings.nestKey};value.phase=args.settings.enabled?'online':'stopped';
@@ -68,7 +69,17 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('This device: desktop bridge co
       await section.getByRole('button',{name:zh?'取消此电脑配对':'Unpair this computer',exact:true}).click();
       await page.getByRole('dialog').getByRole('button',{name:zh?'取消此电脑配对':'Unpair this computer',exact:true}).click();
       await section.getByRole('button',{name:zh?'配对这台电脑':'Pair this computer',exact:true}).waitFor();
-      await page.evaluate(()=>(window as any).__deviceTest.setDesktop(false));
+      // Android shows the phone variant: permissions instead of folders, live view and background.
+      await page.evaluate(()=>(window as any).__deviceTest.setPlatform('android'));
+      await section.getByRole('checkbox',{name:zh?'允许 Ivy 使用这台手机':'Let Ivy use this phone'}).waitFor();
+      await section.getByText(zh?'无障碍':'Accessibility',{exact:true}).waitFor();
+      await section.getByText(zh?'· 已开启':'· On').first().waitFor();
+      await section.getByText(zh?'· 未开启':'· Off').first().waitFor();
+      expect(await section.getByRole('button',{name:zh?'添加共享文件夹':'Add shared folder'}).count()).toBe(0);
+      expect(await section.getByRole('checkbox',{name:zh?'允许实时画面':'Allow live view'}).count()).toBe(0);
+      await section.getByRole('button',{name:zh?'打开系统设置':'Open system settings'}).first().click();
+      await expect.poll(()=>page.evaluate(()=>(window as any).__deviceTest.calls.some((c:any)=>c.command==='phone_open_settings'&&c.args.kind==='accessibility'))).toBe(true);
+      await page.evaluate(()=>(window as any).__deviceTest.setPlatform('ios'));
       await expect.poll(()=>section.count(), { timeout:5000 }).toBe(0);
       await page.close();
     }

@@ -1,0 +1,130 @@
+{
+  "id": "input",
+  "version": "0.0.1",
+  "title": {
+    "en": "Phone touch and keys",
+    "zh": "手机触控和按键"
+  },
+  "permissions": [
+    "accessibility"
+  ],
+  "tools": [
+    {
+      "name": "input_tap",
+      "description": {
+        "en": "Tap at screen pixel x,y (same coordinates as screen_capture before scaling and as ui_tree bounds).",
+        "zh": "在屏幕像素坐标 x,y 处点按（与 ui_tree 的位置、screen_capture 缩放前的坐标一致）。"
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "Pixels from the left"
+          },
+          "y": {
+            "type": "number",
+            "description": "Pixels from the top"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "input_swipe",
+      "description": {
+        "en": "Swipe from x1,y1 to x2,y2 over durationMs (default 300).",
+        "zh": "在 durationMs 毫秒内（默认 300）从 x1,y1 滑到 x2,y2。"
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x1": {
+            "type": "number",
+            "description": "Start x"
+          },
+          "y1": {
+            "type": "number",
+            "description": "Start y"
+          },
+          "x2": {
+            "type": "number",
+            "description": "End x"
+          },
+          "y2": {
+            "type": "number",
+            "description": "End y"
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Duration in milliseconds"
+          }
+        },
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "input_type",
+      "description": {
+        "en": "Type text into the focused text field (replaces its contents).",
+        "zh": "向当前获得焦点的输入框输入文字（替换原有内容）。"
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "input_key",
+      "description": {
+        "en": "Press a system key: back, home, recents or notifications.",
+        "zh": "按系统键：back（返回）、home（主屏幕）、recents（最近任务）或 notifications（通知栏）。"
+      },
+      "risk": "exec",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "back",
+              "home",
+              "recents",
+              "notifications"
+            ]
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

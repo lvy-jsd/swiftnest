@@ -25,6 +25,14 @@ use tokio::{
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
 
+const PLATFORM: &str = if cfg!(target_os = "android") {
+    "android"
+} else if cfg!(target_os = "ios") {
+    "ios"
+} else {
+    "desktop"
+};
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -33,7 +41,8 @@ pub struct Snapshot {
     pub fingerprint: String,
     pub nest_fingerprint: Option<String>,
     pub error: Option<Failure>,
-    pub desktop: bool,
+    /// "desktop", "android" or "ios": the App shows the matching "This device" settings.
+    pub platform: &'static str,
     pub confirmation_pending: bool,
     pub watching: bool,
     pub owner_control: bool,
@@ -54,6 +63,8 @@ pub struct Controller {
     run: AsyncMutex<Option<Run>>,
     desktop: Arc<Mutex<Arc<Desktop>>>,
     indicator_ready: std::sync::atomic::AtomicBool,
+    /// Capabilities the host platform adds (e.g. Android services), offered alongside the built-in ones.
+    platform: Mutex<Vec<Arc<dyn Capability>>>,
 }
 impl Controller {
     pub fn open(dir: impl AsRef<Path>) -> Result<Arc<Self>> {
@@ -68,7 +79,12 @@ impl Controller {
             run: AsyncMutex::new(None),
             desktop: Arc::new(Mutex::new(Arc::new(Desktop::default()))),
             indicator_ready: std::sync::atomic::AtomicBool::new(false),
+            platform: Mutex::new(Vec::new()),
         }))
+    }
+    /// Platform capabilities take effect from the next connection.
+    pub fn add_platform_capabilities(&self, capabilities: Vec<Arc<dyn Capability>>) {
+        self.platform.lock().unwrap().extend(capabilities);
     }
     /// Hosts must install visible observation UI before advertising screen/input.
     pub fn set_indicator_ready(&self, ready: bool) {
@@ -88,7 +104,7 @@ impl Controller {
             nest_fingerprint: live.nest_fingerprint.clone(),
             error: live.error.clone(),
             confirmation_pending: live.confirm.is_some(),
-            desktop: !cfg!(any(target_os = "android", target_os = "ios")),
+            platform: PLATFORM,
         }
     }
     /// Changes always stop and drain the old session before publishing new permissions.
@@ -255,6 +271,7 @@ impl Controller {
             .indicator_ready
             .load(std::sync::atomic::Ordering::SeqCst)
             && cfg!(any(target_os = "linux", target_os = "windows"));
+        let platform = self.platform.lock().unwrap().clone();
         let cancel = CancellationToken::new();
         let stop = cancel.clone();
         let task = tokio::spawn(async move {
@@ -272,7 +289,7 @@ impl Controller {
                 let connected = tokio::select! {
                     biased;
                     _ = stop.cancelled() => break,
-                    result = establish(&store, &live, code.as_deref(),screen_available) => result,
+                    result = establish(&store, &live, code.as_deref(), screen_available, &platform) => result,
                 };
                 let result = match connected {
                     Ok(channel) => {
@@ -304,6 +321,7 @@ impl Controller {
                                 desktop.clone(),
                                 screen_available,
                                 transfers.clone(),
+                                &platform,
                             ),
                             stop.clone(),
                             desktop,
@@ -346,18 +364,21 @@ fn host_capabilities(
     desktop: Arc<Desktop>,
     screen_available: bool,
     transfers: crate::transfer::Transfers,
+    platform: &[Arc<dyn Capability>],
 ) -> Vec<Arc<dyn Capability>> {
-    let mut caps: Vec<Arc<dyn Capability>> = vec![
-        Arc::new(Files {
-            guard: guard.clone(),
-        }),
-        Arc::new(Shell { guard }),
-        Arc::new(transfers),
-    ];
+    let mut caps: Vec<Arc<dyn Capability>> = vec![Arc::new(Files {
+        guard: guard.clone(),
+    })];
+    // Mobile platforms have no shell we can confine, so the tool is not offered at all.
+    if !cfg!(any(target_os = "android", target_os = "ios")) {
+        caps.push(Arc::new(Shell { guard }));
+    }
+    caps.push(Arc::new(transfers));
     if screen_available {
         caps.push(Arc::new(ScreenCapability(desktop.clone())));
         caps.push(Arc::new(InputCapability(desktop)));
     }
+    caps.extend(platform.iter().cloned());
     caps
 }
 async fn establish(
@@ -365,6 +386,7 @@ async fn establish(
     live: &Arc<Mutex<Live>>,
     code: Option<&str>,
     screen_available: bool,
+    platform: &[Arc<dyn Capability>],
 ) -> Result<Channel> {
     let (settings, identity, dir) = {
         let store = store.lock().unwrap();
@@ -442,6 +464,7 @@ async fn establish(
         Arc::new(Desktop::default()),
         screen_available,
         transfers,
+        platform,
     )
     .iter()
     .map(|c| c.manifest())

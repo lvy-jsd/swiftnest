@@ -71,9 +71,9 @@ describe('connection store', () => {
     expect(await clientOptions()).toEqual({ cookieMode: 'browser' });
   });
 
-  it('reports only this server’s namespace for the native identity and clears it on revoke or Android', async () => {
+  it('reports only this server’s namespace for the native identity and clears it on revoke or iOS', async () => {
     let active: ClientOptions = {};
-    const invoke = vi.fn(async () => ({ desktop: true, fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } }));
+    const invoke = vi.fn(async () => ({ platform: 'desktop', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } }));
     vi.stubGlobal('window', { __TAURI_INTERNALS__: { invoke } });
     const store = new ConnectionStore(async () => ({}), options => {
       active = options;
@@ -85,7 +85,9 @@ describe('connection store', () => {
     device.fingerprint = 'own-fingerprint';
     await store.updateDeviceContext([device]); expect(active.deviceSlug).toBe('server-slug');
     await store.updateDeviceContext([]); expect(active.deviceSlug).toBeUndefined();
-    invoke.mockResolvedValueOnce({ desktop: false, fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
+    invoke.mockResolvedValueOnce({ platform: 'android', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
+    await store.updateDeviceContext([device]); expect(active.deviceSlug).toBe('server-slug');
+    invoke.mockResolvedValueOnce({ platform: 'ios', fingerprint: 'own-fingerprint', settings: { slug: 'own-device' } });
     await store.updateDeviceContext([device]); expect(active.deviceSlug).toBeUndefined();
     store.disconnect();
   });

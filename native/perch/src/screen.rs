@@ -1,4 +1,5 @@
 //! Host-owned screen/input state. Agent tools cannot change consent or the input gate.
+use crate::capability::CancelCheck;
 use crate::{
     capability::{string_arg, Capability, Classification, InvokeContext, Risk, ToolResult},
     Failure, Result,
@@ -473,21 +474,6 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
-}
-trait CancelCheck {
-    fn check(&self) -> Result<()>;
-}
-impl CancelCheck for tokio_util::sync::CancellationToken {
-    fn check(&self) -> Result<()> {
-        if self.is_cancelled() {
-            Err(Failure::new(
-                "CANCELLED",
-                "Cancelled before native operation",
-            ))
-        } else {
-            Ok(())
-        }
-    }
 }
 fn number(args: &Value, key: &str) -> Result<f64> {
     args[key]

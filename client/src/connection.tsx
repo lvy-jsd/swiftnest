@@ -98,9 +98,10 @@ export class ConnectionStore {
     if (!client || !options || !isTauriRuntime()) return;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const local = await invoke<{ desktop: boolean; fingerprint: string; settings: { slug: string } }>('perch_snapshot');
+      const local = await invoke<{ platform: string; fingerprint: string; settings: { slug: string } }>('perch_snapshot');
       if (this.client !== client || this.activeOptions !== options) return;
-      options.deviceSlug = local.desktop ? devices.find(device => device.device === local.settings.slug && device.fingerprint === local.fingerprint)?.slug : undefined;
+      const controllable = local.platform === 'desktop' || local.platform === 'android';
+      options.deviceSlug = controllable ? devices.find(device => device.device === local.settings.slug && device.fingerprint === local.fingerprint)?.slug : undefined;
     } catch { if (this.activeOptions === options) options.deviceSlug = undefined; }
   }
   async newChat(): Promise<string | undefined> {

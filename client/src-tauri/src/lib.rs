@@ -10,6 +10,9 @@ use swiftnest_perch::{
 };
 use tauri::Manager;
 
+#[cfg(target_os = "android")]
+mod phone;
+
 struct DeviceState {
     core: Arc<Controller>,
     tray_ready: AtomicBool,
@@ -39,6 +42,32 @@ fn set_language(
     }
     Ok(())
 }
+/// Device control runs on desktop and Android; iOS has no device side yet.
+fn device_control_supported() -> Result<(), Failure> {
+    if cfg!(target_os = "ios") {
+        Err(Failure::new(
+            "UNSUPPORTED_PLATFORM",
+            "This device control is available on desktop for now",
+        ))
+    } else {
+        Ok(())
+    }
+}
+/// Mobile settings the App cannot honour are reset: no tray, no desktop live view, and files are confined
+/// to the App's own folder (a picker for phone folders comes later).
+#[cfg(target_os = "android")]
+fn mobile_settings(mut settings: Settings, app: &tauri::AppHandle) -> Result<Settings, Failure> {
+    let shared = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| Failure::new("IO_ERROR", e.to_string()))?
+        .join("shared");
+    std::fs::create_dir_all(&shared)?;
+    settings.background = false;
+    settings.allow_live_view = false;
+    settings.roots = vec![shared];
+    Ok(settings)
+}
 fn desktop_only() -> Result<(), Failure> {
     if cfg!(any(target_os = "android", target_os = "ios")) {
         Err(Failure::new(
@@ -57,9 +86,14 @@ fn perch_snapshot(state: tauri::State<'_, DeviceState>) -> Snapshot {
 async fn perch_configure(
     settings: Settings,
     code: Option<String>,
+    app: tauri::AppHandle,
     state: tauri::State<'_, DeviceState>,
 ) -> Result<Snapshot, Failure> {
-    desktop_only()?;
+    device_control_supported()?;
+    #[cfg(target_os = "android")]
+    let settings = mobile_settings(settings, &app)?;
+    #[cfg(not(target_os = "android"))]
+    let _ = &app;
     if (settings.background || settings.allow_live_view)
         && !state.tray_ready.load(Ordering::Relaxed)
     {
@@ -73,12 +107,12 @@ async fn perch_configure(
 }
 #[tauri::command]
 fn perch_confirm(accept: bool, state: tauri::State<'_, DeviceState>) -> Result<(), Failure> {
-    desktop_only()?;
+    device_control_supported()?;
     state.core.confirm(accept)
 }
 #[tauri::command]
 async fn perch_disable(state: tauri::State<'_, DeviceState>) -> Result<Snapshot, Failure> {
-    desktop_only()?;
+    device_control_supported()?;
     state.core.disable().await?;
     Ok(state.core.snapshot())
 }
@@ -88,7 +122,7 @@ fn perch_stop_view(state: tauri::State<'_, DeviceState>) -> Result<(), Failure> 
 }
 #[tauri::command]
 async fn perch_unpair(state: tauri::State<'_, DeviceState>) -> Result<Snapshot, Failure> {
-    desktop_only()?;
+    device_control_supported()?;
     state.core.unpair().await?;
     Ok(state.core.snapshot())
 }
@@ -161,6 +195,44 @@ async fn perch_pick_folders(app: tauri::AppHandle) -> Result<Vec<String>, Failur
         Ok(vec![])
     }
 }
+/// Which phone permissions the owner has granted (Android only).
+#[tauri::command]
+async fn phone_status(app: tauri::AppHandle) -> Result<serde_json::Value, Failure> {
+    phone_call(app, "status", serde_json::json!({})).await
+}
+/// Opens the system page for `kind` ("accessibility" or "notifications") (Android only).
+#[tauri::command]
+async fn phone_open_settings(app: tauri::AppHandle, kind: String) -> Result<(), Failure> {
+    phone_call(app, "openSettings", serde_json::json!({ "kind": kind }))
+        .await
+        .map(|_| ())
+}
+#[cfg(target_os = "android")]
+async fn phone_call(
+    app: tauri::AppHandle,
+    method: &'static str,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, Failure> {
+    use swiftnest_perch::bridge::Bridge;
+    let bridge = app
+        .state::<Arc<phone::PhoneBridge<tauri::Wry>>>()
+        .inner()
+        .clone();
+    tauri::async_runtime::spawn_blocking(move || bridge.call(method, args))
+        .await
+        .map_err(|e| Failure::new("PHONE_FAILED", e.to_string()))?
+}
+#[cfg(not(target_os = "android"))]
+async fn phone_call(
+    _: tauri::AppHandle,
+    _: &'static str,
+    _: serde_json::Value,
+) -> Result<serde_json::Value, Failure> {
+    Err(Failure::new(
+        "UNSUPPORTED_PLATFORM",
+        "Phone settings exist only on Android",
+    ))
+}
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn tray_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, MenuItem};
@@ -209,6 +281,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_websocket::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(phone::init());
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
@@ -223,7 +297,9 @@ pub fn run() {
             perch_unpair,
             perch_disable,
             perch_pick_file,
-            perch_pick_folders
+            perch_pick_folders,
+            phone_status,
+            phone_open_settings
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
@@ -242,6 +318,16 @@ pub fn run() {
                 core: core.clone(),
                 tray_ready: AtomicBool::new(tray_ready),
             });
+            #[cfg(target_os = "android")]
+            {
+                let bridge = app
+                    .state::<Arc<phone::PhoneBridge<tauri::Wry>>>()
+                    .inner()
+                    .clone();
+                core.add_platform_capabilities(swiftnest_perch::phone::capabilities(bridge));
+                let core = core.clone();
+                tauri::async_runtime::spawn(async move { core.resume().await });
+            }
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
                 let handle = app.handle().clone();
