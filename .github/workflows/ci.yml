@@ -28,22 +28,6 @@ jobs:
         env:
           SWIFTNEST_E2E: '1'
 
-  mesh:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/mesh
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: packages/mesh
-      - run: cargo clippy --all-targets
-      - run: cargo test
-
   # The device core (Shell, files, screen, transfers). Tests run the real
   # bubblewrap sandbox, so the runner must allow unprivileged user namespaces.
   perch:

@@ -1,6 +1,8 @@
 # Swiftnest Design v0.4 — The Agent Mesh
 
-> Status: Draft v0.4 (2026-10-26). Builds on v0.3 (device capability control plane). This version incorporates the new goal: **give unlimited agents active communication — messaging, file transfer, task delegation — no matter where they are or what network they are on, through multiple channels, mainly in Rust and TS.**
+> Status: shelved. Under the architecture chosen on 2026-11-02 (one central server plus companion apps), the packages/mesh prototype was removed from the repository; it remains in git history. The text below is kept as design reference.
+>
+> Original status: Draft v0.4 (2026-10-26). Builds on v0.3 (device capability control plane). This version incorporates the new goal: **give unlimited agents active communication — messaging, file transfer, task delegation — no matter where they are or what network they are on, through multiple channels, mainly in Rust and TS.**
 >
 > In one sentence: **v0.3 turns your devices into capabilities agents can call; v0.4 turns your agents into peers that talk to each other.**
 
