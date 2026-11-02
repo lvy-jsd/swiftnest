@@ -100,10 +100,9 @@ latest updates and bounded crypto/input work queues. RTT acknowledgements adapt 
 and frame intervals 80–1000 ms; capture CPU cost also limits achieved fps. Unchanged pixel hashes are
 not transmitted. H.264/WebRTC is the intended future video transport.
 
-The shared registry/negotiation/AEAD framing reserves purpose `file` for E2c. E2b accepts only `screen`
-in the native producer. File transfer must add acked offsets, chunk/final hashes, identity-bound resume
-metadata, path approval and reliable bounded scheduling before enabling that purpose. It must not use
-video's stale-frame semantics. Bulk I/O remains independent of JSON cancellation and task replies.
+The shared registry/negotiation/AEAD framing also carries purpose `file` in E2c (specified below).
+Reliable file scheduling uses acknowledged offsets, chunk/final hashes and identity-bound approvals,
+independently of video scheduling. Bulk I/O remains independent of JSON task replies.
 
 ## Screen/input ownership and privacy
 
@@ -147,3 +146,92 @@ Its owner-session admission is a test fixture, not a signed DSH login; signed-se
 separate kernel e2es. Browser gesture fixtures cover English/Chinese and desktop layout. Neither those
 tests nor Linux compilation establishes Android WebView, tray-menu/notification or other OS acceptance.
 See [VALIDATION.md](./VALIDATION.md) for commands, results and screenshot locations.
+
+## E2c reliable file streams (implemented)
+
+`transfer_file` is a server-level Ivy tool; `transfer_status` and `transfer_cancel` complete its agent
+surface. The App uses owner-admitted `/swiftnest/api/devices/transfers` and receives
+`transfers-changed` on the existing devices event stream. Start performs a bounded 1 MiB source
+inspection and returns the immutable transfer id; approval and all bulk I/O run in background jobs.
+Native `transfer.inspect`, `transfer.receive` and `transfer.status` are endpoint helpers, filtered out
+of the DSH device catalog. They share files' PathGuard. The parent's progress monitor checks read
+classification/policy directly, without retaining one task/audit entry per second; the receive approval
+and transfer lifecycle remain recorded in the audit log and durable transfer index.
+
+### Identity, consent and durable offsets
+
+The id is the lowercase SHA-256 of UTF-8 compact JSON:
+`["swiftnest/file/v1",sourcePublicKey,destinationPublicKey,sourcePath,destinationPath,size,mtimeMillis,prefixSHA256]`.
+The prefix is the first min(size, 1 MiB) bytes. Both paired Ed25519 identities, both paths, size, mtime
+and prefix are immutable; every reconnect checks the paired identities and source metadata. Metadata
+uses safe integer byte counts/milliseconds. Source contents changing in the middle of a transfer fail
+verification unless the received complete bytes still match the sender's final hash; concurrent source
+writers are not locked. Do not edit the source during transfer.
+
+`receive` has **write** risk and the normal TaskManager owner approval. Its full binding is displayed
+in the existing approval UI, including name (in the paths), size, source and destination. Its successful
+invocation creates a private receipt and an exclusive 0600 temporary file in an existing shared folder.
+The native receipt is stored in `<host-private-data>/transfers/<id>.json`. Only an exactly matching
+receipt and destination identity permit a file offer to receive bytes; a stream offer alone cannot
+grant write approval. Approval survives link/process restarts, but current protected/shared-folder
+checks still run. `inspect` is read risk only inside shared folders; out-of-root/protected paths are
+classified sensitive and refused even if approved. Destination files already present are refused.
+
+Chunks are fixed at 4 MiB in this version (including a possibly shorter final chunk, and empty files).
+SHA-256 covers each chunk and the complete file. Encrypted flag **4** carries at most 8 KiB JSON:
+`ready {offset,prefix}`, `chunk {offset,length,hash}`, `ack {offset}`, `retry {offset}`,
+`reset`, `finish {hash}`, or `complete {hash}`. Flag **5** carries raw chunk bytes. The chunk header
+and data are separate AEAD records, so a 4 MiB chunk fits the existing stream maximum. One chunk is in
+flight. A bad chunk is requested again at the same offset, up to three transmissions per attempt;
+AEAD authentication errors close the attempt (fresh keys on retry). Replays never get a retry exception.
+
+ACK follows `write_all`/datasync and an atomic fsynced receipt replacement. On reconnect, unacknowledged
+tail bytes are truncated; source and destination independently hash the acknowledged prefix. A mismatch
+resets the offset to zero. Final mismatch likewise resets without publishing a final file. Only after
+whole-file verification is `.swiftnest-<id>.part` atomically renamed within the destination folder.
+A saved `committing` hash recovers a crash between rename and recording `complete`. The same hostile
+same-user directory-swap boundary as files applies to final existence checks and rename. Unix native
+journals and destination directories are synced; other filesystems/platforms need hardware validation.
+
+Pause/cancel drains the attempt and closes its child streams. Paused jobs stay paused across server
+restart. Other active jobs recover from the persisted server index. Cancel keeps partial bytes and
+receipts (including server quota reservations); owner cleanup is explicit, not an automatic delete.
+A retry reuses the same immutable approval. Missing/corrupt private receipts fail closed. The UI's
+cancelled ids are terminal; starting with a different destination creates a new id/approval.
+
+### Transport and resource bounds
+
+File offers reuse encrypted `stream_open`/`stream_accept`/`stream_close`, one-use relay tickets and the
+stream-v1 AEAD envelope. The Nest distributes a fresh random 32-byte file root and random 128-bit
+`cipherId` in BOTH endpoints' authenticated control offers on EVERY attempt. HKDF-SHA256 uses this
+root, a 32-byte zero salt and `swiftnest/stream/v1/<cipherId>` to derive sender/receiver keys. Both
+endpoints authenticate the common cipherId in record AAD; relay socket ids/tickets remain distinct.
+Counters restart only with fresh attempt keys, including pause/resume and transport failure. Keys and
+tickets never enter transfer persistence, agent replies, chat cards or owner file-transfer HTTP replies.
+The Nest is the same trusted key distributor as E2b; device-device relays forward opaque records and
+never invoke a plaintext codec. Device-server transfers intentionally decrypt at server storage.
+
+For automatic routing, the sender listens on an ephemeral IPv4 port and returns the IPv4 address used
+by its parent connection as a candidate in encrypted `stream_accept`. Nest forwards it to the receiver.
+A random per-attempt 192-bit ticket admits the direct WebSocket; all subsequent records are AEAD.
+The receiver tries up to three candidates, 800 ms each. The sender waits four seconds for direct
+admission, then both use the existing Nest relay. `routing: relay` disables discovery/listening.
+The current candidate set is one IPv4 interface, without NAT traversal or IPv6 discovery. A parent
+disconnect/revocation also ends direct sockets. The App is a controller, not a bulk browser uploader.
+
+The Rust sender/receiver hold one chunk, its AEAD record and constant-size hashing buffers. The server
+storage pull inbox holds at most two records, and file relays enforce the existing 8 MiB socket high
+watermark. The global registry allows 32 streams and the native session at most four child streams.
+File attempt leases are 24 hours, with 30-minute read/hash idle deadlines and cancellable waits; screen
+limits remain unchanged. Source reads, hash-prefix scans, writes and queues do not scale with file size.
+SHA-256 prefix rescans on resume take O(acknowledged bytes) time, with bounded memory. Progress is a
+once-per-second destination journal snapshot, speed is durable-byte delta, and ETA is an estimate.
+
+Server files live exclusively under `config.home/files`, with private receipts under
+`config.home/devices/file-receipts`. This explicit server-owned storage root is exempt from the
+outer SWIFTNEST_HOME denial; symlink escapes, other protected paths and out-of-root paths remain refused.
+`files.quotaBytes` (or `SWIFTNEST_FILES_QUOTA_BYTES`) defaults to 100 GiB. Quota counts existing files,
+partials and the remaining size of approved uploads; serialized reservations prevent concurrent
+approval overcommit. Physical ENOSPC and filesystem faults still require owner attention. Existing
+legacy TS Perches without `transfer`/file streams cannot participate; native Perches advertise the
+new endpoints during hello. See the English/Chinese **Transfer files** guides and VALIDATION.md.

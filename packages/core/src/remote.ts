@@ -207,7 +207,7 @@ function remoteConnection(
 
   box.handle((m) => {
     switch (m.type) {
-      case "stream_accept": o.nest.streams.accept(m.id, channel); return;
+      case "stream_accept": o.nest.streams.accept(m.id, channel, m.candidates); return;
       case "stream_close": o.nest.streams.close(m.id, channel, m.reason); return;
       case "result":
         results.get(m.taskId)?.(m);
@@ -251,7 +251,7 @@ function remoteConnection(
     publicKey: o.publicKey,
     via: o.via,
     capabilities: () => caps,
-    ...(o.extensions?.includes("streams-v1") ? { openOwnerStream: (options: { maxDimension: number; displayId: string }) => o.nest.streams.open(channel, options) } : {}),
+    ...(o.extensions?.includes("streams-v1") ? { openOwnerStream: (options: { maxDimension: number; displayId: string }) => o.nest.streams.open(channel, options), openFileStream: (options: import("./streams.js").FileStreamOptions) => o.nest.streams.open(channel, {maxDimension:320,displayId:""}, options) } : {}),
     classify(capability, tool, args) {
       const requestId = `c${++seq}`;
       return new Promise((resolve, reject) => {

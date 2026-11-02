@@ -1,4 +1,5 @@
 /** The Nest and its two loopback surfaces belong to the parent, never the DSH child. */
+import { Transfers } from './transfers.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
@@ -49,10 +50,11 @@ export async function startDevices(config: ServerConfig) {
       if (!res.write(`data: ${JSON.stringify({ type, slugs })}\n\n`)) res.destroy();
     }
   };
+  const transfers = await Transfers.open(nest, config.home, config.files?.quotaBytes ?? 100 * 1024 ** 3, () => publish("transfers-changed"));
   const list = (): Device[] => {
     const online = new Map(nest.devices().map(d => [d.device, d]));
     const paired = new Map(nest.devicesStore.list().map(d => [d.device, d]));
-    return [...new Set([...paired.keys(), ...online.keys()])].map(device => {
+    return [...new Set([...paired.keys(), ...online.keys()])].filter(device => device !== 'server-files').map(device => {
       const live = online.get(device), stored = paired.get(device);
       return { ...cached[device], ...live, device, slug: stored?.slug, name: stored?.name ?? device, lastSeen: cached[device]?.lastSeen ?? stored?.pairedAt, kind: stored?.kind ?? 'desktop', online: !!live, paired: !!stored,
         fingerprint: live?.fingerprint ?? fingerprintOf(stored!.publicKey), pairedAt: stored?.pairedAt,
@@ -61,7 +63,7 @@ export async function startDevices(config: ServerConfig) {
   };
   const snapshot = () => ({
     devices: list().filter(d => d.paired).map(d => ({ slug: d.slug!, name: d.name!, kind: d.kind!, online: d.online, ...(d.lastSeen ? { lastSeen: d.lastSeen } : {}) })),
-    tools: list().filter(d => d.paired).flatMap(d => (cached[d.device]?.tools ?? []).map(t => ({
+    tools: list().filter(d => d.paired).flatMap(d => (cached[d.device]?.tools ?? []).filter(t=>t.capability!=="transfer").map(t => ({
       name: `device__${d.slug}__${t.capability}_${t.tool.name}`, slug: d.slug!,
       description: typeof t.tool.description === 'string' ? t.tool.description : t.tool.description.en,
       risk: t.tool.risk, inputSchema: t.tool.inputSchema,
@@ -148,6 +150,20 @@ export async function startDevices(config: ServerConfig) {
         if (req.method === 'POST' && taskRoute[2]) return void json(res, 200, await nest.tasks.cancel(taskRoute[1]!));
         if (req.method === 'GET' && !taskRoute[2]) return void json(res, 200, await nest.tasks.wait(taskRoute[1]!, 25_000));
       }
+      // Both routes are owner-authorized: the public one by the bundle, the private one by its bearer.
+      const transferPath = url.pathname.startsWith(control + '/transfers') ? url.pathname.slice(control.length) : url.pathname.startsWith(PREFIX + '/transfers') ? url.pathname.slice(PREFIX.length) : '';
+      if (transferPath) {
+        try {
+          if (transferPath === '/transfers' && req.method === 'GET') return void json(res, 200, transfers.list());
+          if (transferPath === '/transfers' && req.method === 'POST') {
+            let body='';for await (const chunk of req) { body+=chunk; if(Buffer.byteLength(body)>32768)return void json(res,413,{error:'Transfer request too large'}); }
+            return void json(res,202,await transfers.start(JSON.parse(body)));
+          }
+          const action=/^\/transfers\/([a-f0-9]{64})\/(pause|resume|cancel|retry)$/.exec(transferPath);
+          if (action && req.method === 'POST') return void json(res,200,await transfers.action(action[1]!,action[2] as 'pause'|'resume'|'cancel'|'retry'));
+          return void json(res,404,{error:'Unknown transfer route'});
+        } catch(error) { return void json(res,409,{error:String(error)}); }
+      }
       const path = url.pathname.slice(PREFIX.length);
       if (!url.pathname.startsWith(PREFIX + '/') && url.pathname !== PREFIX) return void json(res, 404, { error: 'Not found' });
       if (req.method === 'GET') {
@@ -209,6 +225,7 @@ export async function startDevices(config: ServerConfig) {
   });
   let closing: Promise<void> | undefined;
   const close = (): Promise<void> => closing ??= (async () => {
+    await transfers.close();
     offTasks(); offPairing(); offStore?.();
     nest.pairing.stop();
     for (const p of nest.pairing.pending()) nest.pairing.confirm(p.id, false);

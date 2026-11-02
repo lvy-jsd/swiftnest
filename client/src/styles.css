@@ -147,3 +147,11 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--color-accent);
 .live-key-row { display: flex; gap: 8px; overflow-x: auto; width: 100%; }
 .desktop-watching { padding: 12px; background: var(--color-surface2); border-radius: 12px; }
 @media (min-width: 1024px) { .live-panel { left: auto; width: min(48vw, 720px); box-shadow: var(--sheet-shadow); } }
+
+.transfer-list { display: grid; gap: 12px; min-width: 0; }
+.transfer-card { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.transfer-card p { margin: 0; }
+.transfer-card progress { width: 100%; max-width: 100%; accent-color: var(--accent); }
+.transfer-list--compact { max-height: 240px; overflow-y: auto; flex-shrink: 0; }
+.field select { width: 100%; min-width: 0; font: inherit; padding: 12px; }
+@media (max-width: 480px) { .transfer-card .device-actions { flex-wrap: wrap; } }

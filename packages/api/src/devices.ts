@@ -22,5 +22,18 @@ export interface DevicePairing {
   fingerprint: string;
 }
 export interface DevicePairingCandidate { id: string; device: string; fingerprint: string }
-export type DeviceEvent = { type: 'devices-changed' | 'approval-pending' | 'approvals-changed' | 'pairing-changed' };
+export type DeviceEvent = { type: 'devices-changed' | 'approval-pending' | 'approvals-changed' | 'pairing-changed' | 'transfers-changed' };
 export interface DeviceSubscription extends AsyncIterableIterator<DeviceEvent> { close(): void }
+
+export interface TransferRequest {
+  /** Paired slug, or "server" (paths relative to config.home/files). */
+  source: { device: string; path: string };
+  destination: { device: string; path: string };
+  routing?: 'auto' | 'relay';
+}
+export interface Transfer extends TransferRequest {
+  id: string; name: string; size: number; offset: number;
+  state: 'preparing' | 'approval' | 'waiting' | 'running' | 'paused' | 'complete' | 'failed' | 'cancelled';
+  route: 'relay' | 'direct'; speed: number; eta: number | null; updatedAt: number;
+  approvalId?: string; error?: string; hash?: string;
+}

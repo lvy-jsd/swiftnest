@@ -1,3 +1,4 @@
+import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
@@ -142,6 +143,7 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
   return <DetailPage title={sessions.find(s => s.sessionId === sessionId)?.title || t('untitledChat')} subtitle={root || t(status)} onBack={onBack} action={<Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}><Options size={24} /></Button>}>
     <ConnectionStatus />
     <DeviceApprovals compact />
+    <TransferCards compact />
     <LiveDeviceButton />
     <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
     <div className="composer-area glass">{state.waiting && <Thinking />}<p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p><form className="composer" onSubmit={send}>
@@ -164,6 +166,7 @@ function AppContent() {
   const chatId = chatFromHash(hash);
   const pairing = hash.startsWith('#/pair');
   const devicesPage = hash.startsWith('#/devices');
+  const transfersPage = hash.startsWith('#/transfers');
   const Settings = icons.settings, Avatar = icons.avatar;
   const visibleChats = sessions.filter(item => (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const back = () => { window.location.hash = '/'; };
@@ -218,14 +221,17 @@ function AppContent() {
     <aside className="sidebar"><div className="sidebar__brand"><strong>{t('appName')}</strong><Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Settings size={24} /></Button></div>
       <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>
       <a className="devices-link" href="#/devices">{t("devices")}</a>
+      <a className="devices-link" href="#/transfers">{t("transfers")}</a>
       <nav aria-label={t('chatNavigation')}><VirtualList items={sessions} itemKey={s => s.sessionId} label={t('chats')} renderItem={item => <ChatLink chat={item} selected={item.sessionId === chatId} />} /></nav>
     </aside>
     <main id="main-content" className="main-content" tabIndex={-1} onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={endSwipe} onPointerCancel={() => { swipe.current = null; setSwipeOffset(0); }}>
       <div key={chatId ?? (pairing ? 'pair' : devicesPage ? 'devices' : 'hub')} className="route-view" data-direction={chatId ? 'forward' : 'back'} style={swipeOffset && !reducedMotion ? { transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties : undefined}>
-        {devicesPage ? <DevicesPage onBack={back} /> : pairing ? <PairPage onBack={back} /> : chatId ? <ChatDetail key={`${chatId}:${status}`} sessionId={chatId} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t('chats')} subtitle={t('chatsSubtitle')} action={<Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
+        {transfersPage ? <TransfersPage onBack={back} /> : devicesPage ? <DevicesPage onBack={back} /> : pairing ? <PairPage onBack={back} /> : chatId ? <ChatDetail key={`${chatId}:${status}`} sessionId={chatId} onBack={back} onOptions={() => setPreferences(true)} /> : <HubPage title={t('chats')} subtitle={t('chatsSubtitle')} action={<Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}><Avatar size={24} /></Button>}>
           <ConnectionStatus />
           <a className="devices-link" href="#/devices">{t("devices")}</a>
+      <a className="devices-link" href="#/transfers">{t("transfers")}</a>
           <DeviceApprovals compact />
+    <TransferCards compact />
     <LiveDeviceButton />
           {status === 'connected' && <Button variant="primary" disabled={creating} onClick={() => void newChat()}>{t('newChat')}</Button>}
           <label className="search-field"><input type="search" value={query} placeholder={t('search')} aria-label={t('search')} onChange={event => setQuery(event.target.value)} /></label>

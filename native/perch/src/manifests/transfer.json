@@ -1,0 +1,85 @@
+{
+  "id": "transfer",
+  "version": "0.0.1",
+  "title": {
+    "en": "File transfers",
+    "zh": "文件传输"
+  },
+  "description": {
+    "en": "Internal reliable file endpoints. Use transfer_file to send files.",
+    "zh": "可靠文件传输端点。请使用 transfer_file 发送文件。"
+  },
+  "permissions": [
+    "files.read",
+    "files.write"
+  ],
+  "tools": [
+    {
+      "name": "inspect",
+      "description": {
+        "en": "File transfer inspect",
+        "zh": "文件传输 inspect"
+      },
+      "risk": "read",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "receive",
+      "description": {
+        "en": "File transfer receive",
+        "zh": "文件传输 receive"
+      },
+      "risk": "write",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "binding": {
+            "type": "object"
+          },
+          "display": {
+            "type": "object",
+            "description": "Owner review: file name, size and paired source/destination labels and paths"
+          }
+        },
+        "required": [
+          "binding"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "status",
+      "description": {
+        "en": "File transfer status",
+        "zh": "文件传输 status"
+      },
+      "risk": "read",
+      "defaultTimeoutMs": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

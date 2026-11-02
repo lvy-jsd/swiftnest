@@ -3,6 +3,7 @@
  * routes tool calls through policy → approval → device, and writes the audit log. Surfaces (MCP endpoint, web panel,
  * DSH…) are plugins that talk to this class.
  */
+import { randomUUID } from "node:crypto";
 import { StreamRegistry } from "./streams.js";
 import { EventEmitter } from "node:events";
 import { parseQualifiedToolName, qualifiedToolName, type ClientRef, type ToolDescriptor } from "@swiftnest/protocol";
@@ -120,7 +121,7 @@ export class Nest {
   }
 
   devices(): DeviceInfo[] {
-    return [...this.conns.values()].map(({ conn }) => ({
+    return [...this.conns.values()].filter(({conn})=>!conn.internal).map(({ conn }) => ({
       device: conn.device,
       fingerprint: fingerprintOf(conn.publicKey),
       via: conn.via,
@@ -134,10 +135,31 @@ export class Nest {
     return conn.openOwnerStream(options);
   }
 
+  /** Parent-only progress read, without accumulating a task/audit snapshot every second.
+   * The immutable receive approval is audited once; transfer journals hold progress. */
+  async readTransferStatus(device: string, id: string): Promise<unknown> {
+    const conn=this.conns.get(device)?.conn;
+    if (!conn) throw new Error('Device offline');
+    const args={id}, client={id:'file-transfer-monitor',name:'Transfer progress'};
+    const classification=await conn.classify('transfer','status',args);
+    const decision=await this.policy.decide({client,device,capability:'transfer',tool:'status',args,...classification});
+    if (classification.risk!=='read' || decision.action!=='allow') throw new Error('Transfer progress read refused');
+    const result=await conn.invoke({taskId:`transfer-status-${randomUUID()}`,capability:'transfer',tool:'status',args,timeoutMs:10000});
+    if (!result.ok) throw new Error(result.error?.message ?? 'Transfer status unavailable');
+    return result.result?.data;
+  }
+
+  openFileStream(device: string, options: import('./streams.js').FileStreamOptions) {
+    const conn=this.conns.get(device)?.conn;
+    if (!conn?.openFileStream) throw new Error('Device does not support file streams');
+    return conn.openFileStream(options);
+  }
+
   /** Every tool of every online device, named for agents. */
   tools(): ExposedTool[] {
     const out: ExposedTool[] = [];
     for (const { conn } of this.conns.values()) {
+      if (conn.internal) continue;
       for (const cap of conn.capabilities()) {
         for (const tool of cap.tools) out.push({ name: qualifiedToolName(conn.device, cap.id, tool.name), device: conn.device, capability: cap.id, tool });
       }

@@ -47,3 +47,13 @@ it('requires TLS for remote live transport and ignores untrusted forwarded proto
   expect(liveTransportAllowed(request('192.168.1.2',true))).toBe(true);
   expect(liveTransportAllowed(request('127.0.0.1'))).toBe(true);
 });
+
+it('forwards a bounded transfer request only after owner admission; never proxies the private transfer route',async()=>{
+  let received='';const upstream=await listen(async(req,res)=>{for await(const chunk of req)received+=chunk;res.end('{}');});
+  const admit=vi.fn().mockReturnValue({peer:{principal:{kind:'agent'}}});const handler=deviceProxy({admit},upstream,'secret');const proxy=await listen((req,res)=>void handler(req,res));
+  const path=proxy+'/swiftnest/api/devices/transfers';const body=JSON.stringify({source:{device:'a',path:'video'},destination:{device:'b',path:'video'}});
+  expect((await fetch(path,{method:'POST',body})).status).toBe(403);expect(received).toBe('');
+  admit.mockReturnValue({peer:{principal:{kind:'owner'}}});expect((await fetch(path,{method:'POST',body})).status).toBe(200);expect(received).toBe(body);
+  expect((await fetch(path,{method:'POST',body:'x'.repeat(32769)})).status).toBe(413);
+  expect((await fetch(proxy+'/swiftnest/control/devices/transfers',{method:'POST',body})).status).toBe(404);
+});

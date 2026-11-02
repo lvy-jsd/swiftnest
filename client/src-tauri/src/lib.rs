@@ -67,6 +67,36 @@ async fn perch_unpair(state: tauri::State<'_, DeviceState>) -> Result<Snapshot, 
     Ok(state.core.snapshot())
 }
 #[tauri::command]
+async fn perch_pick_file(app: tauri::AppHandle) -> Result<Option<String>, Failure> {
+    desktop_only()?;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let (send, receive) = std::sync::mpsc::sync_channel(1);
+        app.dialog().file().pick_file(move |path| {
+            let _ = send.send(path);
+        });
+        tauri::async_runtime::spawn_blocking(move || {
+            receive
+                .recv()
+                .map_err(|_| Failure::new("PICKER_FAILED", "File picker closed"))?
+                .map(|p| {
+                    p.into_path()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .map_err(|e| Failure::new("PICKER_FAILED", e.to_string()))
+                })
+                .transpose()
+        })
+        .await
+        .map_err(|e| Failure::new("PICKER_FAILED", e.to_string()))?
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = app;
+        Err(Failure::new("UNSUPPORTED", "Desktop file picker only"))
+    }
+}
+#[tauri::command]
 async fn perch_pick_folders(app: tauri::AppHandle) -> Result<Vec<String>, Failure> {
     desktop_only()?;
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -156,6 +186,7 @@ pub fn run() {
             perch_confirm,
             perch_unpair,
             perch_disable,
+            perch_pick_file,
             perch_pick_folders
         ])
         .setup(|app| {

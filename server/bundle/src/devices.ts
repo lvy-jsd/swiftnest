@@ -31,10 +31,15 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
     const closed = () => abort.abort();
     res.once('close', closed);
     try {
+      let body: string | undefined;
+      if (req.method === 'POST' && path.pathname === `${prefix}/transfers`) {
+        body='';for await(const chunk of req) {body+=chunk;if(Buffer.byteLength(body)>32768){res.writeHead(413).end();return;}}
+      }
       const upstream = await fetch(new URL(path.pathname + path.search, target), {
         method: req.method,
-        // Never forward cookies, browser headers, arbitrary authorization, or request bodies.
-        headers: { authorization: `Bearer ${token}` },
+        // Only the bounded transfer JSON body is forwarded, after owner admission.
+        headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : {"content-type":"application/json"}) },
+        body,
         signal: abort.signal,
         redirect: 'error',
       });

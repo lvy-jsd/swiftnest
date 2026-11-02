@@ -283,22 +283,33 @@ impl Controller {
                             state.phase = "online".into();
                             state.nest_fingerprint = None;
                         }
-                        let (settings, dir) = {
+                        let (settings, dir, identity) = {
                             let s = store.lock().unwrap();
-                            (s.settings.clone(), s.dir.clone())
+                            (s.settings.clone(), s.dir.clone(), public_key(&s.identity))
                         };
-                        let guard = PathGuard::new(settings.roots, vec![dir]);
+                        let guard = PathGuard::new(settings.roots, vec![dir.clone()]);
+                        let transfers = crate::transfer::Transfers {
+                            guard: guard.clone(),
+                            dir: dir.join("transfers"),
+                            identity,
+                        };
                         let mut desktop = Desktop::default();
                         desktop.stop = stop.child_token();
                         let desktop = Arc::new(desktop);
                         *host_desktop.lock().unwrap() = desktop.clone();
                         session(
                             channel,
-                            host_capabilities(guard, desktop.clone(), screen_available),
+                            host_capabilities(
+                                guard,
+                                desktop.clone(),
+                                screen_available,
+                                transfers.clone(),
+                            ),
                             stop.clone(),
                             desktop,
                             settings.allow_live_view && screen_available,
                             settings.url,
+                            transfers,
                         )
                         .await
                     }
@@ -334,12 +345,14 @@ fn host_capabilities(
     guard: PathGuard,
     desktop: Arc<Desktop>,
     screen_available: bool,
+    transfers: crate::transfer::Transfers,
 ) -> Vec<Arc<dyn Capability>> {
     let mut caps: Vec<Arc<dyn Capability>> = vec![
         Arc::new(Files {
             guard: guard.clone(),
         }),
         Arc::new(Shell { guard }),
+        Arc::new(transfers),
     ];
     if screen_available {
         caps.push(Arc::new(ScreenCapability(desktop.clone())));
@@ -418,11 +431,21 @@ async fn establish(
         store.settings.nest_key = Some(channel.peer.clone());
         store.save()?;
     }
-    let guard = PathGuard::new(settings.roots, vec![dir]);
-    let caps = host_capabilities(guard, Arc::new(Desktop::default()), screen_available)
-        .iter()
-        .map(|c| c.manifest())
-        .collect::<Vec<_>>();
+    let guard = PathGuard::new(settings.roots, vec![dir.clone()]);
+    let transfers = crate::transfer::Transfers {
+        guard: guard.clone(),
+        dir: dir.join("transfers"),
+        identity: public_key(&identity),
+    };
+    let caps = host_capabilities(
+        guard,
+        Arc::new(Desktop::default()),
+        screen_available,
+        transfers,
+    )
+    .iter()
+    .map(|c| c.manifest())
+    .collect::<Vec<_>>();
     channel.send(&json!({"type":"hello","protocol":1,"device":settings.slug,"name":settings.name,"kind":if cfg!(target_os="android") { "android" } else { "desktop" },"publicKey":public_key(&identity),"extensions":["streams-v1"],"capabilities":caps})).await?;
     expect(&mut channel, "welcome", 10).await?;
     Ok(channel)
@@ -468,7 +491,7 @@ enum Incoming {
     },
     StreamOpen {
         #[serde(flatten)]
-        offer: Offer,
+        offer: Box<Offer>,
     },
     StreamClose {
         id: String,
@@ -498,7 +521,15 @@ async fn session(
     desktop: Arc<Desktop>,
     allow_live_view: bool,
     url: String,
+    transfers: crate::transfer::Transfers,
 ) -> Result<()> {
+    let local_ip = match channel.socket.get_ref() {
+        tokio_tungstenite::MaybeTlsStream::Plain(s) => s.local_addr().ok().map(|a| a.ip()),
+        tokio_tungstenite::MaybeTlsStream::Rustls(s) => {
+            s.get_ref().0.local_addr().ok().map(|a| a.ip())
+        }
+        _ => None,
+    };
     let stream_root = channel.stream_root;
     let transcript = channel.transcript;
     let mut streams = JoinSet::<(String, Result<()>)>::new();
@@ -544,7 +575,17 @@ async fn session(
                     let incoming: Incoming = serde_json::from_value(channel.cipher.open(&text)?)?;
                     match incoming {
                         Incoming::StreamOpen{offer}=>{
-                            if !allow_live_view || desktop.stop.is_cancelled() || !stream_stops.is_empty() || offer.verify(&stream_root).is_err() {
+                            let offer=*offer;
+                            if offer.purpose == "file" && offer.verify(&stream_root).is_ok() && stream_stops.len() < 4 {
+                                let file = offer.file.as_ref().expect("verified file offer");
+                                let listener = crate::transfer::listener(file).await?;
+                                let candidates: Vec<String> = listener.as_ref().and_then(|l| l.local_addr().ok()).zip(local_ip.filter(|ip| ip.is_ipv4())).map(|(a,ip)|vec![format!("ws://{}:{}/file",ip,a.port())]).unwrap_or_default();
+                                let cancel=stop.child_token();stream_stops.insert(offer.id.clone(),cancel.clone());
+                                let msg=json!({"type":"stream_accept","id":offer.id,"candidates":candidates});send_frame(&mut writer,Message::Text(channel.cipher.seal(&msg)?.into()),&stop).await?;
+                                let host=transfers.clone();let url=url.clone();streams.spawn(async move {let id=offer.id.clone();(id,crate::transfer::run(host,url,offer,listener,cancel).await)});
+                                continue;
+                            }
+                            if offer.purpose != "screen" || !allow_live_view || desktop.stop.is_cancelled() || !stream_stops.is_empty() || offer.verify(&stream_root).is_err() {
                                 let msg=json!({"type":"stream_close","id":offer.id,"reason":"Live view is disabled, busy, or the offer is invalid"});send_frame(&mut writer,Message::Text(channel.cipher.seal(&msg)?.into()),&stop).await?;continue;
                             }
                             let cancel=stop.child_token();stream_stops.insert(offer.id.clone(),cancel.clone());

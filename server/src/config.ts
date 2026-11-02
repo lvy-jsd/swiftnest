@@ -32,6 +32,7 @@ export interface ServerConfig {
   /** Default persona for DSH's system prompt and agent presets; supports {{model}}. */
   persona: string;
   model: ModelConfig;
+  files?: { quotaBytes: number };
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -74,6 +75,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
       mdns: env.SWIFTNEST_DEVICES_MDNS === undefined ? fromFile.devices?.mdns ?? true : env.SWIFTNEST_DEVICES_MDNS !== "false",
     },
+    files: { quotaBytes: num(env.SWIFTNEST_FILES_QUOTA_BYTES) ?? fromFile.files?.quotaBytes ?? 100 * 1024 ** 3 },
     model: {
       ...DEFAULT_MODEL,
       ...fromFile.model,
@@ -86,6 +88,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if(config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0)) throw new Error("files.quotaBytes must be a nonnegative safe integer");
   if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535) throw new Error("devices.port must be an integer 0-65535");
   if (typeof config.devices.host !== "string" || !config.devices.host) throw new Error("devices.host must be an address");
   if (typeof config.devices.mdns !== "boolean") throw new Error("devices.mdns must be a boolean");

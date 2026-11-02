@@ -219,8 +219,8 @@ export const PairStatus = z.object({
 /** Perch → Nest: the person at the device says the Nest fingerprint matches (or not). */
 export const PairConfirm = z.object({ type: z.literal("pair_confirm"), accept: z.boolean() });
 
-export const StreamOpen = z.object({ type: z.literal('stream_open'), id: z.string().regex(/^[a-f0-9]{32}$/), purpose: z.enum(['screen', 'file']), direction: z.literal('duplex'), transportCandidates: z.tuple([z.literal('websocket-relay-v1')]), ticket: z.string().max(128), expires: z.number(), maxFrame: z.number().int().min(1024).max(4194304), maxDimension: z.number().int().min(320).max(2560), displayId: z.string().max(128) });
-export const StreamAccept = z.object({ type: z.literal('stream_accept'), id: z.string() });
+export const StreamOpen = z.object({ type: z.literal('stream_open'), id: z.string().regex(/^[a-f0-9]{32}$/), purpose: z.enum(['screen', 'file']), direction: z.literal('duplex'), transportCandidates: z.tuple([z.literal('websocket-relay-v1')]), ticket: z.string().max(128), expires: z.number(), maxFrame: z.number().int().min(1024).max(4194304), maxDimension: z.number().int().min(320).max(2560), displayId: z.string().max(128), file: z.object({ binding: z.object({ source:z.string(), destination:z.string(), sourcePath:z.string(), destinationPath:z.string(), meta:z.object({size:z.number().int().nonnegative().safe(),mtime:z.number().int().nonnegative().safe(),prefix:z.string().regex(/^[a-f0-9]{64}$/)}) }), sender:z.boolean(),key:z.string(),cipherId:z.string().regex(/^[a-f0-9]{32}$/),candidates:z.array(z.string()).max(3),directTicket:z.string(),listen:z.boolean() }).optional() });
+export const StreamAccept = z.object({ type: z.literal('stream_accept'), id: z.string(), candidates: z.array(z.string().max(256)).max(3).optional() });
 export const StreamClose = z.object({ type: z.literal('stream_close'), id: z.string(), reason: z.string().max(256) });
 export const LinkMessage = z.discriminatedUnion("type", [
   PerchHello, StreamOpen, StreamAccept, StreamClose,
