@@ -1,7 +1,7 @@
 /** Real labwc → Rust Perch → encrypted Nest/App relay → browser LivePanel.
  * Only owner-session admission is a fixture (the signed DSH login has separate e2es).
  */
-import { chromium } from '@playwright/test';
+import { launchChromium } from './browser';
 import { createServer } from 'vite';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -51,7 +51,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1' || process.env.SWIFTNEST_SCREEN_
         }],
       });
       await server.listen();
-      browser = await chromium.launch({ headless: true, ...(process.env.SWIFTNEST_CHROMIUM ? { executablePath: process.env.SWIFTNEST_CHROMIUM } : {}), args: ['--no-sandbox', '--no-proxy-server'] });
+      browser = await launchChromium();
       const page = await browser.newPage({ locale, viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));

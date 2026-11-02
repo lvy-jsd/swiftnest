@@ -1,6 +1,6 @@
 /** UI gestures tested with a deterministic native-stream fixture; the real crypto/host path has its own e2e. */
 import { createServer } from 'vite';
-import { chromium } from '@playwright/test';
+import { launchChromium } from './browser';
 import { expect, it } from 'vitest';
 import { resolve } from 'node:path';
 it.skipIf(process.env.SWIFTNEST_WEB_E2E!=='1')('live panel: phone/desktop, en/zh, tap, hold, drag, keyboard, control state and cleanup',async()=>{
@@ -16,7 +16,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E!=='1')('live panel: phone/desktop, en/zh
   `;
   const server=await createServer({root:resolve('client'),cacheDir:resolve('node_modules/.cache/swiftnest/live-fixture'),server:{host:'127.0.0.1',port:0},plugins:[{name:'live-fixture',configureServer(s){s.middlewares.use('/__live_test',async(req,res)=>{res.setHeader('content-type','text/html');res.end(await s.transformIndexHtml('/__live_test','<html><body><div id="root"></div><script type="module" src="/@vite/client"></script><script type="module" src="/@id/__x00__live-fixture"></script></body></html>'));});},resolveId(id){if(id==='\0live-fixture')return id;},load(id){if(id==='\0live-fixture')return fixture;}}]});
   await server.listen();const url=server.resolvedUrls!.local[0]!;
-  const browser=await chromium.launch({headless:true,...(process.env.SWIFTNEST_CHROMIUM?{executablePath:process.env.SWIFTNEST_CHROMIUM}:{}),args:['--no-sandbox','--no-proxy-server']});
+  const browser=await launchChromium();
   try {for(const [width,lang] of [[390,'en'],[390,'zh-CN'],[1280,'en']] as const){
     const page=await browser.newPage({locale:lang,viewport:{width,height:844}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(`${url}__live_test?lang=${lang}`);const zh=lang==='zh-CN';
