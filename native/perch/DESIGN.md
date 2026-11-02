@@ -65,10 +65,25 @@ Per-stream directional keys are HKDF-SHA256(exporter, salt=parent transcript,
 info=`swiftnest/stream/v1/{id}`, 64): first 32 bytes device-to-viewer, second 32 viewer-to-device.
 The owner-only HTTP API returns only that stream's keys. App admission uses the devices API's signed
 owner session and Host/Origin checks; the bundle forwards only its private loopback admin bearer.
-Agents cannot reach stream creation or socket admission through native tools/MCP. The App enforces HTTPS for LAN key exchange; only loopback development permits HTTP. The bundle also
-rejects non-TLS remote stream requests (TLS may terminate at a trusted loopback reverse proxy), without
-trusting forwarded-proto headers. Browser AEAD additionally requires a secure context. The Nest is a trusted key distributor but both relay hops forward opaque ciphertext; neither
-relay decrypts video/input records. This does not provide secrecy against the trusted Nest process.
+Agents cannot reach stream creation or socket admission through native tools/MCP. The Nest is a trusted
+key distributor but both relay hops forward opaque ciphertext; neither relay decrypts video/input
+records. This does not provide secrecy against the trusted Nest process.
+
+### HTTPS outside loopback
+
+The App API requires an `https:` server URL outside `localhost`, `127.0.0.1` and `[::1]`, including
+when using the native HTTP/WebSocket carrier. The live-offer HTTP response contains the stream's
+directional AES keys. Sending that response over LAN HTTP would expose those keys and the owner
+session to an observer; encrypted binary records alone would then offer no protection. Browser
+`crypto.subtle` also requires a secure context (HTTPS, with loopback permitted for development).
+The native WebView's secure context does not protect an HTTP request to a remote server.
+
+The bundle rejects remote non-TLS live-offer requests with HTTP 426 and rejects their socket upgrades.
+It accepts a TLS socket or a loopback peer, allowing TLS termination at a trusted local reverse proxy;
+it never treats `X-Forwarded-Proto` as proof of TLS. That proxy must enforce HTTPS/WSS on its public
+listener and preserve the kernel's Host/Origin admission requirements. The loopback exception cannot
+detect an incorrectly configured proxy that publicly exposes HTTP. These tests exercise loopback and
+the TLS admission predicate; they do not validate a deployed TLS proxy/certificate setup.
 
 Records are `[version:u8=1][id:16][sequence:u64 BE][flag:u8][length:u32 BE][ciphertext][GCM tag:16]`.
 All 30 header bytes are authenticated AAD; the nonce is four zero bytes plus the sequence. Directions
@@ -116,3 +131,19 @@ xdotool/XTest; Windows uses GDI and SendInput, with DPI-aware coordinates. Helpe
 never through a shell. macOS screen/input is unsupported. See VALIDATION.md for actual backend evidence;
 compilation is not evidence of GNOME/KDE, Windows, niri or phone-hardware behavior. Linux helper bundling,
 direct transport candidates, monitor-picker UI and H.264/WebRTC remain follow-ups.
+
+## Backend validation boundary
+
+| Backend | Evidence | Still unverified |
+| --- | --- | --- |
+| wlroots on headless labwc/pixman | Real screen capture, approved agent pointer input, encrypted live frames, owner take-over/input/handback/local Stop; Chromium LivePanel at 390 px with screenshots of both control states | Physical desktop/phone performance, virtual keyboard behavior, other wlroots compositors including niri, fractional/rotated/multiple displays |
+| GNOME/KDE ScreenCast + RemoteDesktop portal/PipeWire | Linux compilation and Clippy only | Portal chooser/session lifecycle, real PipeWire frames and input on GNOME or KDE |
+| X11 XGetImage + xdotool/XTest | Linux compilation and Clippy only | An actual X11 session, capture and input |
+| Windows GDI + SendInput | Source implementation only; previous cross-check failed because the target standard library was absent | Windows compilation and runtime; DXGI is future work |
+| macOS | Explicitly unsupported; screen/input not advertised | Backend implementation |
+
+Playwright uses a real isolated labwc framebuffer and the actual Rust/crypto/relay/browser decoder.
+Its owner-session admission is a test fixture, not a signed DSH login; signed-session/chat behavior has
+separate kernel e2es. Browser gesture fixtures cover English/Chinese and desktop layout. Neither those
+tests nor Linux compilation establishes Android WebView, tray-menu/notification or other OS acceptance.
+See [VALIDATION.md](./VALIDATION.md) for commands, results and screenshot locations.

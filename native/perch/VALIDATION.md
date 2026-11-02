@@ -2,7 +2,8 @@
 
 The Linux screen/input/live-view/owner-take-over path is implemented and exercised on a disposable
 headless labwc desktop. This is **not full platform acceptance**: the platform/hardware and transport
-follow-ups below remain. No commit, push, system-wide package installation, real desktop input injection,
+follow-ups below remain. The implementation baseline is committed at `6b29899`; this final-validation
+follow-up makes no commit or push. No system-wide package installation, real desktop input injection,
 real phone pairing, system configuration change or reboot was performed. Nix fetched development-shell
 packages; Rust dependencies use the user Cargo cache. All test identities/state were temporary.
 
@@ -28,7 +29,7 @@ packages; Rust dependencies use the user Cargo cache. All test identities/state 
   default-off live-view toggle, visible tray state/start notification and local Stop action. Hosts without
   a working observation indicator do not advertise screen/input.
 - Tests: `packages/core/test/streams.test.ts`, `server/test/live.test.ts`,
-  `server/bundle/test/devices.test.ts`, `client/test/liveView.e2e.test.ts`, native unit tests and
+  `server/bundle/test/devices.test.ts`, `client/test/liveView{,.real}.e2e.test.ts`, native unit tests and
   `examples/screen_fixture.rs`; updated the existing interop driver/manifest count.
 - `flake.nix`, Cargo manifests/lock, server manifests/pnpm lock: dev-only Linux helpers/compositor,
   image/Wayland/X11/portal/Windows bindings and WS runtime dependencies. No new system service.
@@ -41,7 +42,29 @@ Capture and owner input reading run independently. Queues and native captures ar
 revoked, disconnected or failed stream releases owner control. The shared file-purpose negotiation and
 framing are available for E2c to extend; file transfers are not enabled.
 
+Final diff review found that the connection store treated live-view socket closure as loss of the
+main chat connection. It now observes only the main `api/remote.mux` socket for whole-App disconnects;
+a regression test covers viewer failure/close and subsequent real main-socket loss. The screen e2es
+share `client/test/fixtures/screenHost.ts` to start and clean up an isolated compositor and paired host.
+
+### HTTPS boundary
+
+Outside loopback, both the native App and browser must use an HTTPS server URL (and WSS for its live
+socket). The owner HTTP offer contains the AES stream keys: LAN HTTP would disclose those keys and
+the session credential, defeating the binary stream's encryption. Browser AEAD also uses
+`crypto.subtle`, which is available only in a secure context. A secure native WebView does not secure
+its outbound HTTP traffic. Loopback HTTP is a development exception.
+
+The bundle allows a TLS socket or a loopback peer and ignores forwarded-proto headers. If a trusted
+local reverse proxy terminates TLS, its public listener must require HTTPS/WSS and preserve Host/Origin
+checks; the loopback exception cannot validate the proxy's public configuration. Unit tests cover
+the admission predicate; a deployed HTTPS proxy/certificate and remote physical-phone connection
+were not tested. See [DESIGN.md](./DESIGN.md#https-outside-loopback).
+
 ## Commands and results
+
+Final checks below were rerun in the existing default devShell after the review and screenshot test.
+Earlier dependency setup and unavailable cross-target checks are explicitly marked.
 
 | Command | Result |
 | --- | --- |
@@ -51,14 +74,14 @@ framing are available for E2c to extend; file transfers are not enabled.
 | `cargo fmt --all --check` | Passed |
 | `cargo build -p swiftnest-perch --examples` | Passed, interop + Wayland fixture |
 | `pnpm build` | Passed |
-| `pnpm test` | Passed before the additional TLS unit test: 173 passed, 13 opt-in/environment skips; final all-enabled suite below includes that test |
+| `pnpm test` | Passed: 175 passed, 14 opt-in/environment skips |
 | `pnpm --filter @swiftnest/app build:web` | Passed |
 | `pnpm docs:build` | Passed |
-| `nix develop --command env SWIFTNEST_SCREEN_E2E=1 pnpm vitest run server/test/live.test.ts` | Passed, real headless labwc/pixman |
-| `nix develop --command env SWIFTNEST_E2E=1 SWIFTNEST_WEB_E2E=1 SWIFTNEST_PERCH_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run` | Passed: 33 files, 186 passed, 1 unavailable-mDNS skip |
-| `pnpm install --no-frozen-lockfile --config.manage-package-manager-versions=false` | Passed; existing dependencies/lock linked correctly |
-| `pnpm install --offline` / attempted root `pnpm add ... --offline` | Initially unavailable: missing cached registry metadata; no root dependency added. WS tests live under the server package, which already depended on WS |
-| `cargo check --target x86_64-pc-windows-gnu -p swiftnest-perch` | Unavailable: target core/std absent (`E0463`); Windows code is not cross-compile-verified |
+| `SWIFTNEST_WEB_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/liveView.real.e2e.test.ts client/test/connection.test.ts server/test/live.test.ts` | Passed: 10 tests, real headless labwc/pixman and browser screenshots |
+| `SWIFTNEST_E2E=1 SWIFTNEST_WEB_E2E=1 SWIFTNEST_PERCH_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run` | Passed: 34 files, 188 passed, 1 unavailable-mDNS skip |
+| Earlier: `pnpm install --no-frozen-lockfile --config.manage-package-manager-versions=false` | Passed; existing dependencies/lock linked correctly |
+| Earlier: `pnpm install --offline` / attempted root `pnpm add ... --offline` | Initially unavailable: missing cached registry metadata; no root dependency added. WS tests live under the server package, which already depended on WS |
+| Earlier: `cargo check --target x86_64-pc-windows-gnu -p swiftnest-perch` | Unavailable: target core/std absent (`E0463`); Windows code is not cross-compile-verified |
 | `git diff --check` | Passed |
 
 ## Evidence and limits
@@ -75,13 +98,29 @@ Crypto/relay/API tests cover Rust/TS key/framing interop, different directions/t
 size bounds, one-use ticket admission, wrong parent, duplicate viewers, dial races, backpressure cleanup,
 agent-input gating and screenshot crop/downscale bounds. Browser tests exercise 390 px English/Chinese
 and 1280 px English: takeover state, coordinate mapping, tap/hold/right-click/drag, two-finger scroll,
-pinch zoom, keyboard text, handback, fit/no horizontal overflow and cleanup. The live UI test uses a
-known stream fixture; actual host/crypto/relay behavior is tested independently. Existing real-kernel
+pinch zoom, keyboard text, handback, fit/no horizontal overflow and cleanup. The gesture UI test uses a
+known stream fixture. The additional 390 × 844 Chromium test uses real labwc → Rust Perch capture →
+encrypted Nest and App relays → browser AEAD/JPEG decode → LivePanel. It checks the red wl_shm fixture
+pixels, no horizontal overflow, both control labels and host gate state, an actual touch click delivered
+to the fixture, handback and viewer cleanup. Only owner-session admission and the chat-page mounting
+wrapper are fixtures in this test; it does not perform a signed DSH login. Existing real-kernel
 App/API/chat/device approval e2es and the old Rust interop e2e remain green.
 
-Only **headless labwc/pixman** received actual capture/input validation. GNOME/KDE portal + PipeWire and
-X11 are Linux-compiled but not session-tested; Windows GDI/SendInput awaits a Windows target toolchain
-and hardware. niri, multi-monitor/fractional/rotated displays, tray notifications/menu interactions and
+Owner-review screenshots (generated evidence, ignored by Git):
+
+- `client/test/screenshots/live-view-390-ivy.png` — **Ivy is in control**, real frame, Take over enabled.
+- `client/test/screenshots/live-view-390-owner.png` — **You are in control**, same real frame, Hand back enabled.
+
+Regenerate after building the Rust examples with
+`SWIFTNEST_WEB_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/liveView.real.e2e.test.ts`
+inside the default devShell. Set `SWIFTNEST_CHROMIUM` to an available Chromium executable, or omit it
+when a Playwright-managed browser is already installed. No browser download is performed by the test.
+
+Only **headless labwc/pixman** received actual capture/pointer-input validation; virtual keyboard
+injection was not exercised against that compositor. GNOME/KDE portal + PipeWire and X11 are
+Linux-compiled but not session-tested. Windows GDI/SendInput has neither a successful Windows compile
+nor runtime validation; the previous cross-check lacked target core/std. niri,
+multi-monitor/fractional/rotated displays, tray notifications/menu interactions and
 physical Android phone/WebView gestures/performance were not manually exercised. No measured 10–15 fps
 claim is made: this is the adaptive LAN target, and debug capture under concurrent tests is slower.
 

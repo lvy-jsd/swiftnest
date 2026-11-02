@@ -5,7 +5,9 @@
 在主人 App 与小艾的聊天页，点击 **实时画面 · 电脑名称**。支持屏幕功能的在线电脑会显示在聊天记录
 上方；手机上全屏打开，桌面上在右侧打开。手机原生 App 可以观看电脑，Android 暂不提供自身屏幕。
 局域网实时画面要求原生 App 和网页都通过 HTTPS 连接服务器，以保护流密钥交换；只有本机开发
-地址允许明文 HTTP。
+地址允许明文 HTTP。主人 API 会返回每条流的加密密钥；如果通过 HTTP 暴露该响应，视频和输入的
+加密保护也会失效。浏览器的 Web Crypto 同样要求安全上下文。若使用本机可信反向代理终止 TLS，
+其公网入口必须要求 HTTPS/WSS，并保留服务器的 Host/Origin 检查。
 
 ## 在电脑上开启
 
@@ -51,7 +53,7 @@
 
 | 会话 | 采集 | 输入 | E2b 验证情况 |
 | --- | --- | --- | --- |
-| Linux wlroots 协议（含 niri/labwc） | grim 1.5，wlr-screencopy 或 ext-image-copy-capture | 绑定输出的虚拟指针 v2、wtype 虚拟键盘 | 无头 labwc/pixman 真实端到端通过 |
+| Linux wlroots 协议（含 niri/labwc） | grim 1.5，wlr-screencopy 或 ext-image-copy-capture | 绑定输出的虚拟指针 v2、wtype 虚拟键盘 | 无头 labwc/pixman 采集和指针端到端通过；niri 和原生键盘未验证 |
 | Linux GNOME/KDE Wayland | ScreenCast Portal + PipeWire/GStreamer | RemoteDesktop Portal | 编译通过，待真实桌面验证 |
 | Linux X11 | XGetImage | xdotool/XTest | 编译通过，待 X11 验证 |
 | Windows | GDI 回退 | SendInput | 已实现，待 Windows 工具链和硬件验证 |

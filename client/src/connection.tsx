@@ -62,8 +62,11 @@ export class ConnectionStore {
           this.disconnect();
           this.update({ error: 'connectionLost' });
         };
-        socket.addEventListener('close', lost, { once: true });
-        socket.addEventListener('error', lost, { once: true });
+        // A live-view socket has its own lifecycle; closing the panel must keep chat connected.
+        if (new URL(address).pathname === new URL('api/remote.mux', root).pathname) {
+          socket.addEventListener('close', lost, { once: true });
+          socket.addEventListener('error', lost, { once: true });
+        }
         return socket;
       } };
       this.activeOptions = activeOptions;

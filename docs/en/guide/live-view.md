@@ -6,7 +6,10 @@ Open your conversation with Ivy on the owner App, then choose **Live view · com
 computers with screen support appear above the transcript. The view fills a phone screen and opens on
 the right on desktop. The native phone App can view a desktop; Android does not expose its own screen.
 Use an HTTPS server connection for LAN live view in both the native App and browser; stream keys must
-travel over TLS. Plain HTTP is accepted only for loopback development.
+travel over TLS. The owner API returns the per-stream encryption keys; exposing that response over
+HTTP would defeat the encrypted video/input channel. Browsers also need HTTPS for Web Crypto.
+Plain HTTP is accepted only for loopback development. A trusted local TLS reverse proxy must require
+HTTPS/WSS on its public listener and preserve the server's Host/Origin checks.
 
 ## Enable on the computer
 
@@ -57,7 +60,7 @@ literal, keys use names such as `Return` or combos such as `ctrl+c`.
 
 | Session | Capture | Input | Validation in E2b |
 | --- | --- | --- | --- |
-| Linux wlroots protocols (including niri/labwc) | grim 1.5, wlr-screencopy or ext-image-copy-capture | output-bound virtual pointer v2; wtype virtual keyboard | Actual headless labwc/pixman e2e |
+| Linux wlroots protocols (including niri/labwc) | grim 1.5, wlr-screencopy or ext-image-copy-capture | output-bound virtual pointer v2; wtype virtual keyboard | Actual headless labwc/pixman capture/pointer e2e; niri and native keyboard unverified |
 | Linux GNOME/KDE Wayland | ScreenCast portal + PipeWire/GStreamer | RemoteDesktop portal | Compiled; needs real desktop validation |
 | Linux X11 | XGetImage | xdotool/XTest | Compiled; needs X11 validation |
 | Windows | GDI fallback | SendInput | Implemented; Windows toolchain/hardware validation pending |
