@@ -236,12 +236,12 @@ async fn phone_call(
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn tray_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, MenuItem};
-    let show = MenuItem::with_id(app, "show", i18n::text("native_237"), true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", i18n::text("native_238"), true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", i18n::text("openSwiftnest"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", i18n::text("quitSwiftnest"), true, None::<&str>)?;
     let stop = MenuItem::with_id(
         app,
         "stop-view",
-        i18n::text("native_239"),
+        i18n::text("stopLiveView"),
         true,
         None::<&str>,
     )?;
@@ -340,7 +340,7 @@ pub fn run() {
                         let watching = snapshot.watching;
                         if let Some(tray) = handle.tray_by_id("perch-status") {
                             let title = if watching {
-                                i18n::text("native_240")
+                                i18n::text("sharingDesktop")
                             } else {
                                 "Swiftnest".into()
                             };
@@ -370,8 +370,8 @@ pub fn run() {
                             let _ = handle
                                 .notification()
                                 .builder()
-                                .title(i18n::text("native_241"))
-                                .body(i18n::text("native_242"))
+                                .title(i18n::text("desktopSharing"))
+                                .body(i18n::text("desktopBeingViewedStopSwiftnestTray"))
                                 .show();
                         }
                         was_watching = watching;
@@ -393,7 +393,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .unwrap_or_else(|_| panic!("{}", i18n::text("native_243")))
+        .unwrap_or_else(|_| panic!("{}", i18n::text("couldNotStartSwiftnestRestartApp")))
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 let core = app.state::<DeviceState>().core.clone();

@@ -35,3 +35,18 @@ it('authenticates language changes, shares them between callers and persists the
     expect(['en','zh-CN']).toContain((await (await request()).json()).lang);
   } finally { await hub.close(); await rm(home,{recursive:true,force:true}); }
 });
+
+it('includes the configured assistant name with the preferences', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'swiftnest-name-'));
+  const env = { SWIFTNEST_HOME: home, SWIFTNEST_DEVICES_PORT: '0', SWIFTNEST_DEVICES_MDNS: 'false', SWIFTNEST_ASSISTANT_NAME: '小艾' };
+  const hub = await startDevices(loadConfig(undefined, env));
+  try {
+    const response = await fetch(hub.env[ADMIN_URL_ENV] + '/swiftnest/api/devices/preferences', {
+      headers: { authorization: `Bearer ${hub.env[ADMIN_TOKEN_ENV]}` },
+    });
+    expect(await response.json()).toEqual({ lang: 'zh-CN', assistantName: '小艾' });
+  } finally {
+    await hub.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

@@ -57,6 +57,14 @@ describe("loadConfig", () => {
     expect(() => loadConfig(file, {})).toThrow("persona must be a string");
   });
 
+  it("reads the assistant's display name from YAML, with an environment override", () => {
+    const file = join(tmp(), "assistant.yaml");
+    writeFileSync(file, 'assistantName: "小艾"\n');
+    expect(loadConfig(undefined, {}).assistantName).toBeUndefined();
+    expect(loadConfig(file, {}).assistantName).toBe("小艾");
+    expect(loadConfig(file, { SWIFTNEST_ASSISTANT_NAME: "Ivy" }).assistantName).toBe("Ivy");
+  });
+
   it('resolves App dist from YAML with an environment override', () => {
     const dir = tmp(); const file = join(dir, 'app.yaml');
     writeFileSync(file, `appDist: ${dir}/file-dist\n`);

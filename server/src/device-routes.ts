@@ -202,7 +202,10 @@ async function decideApproval({ hub, params }: Request) {
 // ---------------------------------------------------------------- table
 
 const routes: Route[] = [
-  route('GET', `${PREFIX}/preferences`, ({ hub }) => ({ lang: hub.preferences.lang })),
+  route('GET', `${PREFIX}/preferences`, ({ hub }) => ({
+    lang: hub.preferences.lang,
+    assistantName: hub.config.assistantName,
+  })),
   route('POST', `${PREFIX}/preferences`, setLanguage),
   route('*', `${PREFIX}/preferences`, () => {
     throw new HttpError(405, 'Method not allowed');

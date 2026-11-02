@@ -56,6 +56,7 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `devices.mdns` | `SWIFTNEST_DEVICES_MDNS` | `true` (`false` disables) |
 | `appDist` | `SWIFTNEST_APP_DIST` | installed `@swiftnest/app/dist`, otherwise unavailable |
 | `persona` (string) | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
+| `assistantName` (string) | `SWIFTNEST_ASSISTANT_NAME` | unset (Apps show "Assistant") |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`, `model.contextWindow`, `model.maxTokens` | | `Local model`, `32768`, `8192` |

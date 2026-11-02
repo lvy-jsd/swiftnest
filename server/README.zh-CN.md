@@ -53,6 +53,7 @@ HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配�
 | `port` | `SWIFTNEST_PORT` | `3077` |
 | `appDist` | `SWIFTNEST_APP_DIST` | 已安装的 `@swiftnest/app/dist`，否则不可用 |
 | `persona`（字符串） | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
+| `assistantName`（字符串） | `SWIFTNEST_ASSISTANT_NAME` | 不设置（App 显示“助手”） |
 | `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
 | `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
 | `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |

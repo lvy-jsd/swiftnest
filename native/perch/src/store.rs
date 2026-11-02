@@ -30,7 +30,7 @@ impl Default for Settings {
             name: crate::i18n::text(if cfg!(target_os = "android") {
                 "thisPhone"
             } else {
-                "native_0"
+                "thisComputer"
             }),
             slug: String::new(),
             enabled: false,

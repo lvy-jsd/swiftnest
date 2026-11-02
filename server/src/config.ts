@@ -33,6 +33,8 @@ export interface ServerConfig {
   appDist?: string;
   /** Default persona for DSH's system prompt and agent presets; supports {{model}}. */
   persona: string;
+  /** Name the Apps show on the assistant's messages (e.g. "小艾"); Apps fall back to a generic label. */
+  assistantName?: string;
   model: ModelConfig;
   files?: { quotaBytes: number };
   devices: { host: string; port: number; mdns: boolean };
@@ -73,6 +75,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     port: num(env.SWIFTNEST_PORT) ?? fromFile.port ?? DEFAULT_PORT,
     appDist: appDist ? resolve(appDist) : undefined,
     persona: env.SWIFTNEST_PERSONA ?? fromFile.persona ?? ((env.SWIFTNEST_LANG ?? fromFile.lang) === "en" ? "You are a helpful assistant in Swiftnest, powered by the {{model}} model." : DEFAULT_PERSONA),
+    assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName || undefined,
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,

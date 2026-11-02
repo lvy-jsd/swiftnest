@@ -11,6 +11,8 @@ export interface ConnectionState {
   root: string;
   sessions: SessionSummary[];
   error?: ConnectionError;
+  /** Display name the server gives the assistant; Apps show a generic label without it. */
+  assistantName?: string;
 }
 export const ROOT_KEY = 'swiftnest.serverRoot';
 export function serverRoot(value: string): string {
@@ -42,6 +44,9 @@ export class ConnectionStore {
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private update(patch: Partial<ConnectionState>) { this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener(); }
+  setAssistantName(name: string | undefined) {
+    if (name !== this.state.assistantName) this.update({ assistantName: name });
+  }
   async pair(url: string): Promise<boolean> {
     this.disconnect();
     const generation = this.generation;

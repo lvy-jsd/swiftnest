@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { App, chatFromHash } from "../src/App";
 import { ThemeProvider } from "../src/design/theme";
 import { I18nProvider, en, translate, zhCN, savedLocale, LOCALE_KEY } from "../src/i18n";
-import { isTauriRuntime } from "../src/runtime";
+import { hasPrecisePointer, isTauriRuntime } from "../src/runtime";
 import { ConnectionProvider } from '../src/connection';
 
 describe("web shell and translations", () => {
@@ -25,6 +25,18 @@ describe("web shell and translations", () => {
       expect(isTauriRuntime()).toBe(true);
       vi.stubGlobal("window", { __TAURI_INTERNALS__: undefined });
       expect(isTauriRuntime()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it("shows keyboard hints only with a precise pointer", () => {
+    try {
+      vi.stubGlobal("window", { matchMedia: (query: string) => ({ matches: query === "(pointer: fine)" }) });
+      expect(hasPrecisePointer()).toBe(true);
+      vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+      expect(hasPrecisePointer()).toBe(false);
+      vi.stubGlobal("window", {});
+      expect(hasPrecisePointer()).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }

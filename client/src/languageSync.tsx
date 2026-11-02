@@ -22,8 +22,9 @@ export function LanguageSync() {
       running = true;
       const generation = changed, choice = pending.current;
       try {
-        const result = choice ? await client.setLanguage(choice) : await client.getLanguage();
+        const result = choice ? await client.setLanguage(choice) : await client.getPreferences();
         if (ended || changed !== generation) return;
+        if (!choice) store.setAssistantName(result.assistantName || undefined);
         if (result.lang !== 'en' && result.lang !== 'zh-CN') throw new Error('Invalid language response');
         pending.current = undefined;
         try { localStorage.removeItem(PENDING_LOCALE_KEY); } catch { /* Storage unavailable. */ }

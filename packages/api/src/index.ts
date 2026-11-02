@@ -14,6 +14,12 @@ export { ApiError } from './transport.js';
 
 type Pending = { sessionId: string; kind: 'approval' | 'question'; wait?: Inbox<unknown> };
 
+export interface Preferences {
+  lang: 'zh-CN' | 'en';
+  /** Set by the server operator, e.g. "小艾"; absent means Apps show a generic label. */
+  assistantName?: string;
+}
+
 export class SwiftnestClient {
   private root?: URL;
   private cookie = '';
@@ -77,8 +83,9 @@ export class SwiftnestClient {
     if (!response.ok) throw new ApiError('http-error', `Health returned HTTP ${response.status}`);
     return await response.json() as Health;
   }
-  getLanguage(): Promise<{ lang: 'zh-CN' | 'en' }> { return this.deviceRequest('/preferences'); }
-  setLanguage(lang: 'zh-CN' | 'en'): Promise<{ lang: 'zh-CN' | 'en' }> { return this.deviceRequest('/preferences', 'POST', undefined, { lang }); }
+  /** The owner's language and the assistant's display name (when the server sets one). */
+  getPreferences(): Promise<Preferences> { return this.deviceRequest('/preferences'); }
+  setLanguage(lang: 'zh-CN' | 'en'): Promise<Preferences> { return this.deviceRequest('/preferences', 'POST', undefined, { lang }); }
   listTransfers(): Promise<import('./devices.js').Transfer[]> { return this.deviceRequest('/transfers'); }
   startTransfer(request: import('./devices.js').TransferRequest): Promise<import('./devices.js').Transfer> { return this.deviceRequest('/transfers', 'POST', undefined, request); }
   transferAction(id: string, action: 'pause'|'resume'|'cancel'|'retry'): Promise<import('./devices.js').Transfer> { return this.deviceRequest(`/transfers/${encodeURIComponent(id)}/${action}`, 'POST'); }
