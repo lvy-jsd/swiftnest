@@ -13,6 +13,7 @@ The third-party DSH plugins Swiftnest Server can load have one source: [`server/
 | id              | Plugin                                                                         | Default | What it does                                         |
 | --------------- | ------------------------------------------------------------------------------ | ------- | ---------------------------------------------------- |
 | `tool-ultra`    | [Tool Ultra](./tool-ultra.md)                                                  | on      | On-demand tool loading, risk gate, device tools      |
+| `market`        | DSH's own plugin market                                                        | on      | Browse the community catalog under Plugins → Discover |
 | `safety-net`    | [cc-safety-net](https://github.com/kenryu42/cc-safety-net)                     | on      | Blocks destructive commands and secret reads         |
 | `auto-continue` | [dsh-client-auto-continue](https://github.com/HsiangNianian/dsh-auto-continue) | on      | Continues after recoverable interruptions            |
 | `smart-title`   | [dsh-smart-title](https://github.com/weibaohui/dsh-smart-title)                | on      | Titles sessions from what they are about             |
@@ -21,6 +22,10 @@ The third-party DSH plugins Swiftnest Server can load have one source: [`server/
 | `im`            | [dsh-im](https://github.com/xmanrui/dsh-im)                                    | off     | WeChat, QQ, Feishu, DingTalk, Telegram and more bots |
 
 cc-safety-net is a blocklist, an extra layer on top of the default-deny rules.
+
+## Plugin market
+
+`market` turns on DSH's own plugin market with the community [dsh-plugin-catalog](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) index, refreshed daily. It is for finding plugins: the Server rewrites the profile from the manifest on every start, so a plugin installed straight from the market is removed, with a note in the startup log. To keep one, add it to the manifest as described under "Adding a plugin".
 
 ## Install and toggle
 

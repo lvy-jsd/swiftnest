@@ -94,11 +94,11 @@ describe('presetPersonaPatch', () => {
 });
 
 describe('writeProfile', () => {
-  it('stacks DSH base, DSH web, then Swiftnest', () => {
+  it('stacks DSH base, DSH web, Swiftnest, then the plugin market', () => {
     const { config, bundleDir } = setup();
     const dir = writeProfile(config, { bundleDir });
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES]);
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, '@deepseek-ai/dsh-experimental-plugin-market-bundle']);
     expect(readlinkSync(join(dir, 'node_modules', '@swiftnest', 'server-bundle'))).toBe(bundleDir);
   });
 

@@ -44,7 +44,7 @@ HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配�
 
 ## 插件
 
-服务器能加载的第三方 DSH 插件都列在 [`server/plugins.json`](plugins.json)：每个插件固定到精确版本和 npm 校验值（或完整提交），只收 MIT、Apache-2.0、BSD-3-Clause 许可证。默认启用 Tool Ultra、cc-safety-net、dsh-client-auto-continue、dsh-smart-title 和 dsh-cost-meter；会把数据发到外部或需要账号的 dsh-vision-router、dsh-im 默认关闭。
+服务器能加载的第三方 DSH 插件都列在 [`server/plugins.json`](plugins.json)：每个插件固定到精确版本和 npm 校验值（或完整提交），只收 MIT、Apache-2.0、BSD-3-Clause 许可证。默认启用 Tool Ultra、cc-safety-net、dsh-client-auto-continue、dsh-smart-title 和 dsh-cost-meter；会把数据发到外部或需要账号的 dsh-vision-router、dsh-im 默认关闭。DSH 自带的插件市场也默认打开，用来浏览社区插件目录；要长期使用的插件须加进清单。
 
 ```sh
 swiftnest-server plugins install --config swiftnest.yaml

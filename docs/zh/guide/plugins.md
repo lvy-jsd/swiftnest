@@ -13,6 +13,7 @@ Swiftnest 服务器能加载的第三方 DSH 插件只有一个来源：[`server
 | id              | 插件                                                                           | 默认 | 作用                                        |
 | --------------- | ------------------------------------------------------------------------------ | ---- | ------------------------------------------- |
 | `tool-ultra`    | [Tool Ultra](./tool-ultra.md)                                                  | 开   | 按需加载工具、风险审批、设备工具            |
+| `market`        | DSH 自带的插件市场                                                            | 开   | 在“插件 → 发现”里浏览社区插件目录          |
 | `safety-net`    | [cc-safety-net](https://github.com/kenryu42/cc-safety-net)                     | 开   | 拦截 `rm -rf`、强推、读取密钥等危险操作     |
 | `auto-continue` | [dsh-client-auto-continue](https://github.com/HsiangNianian/dsh-auto-continue) | 开   | 中断后可恢复时自动继续                      |
 | `smart-title`   | [dsh-smart-title](https://github.com/weibaohui/dsh-smart-title)                | 开   | 按对话内容自动起会话标题                    |
@@ -21,6 +22,10 @@ Swiftnest 服务器能加载的第三方 DSH 插件只有一个来源：[`server
 | `im`            | [dsh-im](https://github.com/xmanrui/dsh-im)                                    | 关   | 接入微信、QQ、飞书、钉钉、Telegram 等机器人 |
 
 cc-safety-net 用的是黑名单，只是默认拒绝规则之外多一层保险。
+
+## 插件市场
+
+`market` 打开的是 DSH 自带的插件市场，目录源用社区每天更新的 [dsh-plugin-catalog](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)。它只用来找插件：服务器每次启动都按清单重写配置，从市场直接装的插件会被移除，启动日志会提示。想长期用某个插件，按下面“加一个插件”的步骤加进清单。
 
 ## 安装与开关
 

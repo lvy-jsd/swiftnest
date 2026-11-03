@@ -450,6 +450,8 @@ export const messageEn = {
   pluginIntegrityMismatch: 'Plugin {0} did not install the audited tarball (integrity mismatch)',
   pluginsMissing:
     'Enabled plugins are not installed: {0}. Run swiftnest-server plugins install with the same --config / SWIFTNEST_HOME, then restart.',
+  pluginsOutsideManifest:
+    'Removed {0} from the profile: plugins load only from server/plugins.json. Add one there to keep it.',
   pluginsInstalling: 'Installing plugins: {0}…',
   pluginsInstalled: 'Plugins are installed. Restart Swiftnest Server to load them.',
   pluginCommandFailed: 'Plugin command {0} failed (exit {1}).',
@@ -905,6 +907,7 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   pluginIntegrityMismatch: '插件 {0} 安装的不是审计过的包（校验值不符）',
   pluginsMissing:
     '以下已启用的插件尚未安装：{0}。请使用相同的 --config / SWIFTNEST_HOME 运行 swiftnest-server plugins install，然后重启。',
+  pluginsOutsideManifest: '已从配置中移除 {0}：插件只从 server/plugins.json 加载，要保留请加进清单。',
   pluginsInstalling: '正在安装插件：{0}…',
   pluginsInstalled: '插件已安装。重启 Swiftnest 服务器后生效。',
   pluginCommandFailed: '插件命令 {0} 失败（退出码 {1}）。',

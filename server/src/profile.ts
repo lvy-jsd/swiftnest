@@ -1,6 +1,6 @@
 import { text } from '@swiftnest/core';
 import { message, ServerFailure } from './i18n.js';
-import { profilePlugins } from './profile-plugins.js';
+import { profilePlugins, unlistedDependencies } from './profile-plugins.js';
 /**
  * The `swiftnest` DSH profile: DSH's own base and web bundles, then ours, then
  * a patch layer generated from the Swiftnest config. The profile is rewritten
@@ -143,9 +143,10 @@ const PROFILE_WORKSPACE = 'packages:\n  - .\nnodeLinker: hoisted\nautoInstallPee
 export function writeProfile(config: ServerConfig, opts: WriteProfileOptions): string {
   const dir = profileDir(config);
   const plugins = profilePlugins(config, dir);
-  if (plugins.missing.length) {
-    (opts.log ?? console.warn)(message('pluginsMissing', config.lang, [plugins.missing.join(', ')]));
-  }
+  const log = opts.log ?? console.warn;
+  if (plugins.missing.length) log(message('pluginsMissing', config.lang, [plugins.missing.join(', ')]));
+  const unlisted = unlistedDependencies(dir, plugins.dependencies);
+  if (unlisted.length) log(message('pluginsOutsideManifest', config.lang, [unlisted.join(', ')]));
   mkdirSync(dir, { recursive: true });
   const pkg = {
     name: 'dsh-profile-swiftnest',

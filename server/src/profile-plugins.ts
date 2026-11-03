@@ -1,12 +1,21 @@
 /**
  * What the enabled plugins contribute to the `swiftnest` profile: npm packages
  * become profile dependencies and, once installed at their pinned version,
- * bundle layers; the Tool Ultra build contributes patch rows.
+ * bundle layers, as do enabled bundles shipped with the kernel; the Tool Ultra
+ * build and each loaded plugin's `patch` contribute patch rows.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ServerConfig } from './config.js';
-import { enabledNpmPlugins, isEnabled, type NpmSource, type Plugin, pluginById } from './plugins.js';
+import {
+  type DshSource,
+  enabledNpmPlugins,
+  enabledPlugins,
+  isEnabled,
+  type NpmSource,
+  type Plugin,
+  pluginById,
+} from './plugins.js';
 import { isBuilt, TOOL_ULTRA_ID, toolUltraDir, toolUltraPatch } from './tool-ultra.js';
 
 export interface ProfilePlugins {
@@ -27,6 +36,21 @@ export function isInstalled(profile: string, plugin: Plugin<NpmSource>): boolean
   }
 }
 
+/**
+ * Packages someone added to the profile outside the manifest, e.g. from the
+ * plugin market. The Server rewrites the profile on start, which drops them.
+ */
+export function unlistedDependencies(profile: string, dependencies: Record<string, string>): string[] {
+  try {
+    const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+    };
+    return Object.keys(manifest.dependencies ?? {}).filter((name) => !(name in dependencies));
+  } catch {
+    return [];
+  }
+}
+
 function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] {
   if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return [];
   const dir = toolUltraDir(config);
@@ -39,11 +63,14 @@ export function profilePlugins(config: ServerConfig, profile: string): ProfilePl
   const missing: string[] = [];
   const rows = toolUltraRows(config, missing);
   const dependencies: Record<string, string> = {};
-  const bundles: string[] = [];
+  // Bundles shipped with the kernel are always present.
+  const loaded: Plugin[] = enabledPlugins<DshSource>(config.plugins, 'dsh');
   for (const plugin of enabledNpmPlugins(config.plugins)) {
     dependencies[plugin.source.package] = plugin.source.version;
-    if (isInstalled(profile, plugin)) bundles.push(plugin.source.package);
+    if (isInstalled(profile, plugin)) loaded.push(plugin);
     else missing.push(plugin.id);
   }
+  const bundles = loaded.map((plugin) => (plugin.source as DshSource | NpmSource).package);
+  rows.push(...loaded.flatMap((plugin) => plugin.patch ?? []));
   return { dependencies, bundles, rows, missing };
 }
