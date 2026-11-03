@@ -80,15 +80,32 @@ describe('loadConfig', () => {
   });
 });
 
-it('defaults Tool Ultra on and supports YAML and environment overrides', () => {
-  const file = join(tmp(), 'ultra.yaml');
-  expect(loadConfig(undefined, {}).toolUltra).toBe(true);
-  writeFileSync(file, 'toolUltra: false\n');
-  expect(loadConfig(file, {}).toolUltra).toBe(false);
-  expect(loadConfig(file, { SWIFTNEST_TOOL_ULTRA: 'true' }).toolUltra).toBe(true);
-  expect(loadConfig(undefined, { SWIFTNEST_TOOL_ULTRA: 'false' }).toolUltra).toBe(false);
-  writeFileSync(file, 'toolUltra: "false"\n');
-  expect(() => loadConfig(file, {})).toThrow('toolUltra must be a boolean');
+it('takes plugin defaults from the manifest, overridden by YAML then the environment', () => {
+  const file = join(tmp(), 'plugins.yaml');
+  expect(loadConfig(undefined, {}).plugins).toEqual({});
+  writeFileSync(file, 'plugins: { tool-ultra: false, im: true }\n');
+  expect(loadConfig(file, {}).plugins).toEqual({ 'tool-ultra': false, im: true });
+  expect(loadConfig(file, { SWIFTNEST_PLUGINS: 'tool-ultra=true, im=false' }).plugins).toEqual({
+    'tool-ultra': true,
+    im: false,
+  });
+  expect(loadConfig(undefined, { SWIFTNEST_PLUGINS: 'vision-router' }).plugins).toEqual({ 'vision-router': true });
+});
+
+it.each([
+  ['plugins: { tool-ultra: "false" }', 'plugins must map'],
+  ['plugins: [im]', 'plugins must map'],
+  ['plugins: { imm: true }', 'Unknown plugin imm'],
+])('rejects plugin overrides %s', (yaml, error) => {
+  const file = join(tmp(), 'plugins.yaml');
+  writeFileSync(file, `${yaml}\n`);
+  expect(() => loadConfig(file, { SWIFTNEST_LANG: 'en' })).toThrow(error);
+});
+
+it('rejects an unknown plugin id from the environment', () => {
+  expect(() => loadConfig(undefined, { SWIFTNEST_LANG: 'en', SWIFTNEST_PLUGINS: 'typo' })).toThrow(
+    'Unknown plugin typo',
+  );
 });
 
 it.each(['42', 'false', '[]', '{}', 'null'])('rejects non-string assistantName: %s', (value) => {

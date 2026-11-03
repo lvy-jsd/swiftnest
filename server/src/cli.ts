@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { message, localizedError } from './i18n.js';
-import { installToolUltra } from './tool-ultra.js';
+import { installPlugins } from './plugin-install.js';
 import { parseCliArgs } from './cli-args.js';
 import { loadConfig } from './config.js';
 import { startKernel } from './kernel.js';
@@ -17,8 +17,8 @@ async function main(argv: string[]): Promise<number> {
   const config = loadConfig(values.config);
   selectedLanguage = config.lang ?? 'zh-CN';
   process.env.SWIFTNEST_LANG = selectedLanguage;
-  if (command === 'tools-install') {
-    await installToolUltra(config, (line) => console.log(line));
+  if (command === 'plugins-install') {
+    await installPlugins(config, (line) => console.log(line));
     return 0;
   }
   console.log(message('starting', config.lang, [config.home]));

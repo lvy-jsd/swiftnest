@@ -42,18 +42,18 @@ HTTP/WebSocket 传输访问，不放宽内核来源校验，详见[客户端配�
 应用外壳无需 DSH 认证，API 仍需配对。静态路由拒绝路径穿越和越界符号链接，设置 MIME，页面路由回退首页，
 带哈希的资源采用 immutable 缓存，首页重新验证。
 
-## Tool Ultra
+## 插件
 
-[Tool Ultra](https://github.com/lvy-jsd/dsh-tool-ultra)（Apache-2.0）默认启用，提供按需工具加载、工具目录、风险审批、原生工具包和设备命名空间。产品完成前不发布到 npm，服务器从固定提交 `8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9` 构建。
+服务器能加载的第三方 DSH 插件都列在 [`server/plugins.json`](plugins.json)：每个插件固定到精确版本和 npm 校验值（或完整提交），只收 MIT、Apache-2.0、BSD-3-Clause 许可证。默认启用 Tool Ultra、cc-safety-net、dsh-client-auto-continue、dsh-smart-title 和 dsh-cost-meter；会把数据发到外部或需要账号的 dsh-vision-router、dsh-im 默认关闭。
 
 ```sh
-swiftnest-server tools install --config swiftnest.yaml
+swiftnest-server plugins install --config swiftnest.yaml
 swiftnest-server start --config swiftnest.yaml
 ```
 
-源码仓库中可用 `node server/dist/cli.js` 替代 `swiftnest-server`。安装需要 Git、npm、Node 24 和网络；安装与启动必须使用相同的配置或 `SWIFTNEST_HOME`。安装目录为 `<home>/vendor/dsh-tool-ultra-8ccfefa1a922`，重复安装会跳过成功构建，失败会清理未完成目录。启动不会自动下载，未安装时仅打印提示并正常启动。
+源码仓库中可用 `node server/dist/cli.js` 替代 `swiftnest-server`。安装需要 Git、npm、pnpm、Node 24 和网络；安装与启动必须使用相同的配置或 `SWIFTNEST_HOME`。启动不会自动下载，未安装的插件只打印提示，服务器照常启动。
 
-可通过 YAML `toolUltra: false` 或 `SWIFTNEST_TOOL_ULTRA=false` 关闭。各包的 `cordis.patch.yml` 是默认配置的唯一来源；操作员的 `user.patch.yml` 最后应用。`tools_load` 的风险审批显示在 App 聊天中，设备执行仍须通过 Nest 的权限检查。[完整指南](../docs/zh/guide/tool-ultra.md)。
+用 YAML `plugins: { im: true, tool-ultra: false }` 或 `SWIFTNEST_PLUGINS=im=true,tool-ultra=false` 按 id 开关。[插件指南](../docs/zh/guide/plugins.md)，[Tool Ultra 指南](../docs/zh/guide/tool-ultra.md)。
 
 ## 配置
 
@@ -61,6 +61,7 @@ swiftnest-server start --config swiftnest.yaml
 
 | 字段                                                   | 环境变量                   | 默认值                                                                      |
 | ------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------- |
+| `plugins`（id → `true`/`false`）                       | `SWIFTNEST_PLUGINS`        | `server/plugins.json` 中的默认值                                            |
 | `home`                                                 | `SWIFTNEST_HOME`           | `$XDG_DATA_HOME/swiftnest`                                                  |
 | `host`（一个具体 IP，不能是 `0.0.0.0`）                | `SWIFTNEST_HOST`           | `127.0.0.1`                                                                 |
 | `port`                                                 | `SWIFTNEST_PORT`           | `3077`                                                                      |

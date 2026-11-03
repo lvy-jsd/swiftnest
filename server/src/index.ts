@@ -19,10 +19,21 @@ export {
 export { pairingUrl, webAppUrl } from './pairing.js';
 
 export {
+  PLUGIN_MANIFEST,
+  checkManifest,
+  type Plugin,
+  type PluginManifest,
+  type GitSource,
+  type NpmSource,
+} from './plugins.js';
+export { installPlugins, verifyIntegrity } from './plugin-install.js';
+export { profilePlugins, isInstalled } from './profile-plugins.js';
+export {
   installToolUltra,
   toolUltraDir,
   toolUltraPatch,
   isBuilt,
   TOOL_ULTRA_SOURCE,
   TOOL_ULTRA_PACKAGES,
+  TOOL_ULTRA_ID,
 } from './tool-ultra.js';

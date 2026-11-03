@@ -7,21 +7,22 @@ Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-
 With Git, npm, Node 24 and network access available, use the same server config and data home:
 
 ```sh
-swiftnest-server tools install --config swiftnest.yaml
+swiftnest-server plugins install --config swiftnest.yaml
 swiftnest-server start --config swiftnest.yaml
 ```
 
-In a source checkout, use `node server/dist/cli.js tools install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
+In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
 Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-8ccfefa1a922`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
 
-`toolUltra` defaults to `true`. Startup prints a hint and continues if the build is missing; it never downloads source automatically. Disable it with:
+Tool Ultra is on by default; its pinned commit lives in [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json). Startup prints a hint and continues if the build is missing; it never downloads source automatically. Disable it with:
 
 ```yaml
-toolUltra: false
+plugins:
+  tool-ultra: false
 ```
 
-Or set `SWIFTNEST_TOOL_ULTRA=false`; the environment takes precedence. Restart the Server after installation.
+Or set `SWIFTNEST_PLUGINS=tool-ultra=false`; the environment takes precedence. Restart the Server after installation. See [Plugins](./plugins.md) for the others.
 
 The build applies a dependency override to `mathjs 15.2.0` to fix the source dependency's [expression execution vulnerability](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5). The source commit and plugin defaults remain unchanged.
 

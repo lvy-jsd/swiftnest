@@ -15,7 +15,8 @@
   },
   "files": [
     "dist",
-    "vendor"
+    "vendor",
+    "plugins.json"
   ],
   "scripts": {
     "build": "tsc -b",

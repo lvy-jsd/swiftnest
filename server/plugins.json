@@ -1,0 +1,90 @@
+{
+  "allowedLicenses": ["MIT", "Apache-2.0", "BSD-3-Clause"],
+  "plugins": [
+    {
+      "id": "tool-ultra",
+      "license": "Apache-2.0",
+      "enabled": true,
+      "source": {
+        "type": "git",
+        "repository": "https://github.com/lvy-jsd/dsh-tool-ultra",
+        "commit": "8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9",
+        "packages": ["core", "classifier-rules", "risk-gate", "persist", "pack-essentials", "pack-web", "devices"]
+      }
+    },
+    {
+      "id": "safety-net",
+      "license": "MIT",
+      "enabled": true,
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/kenryu42/cc-safety-net",
+        "package": "cc-safety-net",
+        "version": "2.7.2",
+        "integrity": "sha512-PgRsIZWVXfrLiFj/5E1LtyGiOTsZy42gLYCJC+6mNR3YKOvNr5Eg+38GaWuIkcXEeq51Aa19yTf5YZ9FoeLxkw=="
+      }
+    },
+    {
+      "id": "auto-continue",
+      "license": "MIT",
+      "enabled": true,
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/HsiangNianian/dsh-auto-continue",
+        "package": "dsh-client-auto-continue",
+        "version": "0.17.3",
+        "integrity": "sha512-nRsRo4LcyZUTrbxjNTM25MJQaH8wRBfSUcx7w3qjSMOg/Y16cmQUMBdvdgsBzKJBMIfastIT70+5gDIzblkD4A=="
+      }
+    },
+    {
+      "id": "smart-title",
+      "license": "MIT",
+      "enabled": true,
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/weibaohui/dsh-smart-title",
+        "package": "@weibaohui/dsh-smart-title",
+        "version": "0.1.9",
+        "integrity": "sha512-IZfLKqtg6uLauqRoWrSuUtlOyMQ2ZjBV0wVc2ybNPUEfmJYF81yv+eqak5UKbT8RSvqZyMZAgD92aDV5KhQUlg=="
+      }
+    },
+    {
+      "id": "cost-meter",
+      "license": "MIT",
+      "enabled": true,
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/Han-1413141/dsh-cost-meter",
+        "package": "dsh-cost-meter",
+        "version": "1.9.50",
+        "integrity": "sha512-dKSFO47aYZX+0ietM90kII07wZd+qG6J8kysQkGIVeD9Oh5eXOjzn6y8e4Aif3rzpavsTsDNGuAsCmJtrMndKQ=="
+      }
+    },
+    {
+      "id": "vision-router",
+      "license": "MIT",
+      "enabled": false,
+      "reason": "sends images to a cloud vision provider; configure a provider first",
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/ysr666/dsh-vision-router",
+        "package": "dsh-vision-router",
+        "version": "3.1.1",
+        "integrity": "sha512-RgT5fybv0il1ZYl/cafaO7w6caHX6FZBbubXEImouttjZpX/V5LwpLYTFGfV4oikneu+9hcJC9iqo2cSWGwsig=="
+      }
+    },
+    {
+      "id": "im",
+      "license": "MIT",
+      "enabled": false,
+      "reason": "connects chat bots; needs bot credentials",
+      "source": {
+        "type": "npm",
+        "repository": "https://github.com/xmanrui/dsh-im",
+        "package": "@xmanrui/dsh-im",
+        "version": "5.9.1",
+        "integrity": "sha512-Smgum2TG00oSLz4j0gBghW540u0bYGOkuLN2jbPwQ83VCJjeooZrUSJvJFTmC5q8P1PI9ugtjueXgYJ4PDpfZA=="
+      }
+    }
+  ]
+}
