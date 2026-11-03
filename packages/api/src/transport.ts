@@ -1,4 +1,4 @@
-import { localizedError } from '@swiftnest/protocol';
+import { isText, localizedError, render, text, type Text } from '@swiftnest/protocol';
 import type { RemoteStreamServerMessage } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import type { ApiWebSocket } from './types.js';
 
@@ -12,19 +12,54 @@ export function randomId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+/** What an API failure says: catalog text, or prose from a peer that sent no key. */
+type Words = string | Text;
+const english = (words: Words | undefined) =>
+  words === undefined || typeof words === 'string' ? words : render(words, 'en');
+const textOf = (words: Words | undefined) => (isText(words) ? words : undefined);
+
+/** A failure in the App's language, keeping the catalog text so it can be shown in another. */
 export class ApiError extends Error {
   readonly hint: string;
+  readonly text?: Text;
+  readonly hintText?: Text;
+
   constructor(
     public readonly code: string,
-    message: string,
-    hint?: string,
+    message: Words,
+    hint?: Words,
     public readonly serverCode?: string,
   ) {
-    const failure = localizedError({ code, message, hint });
+    const source = {
+      code,
+      message: english(message),
+      hint: english(hint),
+      text: textOf(message),
+      hintText: textOf(hint),
+    };
+    const failure = localizedError(source);
     super(failure.message);
     this.hint = failure.hint;
+    this.text = source.text;
+    this.hintText = source.hintText;
     this.name = 'ApiError';
   }
+
+  /** A failure body from the server: its catalog text when it sent one, else its prose. */
+  static fromServer(code: string, body: ServerFailureBody | undefined, fallback: Text): ApiError {
+    const message = isText(body?.text) ? body.text : (body?.message ?? fallback);
+    const hint = isText(body?.hintText) ? body.hintText : body?.hint;
+    return new ApiError(code, message, hint, body?.code);
+  }
+}
+
+/** The fields of a failure the server answers with; all optional, since a proxy may answer instead. */
+export interface ServerFailureBody {
+  code?: string;
+  message?: string;
+  hint?: string;
+  text?: unknown;
+  hintText?: unknown;
 }
 
 /** Cancellable single-reader inbox. Closing wakes a reader already blocked in next(). */
@@ -58,7 +93,7 @@ export class Inbox<T> implements AsyncIterableIterator<T> {
     return this;
   }
   async next(): Promise<IteratorResult<T>> {
-    if (this.wake) throw new ApiError('concurrent-read', 'A subscription supports one pending read');
+    if (this.wake) throw new ApiError('concurrent-read', text('subscriptionSupportsOnePendingRead'));
     while (!this.items.length && !this.ended)
       await new Promise<void>((resolve) => {
         this.wake = resolve;
@@ -83,7 +118,7 @@ export class Mux {
   static async open(socket: ApiWebSocket, timeoutMs: number): Promise<Mux> {
     const mux = new Mux(socket);
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => fail(new ApiError('timeout', 'API socket did not open in time')), timeoutMs);
+      const timer = setTimeout(() => fail(new ApiError('timeout', text('apiSocketDidNotOpenTime'))), timeoutMs);
       const cleanup = () => {
         clearTimeout(timer);
         socket.removeEventListener('open', opened);
@@ -95,16 +130,16 @@ export class Mux {
         socket.close();
         reject(error);
       };
-      const failed = () => fail(new ApiError('disconnected', 'API socket failed to open'));
+      const failed = () => fail(new ApiError('disconnected', text('apiSocketFailedOpen')));
       const opened = () => {
         cleanup();
         resolve();
       };
       socket.addEventListener('message', (e) => mux.receive(e.data));
       socket.addEventListener('close', () =>
-        mux.close(new ApiError('disconnected', 'API socket closed; reconnect with the pairing URL')),
+        mux.close(new ApiError('disconnected', text('apiSocketClosedReconnectPairingUrl'))),
       );
-      socket.addEventListener('error', () => mux.close(new ApiError('disconnected', 'API socket failed')));
+      socket.addEventListener('error', () => mux.close(new ApiError('disconnected', text('apiSocketFailed'))));
       socket.addEventListener('open', opened, { once: true });
       socket.addEventListener('error', failed, { once: true });
       socket.addEventListener('close', failed, { once: true });
@@ -112,7 +147,7 @@ export class Mux {
     return mux;
   }
   stream(endpoint: string, args: unknown): Inbox<unknown> {
-    if (this.closed) throw new ApiError('disconnected', 'API socket is closed');
+    if (this.closed) throw new ApiError('disconnected', text('apiSocketClosed'));
     const streamId = randomId();
     const inbox = new Inbox<unknown>(() => {
       if (this.streams.delete(streamId) && !this.closed) this.socket.send(JSON.stringify({ type: 'cancel', streamId }));
@@ -140,7 +175,7 @@ export class Mux {
         inbox.end(frame.type === 'error' ? new ApiError(frame.error.code, frame.error.message) : undefined);
       }
     } catch {
-      this.close(new ApiError('protocol-error', 'Invalid API stream frame'));
+      this.close(new ApiError('protocol-error', text('invalidApiStreamFrame')));
     }
   }
   close(error?: Error): void {

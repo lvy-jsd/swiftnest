@@ -20,6 +20,7 @@ import {
   Perch,
   RulePolicy,
   SwiftnestFailure,
+  text,
 } from '@swiftnest/core';
 import { runLanPerch, serveLan, type PerchState } from '@swiftnest/link-lan';
 import { serveMcpHttp } from '@swiftnest/surface-mcp';
@@ -48,11 +49,7 @@ export async function runNest(lang: Lang, o: NestRunOptions): Promise<void> {
       () => false,
     )
   ) {
-    throw new SwiftnestFailure(
-      'NEST_ALREADY_RUNNING',
-      'A Nest is already running for this user.',
-      'Use that one (`swiftnest devices`), or stop it first.',
-    );
+    throw new SwiftnestFailure('NEST_ALREADY_RUNNING', text('nestAlreadyRunningUser'), text('hintUseRunningNest'));
   }
   const logger = createLogger('nest');
   const nest = new Nest({
@@ -107,11 +104,7 @@ interface Pin {
 
 export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
   if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(o.name)) {
-    throw new SwiftnestFailure(
-      'BAD_NAME',
-      `"${o.name}" cannot be a device name.`,
-      'Use lowercase letters, digits and dashes, e.g. --name laptop.',
-    );
+    throw new SwiftnestFailure('BAD_NAME', text('cannotDeviceName', o.name), text('hintDeviceNameFormat'));
   }
   const dir = join(stateDir(), 'perch', o.name);
   await mkdir(dir, { recursive: true, mode: 0o700 });

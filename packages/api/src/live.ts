@@ -1,3 +1,4 @@
+import { text } from '@swiftnest/protocol';
 import type { ApiWebSocket } from './types.js';
 import { ApiError, Inbox } from './transport.js';
 export interface LiveOffer {
@@ -62,7 +63,7 @@ export class LiveView extends Inbox<LiveUpdate> {
   static async open(socket: ApiWebSocket, offer: LiveOffer, timeout = 15000): Promise<LiveView> {
     if (!globalThis.crypto?.subtle) {
       socket.close();
-      throw new ApiError('secure-context-required', 'Use the native App or HTTPS for live view');
+      throw new ApiError('secure-context-required', text('useNativeAppHttpsLiveView'));
     }
     const [send, receive] = await Promise.all(
       [offer.sendKey, offer.receiveKey].map((key) =>
@@ -73,7 +74,7 @@ export class LiveView extends Inbox<LiveUpdate> {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         socket.close();
-        reject(new ApiError('timeout', 'Live view did not open'));
+        reject(new ApiError('timeout', text('liveViewDidNotOpen')));
       }, timeout);
       const cleanup = () => {
         clearTimeout(timer);
@@ -82,7 +83,7 @@ export class LiveView extends Inbox<LiveUpdate> {
       };
       const fail = () => {
         cleanup();
-        reject(new ApiError('disconnected', 'Live view failed to open'));
+        reject(new ApiError('disconnected', text('liveViewFailedOpen')));
       };
       socket.addEventListener('error', fail, { once: true });
       socket.addEventListener('close', fail, { once: true });
@@ -103,14 +104,14 @@ export class LiveView extends Inbox<LiveUpdate> {
   }
   input(tool: string, args: Record<string, unknown>) {
     if (this.control !== 'owner')
-      return Promise.reject(new ApiError('take-over-required', 'Take over before sending input'));
+      return Promise.reject(new ApiError('take-over-required', text('takeOverBeforeSendingInput')));
     return this.event({ type: 'input', tool, args });
   }
   private event(value: unknown): Promise<void> {
     if (this.stopped || this.pendingWrites >= 32)
-      return Promise.reject(new ApiError('stream-busy', 'Input stream is closed or busy'));
+      return Promise.reject(new ApiError('stream-busy', text('inputStreamClosedBusy')));
     const plain = new TextEncoder().encode(JSON.stringify(value));
-    if (plain.length > 60000) return Promise.reject(new ApiError('input-too-large', 'Input is too long'));
+    if (plain.length > 60000) return Promise.reject(new ApiError('input-too-large', text('inputTooLong')));
     this.pendingWrites++;
     const job = this.writes
       .then(async () => {

@@ -14,6 +14,7 @@ import {
   definePlugin,
   fingerprintOf,
   SwiftnestFailure,
+  text,
   type ConnectOptions,
   type FrameTransport,
   type Identity,
@@ -109,8 +110,8 @@ export async function serveLan(nest: Nest, o: LanNestOptions = {}): Promise<LanS
         e.message.includes('EADDRINUSE')
           ? new SwiftnestFailure(
               'PORT_IN_USE',
-              `Port ${o.port ?? DEFAULT_PORT} is already in use.`,
-              'Stop the other program or pick another port with --lan-port.',
+              text('portAlreadyUse', o.port ?? DEFAULT_PORT),
+              text('hintPickAnotherLanPort'),
             )
           : e,
       ),
@@ -207,8 +208,8 @@ function openSocket(url: string): Promise<WebSocket> {
       reject(
         new SwiftnestFailure(
           'NEST_UNREACHABLE',
-          `Cannot reach the Nest at ${url}: ${e.message}`,
-          'Check that the Nest is running and both machines are on the same network.',
+          text('cannotReachNest', url, e.message),
+          text('hintCheckNestReachable'),
           true,
         ),
       ),
@@ -224,8 +225,8 @@ async function locate(o: LanPerchOptions): Promise<string | undefined> {
   if (found.length > 1) {
     throw new SwiftnestFailure(
       'MULTIPLE_NESTS',
-      `Found ${found.length} Nests on this network (${found.map((n) => n.fingerprint).join(', ')}).`,
-      'Pass the one you mean with --nest ws://address:port/swiftnest.',
+      text('foundNestsNetwork', found.length, found.map((n) => n.fingerprint).join(', ')),
+      text('hintChooseNest'),
     );
   }
   return found[0]?.url;
@@ -254,8 +255,8 @@ export function runLanPerch(perch: Perch, o: LanPerchOptions): LanPerchRun {
         if (!url)
           throw new SwiftnestFailure(
             'NEST_NOT_FOUND',
-            'No Nest answered on this network.',
-            'Start the Nest, or pass its address with --nest.',
+            text('noNestAnsweredNetwork'),
+            text('hintStartOrAddressNest'),
             true,
           );
         if (stopped) break;
