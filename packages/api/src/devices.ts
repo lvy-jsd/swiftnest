@@ -34,7 +34,8 @@ export type DeviceEvent = {
     | 'approvals-changed'
     | 'pairing-changed'
     | 'transfers-changed'
-    | 'plugins-changed';
+    | 'plugins-changed'
+    | 'memory-changed';
 };
 export interface DeviceSubscription extends AsyncIterableIterator<DeviceEvent> {
   close(): void;

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { MemoryHarness } from '../../client/test/fixtures/memoryHarness.js';
@@ -10,6 +10,11 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
     try {
       await harness.start();
       const { client } = harness;
+      const changes = await client.watchDevices({ signal: AbortSignal.timeout(60_000) });
+      const notices: string[] = [];
+      const consume = (async () => {
+        for await (const event of changes) notices.push(event.type);
+      })();
       const old = await client.createSession();
       expect((await harness.turn(old.sessionId, 'warm-up')).filter((event) => event.type === 'error')).toEqual([]);
       const snapshot = join(harness.home, 'memory', 'snapshots', `${old.sessionId}.md`);
@@ -59,6 +64,28 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       expect(JSON.stringify(oldPrompt.messages.filter((message) => message.role === 'system'))).not.toContain(
         'Late fact:',
       );
+      const forgotten = await harness.turn(fresh.sessionId, 'forget-now');
+      expect(forgotten).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: 'tool-result', isError: false, text: 'Removed.' })]),
+      );
+      await expect.poll(() => notices.filter((type) => type === 'memory-changed').length).toBe(3);
+      const root = join(harness.home, 'memory');
+      for (const file of await readdir(root, { recursive: true, withFileTypes: true })) {
+        if (file.isFile())
+          expect(await readFile(join(file.parentPath, file.name), 'utf8')).not.toContain('Prefers a quiet workspace');
+      }
+      const missed = await harness.turn(old.sessionId, 'recall-forgotten');
+      expect(missed).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool-result',
+            isError: false,
+            text: JSON.stringify({ entries: [], topics: [{ name: 'Preferences', entries: 1 }] }),
+          }),
+        ]),
+      );
+      changes.close();
+      await consume;
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.stack : error}\n${harness.logs.slice(-60).join('\n')}`, {
         cause: error,

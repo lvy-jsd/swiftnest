@@ -3,7 +3,7 @@ import type { MemoryEntry, SwiftnestClient } from '@swiftnest/api';
 import { localizedError } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
-import { memoryReducer, initialMemoryState } from './memoryState';
+import { memoryReducer, initialMemoryState, watchMemoryChanges } from './memoryState';
 import { HubPage } from './components/pages';
 import { Button } from './components/Button';
 
@@ -17,19 +17,23 @@ function useMemory() {
   active.current = client;
   useEffect(() => {
     let disposed = false;
+    let stop: (() => void) | undefined;
     if (client) {
       dispatch({ type: 'start' });
-      void client.listMemory().then(
-        (view) => {
+      const refresh = async () => {
+        try {
+          const view = await client.listMemory();
           if (!disposed) dispatch({ type: 'loaded', view });
-        },
-        (error) => {
+        } catch (error) {
           if (!disposed) dispatch({ type: 'failed', error });
-        },
-      );
+        }
+      };
+      void refresh();
+      stop = watchMemoryChanges(client, refresh);
     }
     return () => {
       disposed = true;
+      stop?.();
     };
   }, [client]);
   const perform: Perform = useCallback(

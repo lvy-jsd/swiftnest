@@ -7,6 +7,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
@@ -14,23 +15,44 @@ import {
 import { dirname, join } from 'node:path';
 import { text } from '@swiftnest/protocol';
 import { ServerFailure } from './failure.js';
+import { memoryRules } from './rules.js';
 
-export interface MemoryChange {
-  file: string;
-  before: string | null;
-  after: string | null;
-}
 export interface PendingMemory {
   id: string;
   time: string;
   files: Record<string, string>;
-  changes: MemoryChange[];
 }
 
 export function validTopic(value: unknown): string {
   if (typeof value !== 'string' || !/^[\p{L}\p{N}][\p{L}\p{N} _-]{0,79}$/u.test(value))
     throw new ServerFailure(text('memoryInvalidTopic'));
   return value;
+}
+
+export function memoryDirectory(root: string, directory: 'topics' | 'snapshots'): string {
+  const path = join(root, directory);
+  for (const candidate of [root, path]) {
+    if (isDanglingLink(candidate)) throw new ServerFailure(text('memoryInvalidData'));
+  }
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  return path;
+}
+
+export function memoryFiles(root: string, directory: 'topics' | 'snapshots'): string[] {
+  return readdirSync(memoryDirectory(root, directory))
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      memoryPath(root, `${directory}/${file}`);
+      return `${directory}/${file}`;
+    });
+}
+
+export function removeMemoryFile(root: string, file: string): void {
+  const path = memoryPath(root, file);
+  if (!existsSync(path)) return;
+  unlinkSync(path);
+  sync(dirname(path));
 }
 
 /** Only explicitly owned paths are admitted; symlinks cannot redirect the store. */
@@ -96,21 +118,40 @@ export function appendMemoryFile(root: string, file: string, content: string): v
   sync(dirname(path));
 }
 
-/** A valid unterminated JSON row is complete; an invalid tail is preserved before truncation. */
+/** Keep transaction ids for replay deduplication, never historical document text.
+ * Old-format rows are reduced to their commit marker; a torn tail needs no replay data. */
 export function repairJournal(root: string): void {
   const journal = readMemoryFile(root, 'journal.jsonl');
-  if (!journal || journal.endsWith('\n')) return;
-  const boundary = journal.lastIndexOf('\n') + 1;
-  const tail = journal.slice(boundary);
-  try {
-    JSON.parse(tail);
-  } catch {
-    const torn = readMemoryFile(root, 'journal.torn');
-    atomicMemoryFile(root, 'journal.torn', torn.endsWith(`${tail}\n`) ? torn : `${torn}${tail}\n`);
-    atomicMemoryFile(root, 'journal.jsonl', journal.slice(0, boundary));
-    return;
+  const rows: string[] = [];
+  for (const line of journal.split('\n').filter(Boolean)) {
+    try {
+      const row = JSON.parse(line) as { id: string; time: string };
+      if (typeof row.id !== 'string' || typeof row.time !== 'string') throw new Error('invalid journal');
+      rows.push(JSON.stringify({ id: row.id, time: row.time }));
+    } catch {
+      // Even an old partially written before/after field must not survive in journal.torn.
+      // Discard the incomplete record; pending.json owns all replay data.
+    }
   }
-  atomicMemoryFile(root, 'journal.jsonl', `${journal}\n`);
+  const recent = rows.slice(-memoryRules.journalRows);
+  const repaired = recent.length ? `${recent.join('\n')}\n` : '';
+  if (journal !== repaired) atomicMemoryFile(root, 'journal.jsonl', repaired);
+  removeMemoryFile(root, 'journal.torn');
+}
+
+/** Abandoned atomic-write files are never a hidden backup of previous text. */
+export function cleanMemoryTemps(root: string): void {
+  const directories = ['', 'topics', 'snapshots'] as const;
+  for (const directory of directories) {
+    const path = directory ? memoryDirectory(root, directory) : root;
+    for (const file of readdirSync(path)) {
+      if (!file.endsWith('.tmp')) continue;
+      const relative = directory ? `${directory}/${file.slice(0, -4)}` : file.slice(0, -4);
+      const target = memoryPath(root, relative);
+      unlinkSync(`${target}.tmp`);
+      sync(path);
+    }
+  }
 }
 
 export function readPending(root: string): PendingMemory | undefined {
@@ -124,12 +165,11 @@ export function readPending(root: string): PendingMemory | undefined {
       typeof pending.time !== 'string' ||
       !pending.files ||
       typeof pending.files !== 'object' ||
-      Array.isArray(pending.files) ||
-      !Array.isArray(pending.changes)
+      Array.isArray(pending.files)
     )
       throw 0;
     for (const [file, content] of Object.entries(pending.files)) {
-      if (file !== 'MEMORY.md' && !/^topics\/[^/]+\.md$/.test(file)) throw 0;
+      if (file !== 'MEMORY.md' && !/^(topics|snapshots)\/[^/]+\.md$/.test(file)) throw 0;
       if (file.startsWith('topics/')) validTopic(file.slice(7, -3));
       memoryPath(root, file);
       if (typeof content !== 'string') throw 0;
@@ -151,13 +191,13 @@ export function applyPending(root: string, pending: PendingMemory, step?: (name:
       atomicMemoryFile(root, file, content);
       step?.(file);
     }
-    appendMemoryFile(
-      root,
-      'journal.jsonl',
-      `${JSON.stringify({ id: pending.id, time: pending.time, changes: pending.changes })}\n`,
-    );
+    appendMemoryFile(root, 'journal.jsonl', `${JSON.stringify({ id: pending.id, time: pending.time })}\n`);
+    step?.('journal.appended');
+    // There is only one pending transaction; its marker is newest until pending.json is removed.
+    repairJournal(root);
     step?.('journal.jsonl');
   }
   unlinkSync(memoryPath(root, 'pending.json'));
   sync(root);
+  step?.('committed');
 }

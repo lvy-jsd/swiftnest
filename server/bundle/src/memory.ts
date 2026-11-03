@@ -1,5 +1,5 @@
 /** Single-assistant central memory. No App or model owns a separate copy. */
-import { message } from '@swiftnest/protocol';
+import { message, text } from '@swiftnest/protocol';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DeviceConnection } from './devices.js';
 import { ServerFailure } from './memory/failure.js';
@@ -38,11 +38,20 @@ interface MemoryContext {
       execute(args: Record<string, string>, exec: { agent?: { id: string } }): Promise<{ text: string }>;
     }): () => void;
   };
+  on(event: 'session/disposed', listener: (session: { id: string }) => void): () => void;
   effect(fn: () => () => void, label?: string): void;
 }
 
-export function apply(ctx: MemoryContext, config: { home: string; enabled?: boolean }) {
-  const store = config.enabled === false ? undefined : new MemoryStore(config.home);
+interface MemoryConfig {
+  home: string;
+  enabled?: boolean;
+  devicesAdminUrl?: string;
+  devicesAdminToken?: string;
+}
+
+export function apply(ctx: MemoryContext, config: MemoryConfig) {
+  const changed = memoryChanged(config);
+  const store = config.enabled === false ? undefined : new MemoryStore(config.home, undefined, changed);
   ctx.effect(
     () =>
       ctx.webServer.register({
@@ -53,6 +62,9 @@ export function apply(ctx: MemoryContext, config: { home: string; enabled?: bool
     'swiftnest-memory: api',
   );
   if (!store) return;
+  // Pinned DSH rc.5 removes live sessions via SessionStore.detachEntered;
+  // its paired session/disposed event also drives api-session/removed.
+  ctx.on('session/disposed', (session) => store.deleteSnapshot(session.id));
   ctx.effect(
     () =>
       ctx.systemPrompt.section({
@@ -64,6 +76,24 @@ export function apply(ctx: MemoryContext, config: { home: string; enabled?: bool
     'swiftnest-memory: prompt',
   );
   registerTools(ctx, store);
+}
+
+function memoryChanged(config: MemoryConfig): () => Promise<void> {
+  const { devicesAdminUrl, devicesAdminToken } = config;
+  if (!devicesAdminUrl || !devicesAdminToken) return async () => {};
+  const endpoint = new URL(devicesAdminUrl);
+  if (endpoint.protocol !== 'http:' || endpoint.hostname !== '127.0.0.1' || endpoint.username || endpoint.password)
+    throw new ServerFailure(text('deviceAdminMustUseLoopback'));
+  return async () => {
+    const response = await fetch(new URL('/swiftnest/control/devices/memory-changed', endpoint), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${devicesAdminToken}` },
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    });
+    await response.body?.cancel();
+    if (!response.ok) throw new ServerFailure(text('deviceApiReturnedHttp', response.status));
+  };
 }
 
 function registerTools(ctx: MemoryContext, store: MemoryStore) {

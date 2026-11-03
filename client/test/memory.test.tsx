@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { expect, it } from 'vitest';
-import { initialMemoryState, memoryReducer } from '../src/memoryState';
+import { expect, it, vi } from 'vitest';
+import { initialMemoryState, memoryReducer, watchMemoryChanges } from '../src/memoryState';
 import { MemoryPage } from '../src/memory';
 import { I18nProvider, translate } from '../src/i18n';
 import { ConnectionProvider } from '../src/connection';
@@ -27,4 +27,23 @@ it.each(['en', 'zh-CN'] as const)('renders a localized Memory page while disconn
   expect(html).toContain(translate(locale, 'memory'));
   expect(html).toContain(translate(locale, 'memoryHelp'));
   expect(html).toContain(translate(locale, 'pairHelp'));
+});
+
+it('refreshes on memory events and reconnect, ignores unrelated events, and aborts on unmount', async () => {
+  const refresh = vi.fn(async () => {});
+  let signal: AbortSignal | undefined;
+  const watchDevices = vi.fn(async (options) => {
+    signal = options.signal;
+    return (async function* () {
+      yield { type: 'plugins-changed' };
+      yield { type: 'memory-changed' };
+      await new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }));
+    })();
+  });
+  const client = { watchDevices } as unknown as import('@swiftnest/api').SwiftnestClient;
+  const stop = watchMemoryChanges(client, refresh);
+  await expect.poll(() => refresh.mock.calls.length).toBe(2);
+  stop();
+  expect(signal?.aborted).toBe(true);
+  expect(watchDevices).toHaveBeenCalledOnce();
 });

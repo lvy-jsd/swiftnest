@@ -309,6 +309,7 @@ export class SwiftnestClient {
                   'pairing-changed',
                   'transfers-changed',
                   'plugins-changed',
+                  'memory-changed',
                 ].includes(event.type)
               )
                 throw new ApiError('protocol-error', text('unknownDeviceEvent'));

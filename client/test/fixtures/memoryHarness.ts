@@ -101,7 +101,15 @@ export class MemoryHarness {
       .find(
         (m) =>
           m.role === 'user' &&
-          ['warm-up', 'remember-now', 'recall-later', 'new-session', 'reject-secret'].includes(m.content as string),
+          [
+            'warm-up',
+            'remember-now',
+            'recall-later',
+            'new-session',
+            'reject-secret',
+            'forget-now',
+            'recall-forgotten',
+          ].includes(m.content as string),
       )?.content as string;
     const round = this.rounds.get(prompt) ?? 0;
     this.rounds.set(prompt, round + 1);
@@ -116,7 +124,13 @@ export class MemoryHarness {
       round === 0 && prompt === 'reject-secret'
         ? { name: 'remember', arguments: { text: 'password=do-not-store' } }
         : tool;
-    respond(res, selected);
+    const forgetting =
+      round === 0 && prompt === 'forget-now'
+        ? { name: 'forget', arguments: { text: 'Prefers a quiet workspace' } }
+        : round === 0 && prompt === 'recall-forgotten'
+          ? { name: 'recall', arguments: { query: 'Prefers a quiet workspace' } }
+          : selected;
+    respond(res, forgetting);
   }
 }
 

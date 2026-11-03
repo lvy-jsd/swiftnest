@@ -4,6 +4,8 @@ export const memoryRules = {
   index: 4_000,
   topic: 16_000,
   topics: 40,
+  snapshotDays: 30,
+  journalRows: 200,
   secrets: [
     /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/i,
     /\b(?:sk|pk|rk)-(?:[a-z]+-)?[a-z0-9_-]{16,}/i,
