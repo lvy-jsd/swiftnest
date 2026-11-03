@@ -1,17 +1,17 @@
-import { useState } from "react";
-import { translateMessage } from "@swiftnest/api";
-import type { ApprovalAnswer } from "@swiftnest/api";
-import type { ChatRow } from "./chat";
-import { useConnection } from "./connection";
-import { useI18n } from "./i18n";
-import { Button } from "./components/Button";
+import { useState } from 'react';
+import { translateMessage } from '@swiftnest/api';
+import type { ApprovalAnswer } from '@swiftnest/api';
+import type { ChatRow } from './chat';
+import { useConnection } from './connection';
+import { useI18n } from './i18n';
+import { Button } from './components/Button';
 
 /** DSH risk-gate approvals use the chat interaction channel. */
 export function ApprovalCard({
   request,
   onAnswered,
 }: {
-  request: Extract<ChatRow, { kind: "approval" }>;
+  request: Extract<ChatRow, { kind: 'approval' }>;
   onAnswered: (requestId: string) => void;
 }) {
   const { t, locale } = useI18n();
@@ -32,16 +32,16 @@ export function ApprovalCard({
     }
   }
   return (
-    <article className="event-card" aria-label={t("toolApproval")}>
-      <strong>{t("toolApproval")}</strong>
+    <article className="event-card" aria-label={t('toolApproval')}>
+      <strong>{t('toolApproval')}</strong>
       <p>{request.toolName}</p>
       {request.reason && <p>{translateMessage(request.reason, locale)}</p>}
       {request.settled ? (
-        <p>{t("toolApprovalSettled")}</p>
+        <p>{t('toolApprovalSettled')}</p>
       ) : (
-        <ApprovalButtons disabled={busy || status !== "connected"} onAnswer={answer} />
+        <ApprovalButtons disabled={busy || status !== 'connected'} onAnswer={answer} />
       )}
-      {failed && <p role="alert">{t("toolApprovalFailed")}</p>}
+      {failed && <p role="alert">{t('toolApprovalFailed')}</p>}
     </article>
   );
 }
@@ -56,11 +56,11 @@ function ApprovalButtons({
   const { t } = useI18n();
   return (
     <div className="device-actions">
-      <Button disabled={disabled} onClick={() => void onAnswer("rejected")}>
-        {t("deny")}
+      <Button disabled={disabled} onClick={() => void onAnswer('rejected')}>
+        {t('deny')}
       </Button>
-      <Button variant="primary" disabled={disabled} onClick={() => void onAnswer("allowed-once")}>
-        {t("approve")}
+      <Button variant="primary" disabled={disabled} onClick={() => void onAnswer('allowed-once')}>
+        {t('approve')}
       </Button>
     </div>
   );
