@@ -783,3 +783,35 @@ input[type="range"] {
     flex-wrap: wrap;
   }
 }
+
+.memory-form,
+.memory-form label,
+.memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.memory-form input,
+.memory-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.memory-form textarea {
+  resize: vertical;
+}
+.memory-entries {
+  display: grid;
+  gap: var(--space-xl);
+  padding: 0;
+  list-style: none;
+}
+.memory-item {
+  overflow-wrap: anywhere;
+}
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}

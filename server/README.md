@@ -105,3 +105,7 @@ Chromium 测试前先构建网页。浏览器无法启动时会干净跳过，�
 默认使用简体中文。在 App 的“偏好设置 → 语言”中可选择 English；选择保存在本机，连接服务器后同步给其他设备。
 离线修改会在重连后重试。服务器与 CLI 默认中文，使用 `SWIFTNEST_LANG=en` 选择英文，
 服务器 YAML 也支持 `lang: en`，环境变量优先。原生托盘、通知和文件选择窗口跟随 App 选择。
+
+## 记忆
+
+服务器记忆默认启用。在任意 App 主菜单打开 **记忆**，即可编辑条目和主题；助手通过 `remember`、`forget`、`recall` 使用记忆。数据、恢复日志和会话冻结快照保存在 `<home>/memory/`。已有会话通过 `recall` 查询之后保存的内容。设置 `memory: { enabled: false }` 或 `SWIFTNEST_MEMORY=false` 可禁用。限制、恢复机制及 API 详见[记忆指南](../docs/zh/guide/memory.md)。

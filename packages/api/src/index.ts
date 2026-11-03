@@ -9,7 +9,7 @@ export {
   text,
 } from '@swiftnest/protocol';
 export type { Language, Text } from '@swiftnest/protocol';
-import { text } from '@swiftnest/protocol';
+import { defaultLanguage, text } from '@swiftnest/protocol';
 import { LiveView } from './live.js';
 export * from './live.js';
 import type {
@@ -22,6 +22,7 @@ import type {
   DeviceSubscription,
 } from './devices.js';
 export type * from './devices.js';
+export type * from './memory.js';
 import type { PluginsView } from './plugins.js';
 export type * from './plugins.js';
 import type {
@@ -302,6 +303,40 @@ export class SwiftnestClient {
       abort.abort();
       throw error;
     }
+  }
+  listMemory(): Promise<import('./memory.js').MemoryView> {
+    return this.memoryRequest('');
+  }
+  addMemory(value: string, topic?: string): Promise<{ saved: boolean; entry: import('./memory.js').MemoryEntry }> {
+    return this.memoryRequest('/add', { text: value, topic });
+  }
+  editMemory(id: string, value: string): Promise<import('./memory.js').MemoryView> {
+    return this.memoryRequest('/edit', { id, text: value });
+  }
+  deleteMemory(id: string): Promise<import('./memory.js').MemoryView> {
+    return this.memoryRequest('/delete', { id });
+  }
+  readMemoryTopic(topic: string): Promise<import('./memory.js').MemoryTopic> {
+    return this.memoryRequest(`/topic?${new URLSearchParams({ topic })}`);
+  }
+  writeMemoryTopic(topic: string, content: string): Promise<import('./memory.js').MemoryTopic> {
+    return this.memoryRequest('/topic', { topic, content });
+  }
+  private async memoryRequest<T>(path: string, body?: unknown): Promise<T> {
+    this.assertConnected();
+    const response = await this.request(this.url(`swiftnest/api/memory${path}`), {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        'accept-language': defaultLanguage(),
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      const failure = (await response.json().catch(() => undefined)) as ServerFailureBody | undefined;
+      throw ApiError.fromServer('http-error', failure, text('memoryApiReturnedHttp', response.status));
+    }
+    return (await response.json()) as T;
   }
   private deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
     return this.ownerRequest(`devices${path}`, method, signal, body);

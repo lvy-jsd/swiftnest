@@ -108,3 +108,7 @@ Build the web App before the Chromium test. It skips cleanly when no browser can
 `SWIFTNEST_CHROMIUM=/path/to/chrome` to use a system browser. No external model credentials are needed.
 
 How the embedding works and why: [docs/en/dev/dsh-integration.md](../docs/en/dev/dsh-integration.md).
+
+## Memory
+
+Central memory is enabled by default. Open **Memory** in any App to edit facts and topics; the assistant uses `remember`, `forget` and `recall`. Data, the recovery journal and per-session frozen snapshots live under `<home>/memory/`. Existing sessions use `recall` to see later saves. Set `memory: { enabled: false }` or `SWIFTNEST_MEMORY=false` to disable it. See the [Memory guide](../docs/en/guide/memory.md) for limits, recovery and API details.
