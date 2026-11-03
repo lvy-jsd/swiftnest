@@ -35,10 +35,10 @@ describe('swiftnest-core', () => {
     expect(await probeModel('http://m/v1', fake)).toBe(false);
   });
 
-  it('registers health and App routes and disposes them with the plugin', () => {
+  it('registers health and App routes and disposes them with the plugin', async () => {
     const routes: string[] = [];
     const disposers: (() => void)[] = [];
-    apply({
+    await apply({
       webServer: {
         register: (r) => {
           routes.push(r.path);

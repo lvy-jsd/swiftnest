@@ -6,6 +6,12 @@ import {
   decodeBytes,
   encodeBytes,
   type ChannelFrame,
+  joinRelay,
+  relayServerId,
+  relaySocketUrl,
+  relayRoute,
+  RELAY_MAX_MESSAGE,
+  relayAddress,
   type ChannelPairing,
 } from '@swiftnest/channel';
 import { text } from '@swiftnest/protocol';
@@ -29,6 +35,7 @@ export function pairingChannel(url: URL): ChannelPairing | undefined {
       throw new Error('Invalid channel pairing');
     const addresses = [...value.addresses.lan, ...value.addresses.relay];
     if (addresses.length > 8 || !addresses.length) throw new Error('Invalid addresses');
+    for (const address of value.addresses.relay) relayAddress(address);
     for (const address of addresses) {
       const target = new URL(address);
       if (
@@ -132,6 +139,9 @@ export class AppChannel {
   private sockets = new Map<number, ChannelSocket>();
   private closed = false;
   cookie = '';
+  pairing?: ChannelPairing;
+  relaySecret?: string;
+  viaRelay = false;
   private constructor(private channel: EncryptedChannel) {}
   static async open(
     root: URL,
@@ -139,32 +149,35 @@ export class AppChannel {
     options: ClientOptions,
     auth: ChannelFrame,
     signal: AbortSignal,
+    relaySecret?: string,
   ): Promise<AppChannel> {
-    const target = new URL(CHANNEL_PATH, root);
-    target.protocol = target.protocol === 'https:' ? 'wss:' : 'ws:';
+    const viaRelay = pairing.addresses.relay.includes(root.href);
+    const target = viaRelay ? new URL(relaySocketUrl(root.href)) : new URL(CHANNEL_PATH, root);
+    if (!viaRelay) target.protocol = target.protocol === 'https:' ? 'wss:' : 'ws:';
     const wire = options.createWebSocket
       ? options.createWebSocket(target.href, { headers: {} })
       : new WebSocket(target.href);
+    wire.addEventListener('error', () => {});
     const abort = () => wire.close();
     signal.addEventListener('abort', abort, { once: true });
     try {
-      const encrypted = await EncryptedChannel.open(wire, await generateChannelIdentity(), true, pairing.key, signal);
-      encrypted.send(auth);
-      const ready = channelFrame(await encrypted.next());
-      if (ready.t !== 'ready' || typeof ready.cookie !== 'string') {
-        encrypted.close();
-        throw new ApiError(
-          'pairing-failed',
-          text('pairingReturnedHttp', ready.status ?? 401),
+      const identity = await generateChannelIdentity();
+      let encrypted: EncryptedChannel;
+      if (viaRelay) {
+        if (!relaySecret) throw new Error('Missing relay secret');
+        encrypted = await joinRelay(
+          wire as import('@swiftnest/channel').ChannelSocket,
+          {
+            role: 'app',
+            id: await relayServerId(pairing.key),
+            secret: relaySecret,
+          },
+          signal,
           undefined,
-          undefined,
-          ready.status ?? 401,
+          () => EncryptedChannel.open(wire, identity, true, pairing.key, signal),
         );
-      }
-      const app = new AppChannel(encrypted);
-      app.cookie = ready.cookie;
-      void app.pump();
-      return app;
+      } else encrypted = await EncryptedChannel.open(wire, identity, true, pairing.key, signal);
+      return await AppChannel.authenticate(encrypted, auth, pairing.key, viaRelay);
     } catch (error) {
       wire.close();
       if (error instanceof Error && error.message === 'Channel key mismatch')
@@ -174,7 +187,60 @@ export class AppChannel {
       signal.removeEventListener('abort', abort);
     }
   }
+  private static async authenticate(
+    encrypted: EncryptedChannel,
+    auth: ChannelFrame,
+    key: string,
+    viaRelay: boolean,
+  ): Promise<AppChannel> {
+    encrypted.send(auth);
+    const ready = channelFrame(await encrypted.next());
+    if (ready.t !== 'ready' || typeof ready.cookie !== 'string') {
+      encrypted.close();
+      throw new ApiError(
+        'pairing-failed',
+        text('pairingReturnedHttp', ready.status ?? 401),
+        undefined,
+        undefined,
+        ready.status ?? 401,
+      );
+    }
+    const app = new AppChannel(encrypted);
+    app.cookie = ready.cookie;
+    app.viaRelay = viaRelay;
+    if (ready.pairing && ready.pairing.key !== key)
+      throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
+    app.pairing = ready.pairing;
+    app.relaySecret = ready.relaySecret;
+    void app.pump();
+    return app;
+  }
+  static async preferred(
+    root: URL,
+    pairing: ChannelPairing,
+    options: ClientOptions,
+    auth: ChannelFrame,
+    signal: AbortSignal,
+  ) {
+    const secret = await options.relaySecretStore?.load(root.href);
+    const lan = pairing.addresses.lan;
+    const targets = [...new Set([...(lan.includes(root.href) ? [root.href] : []), ...lan, ...pairing.addresses.relay])];
+    let failure: unknown = new Error('No channel address');
+    for (const address of targets) {
+      signal.throwIfAborted();
+      const local = pairing.addresses.lan.includes(address);
+      const attempt = AbortSignal.any([signal, AbortSignal.timeout(local ? 1800 : (options.timeoutMs ?? 15000))]);
+      try {
+        return await AppChannel.open(new URL(address), pairing, options, auth, attempt, secret);
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        failure = error;
+      }
+    }
+    throw failure;
+  }
   socket(path: string, cookie: string): ApiWebSocket {
+    if (this.viaRelay && !relayRoute(path)) throw new ApiError('relay-lan-only', text('relayLanOnly'));
     const id = ++this.nextId;
     if (path === '/api/remote.mux') this.muxId = id;
     const socket = new ChannelSocket((frame) => this.send(frame), id);
@@ -190,6 +256,11 @@ export class AppChannel {
     if (frame.t === 'cancel' && frame.id) this.sockets.delete(frame.id);
   }
   fetch(url: URL, init: RequestInit, cookie: string): Promise<Response> {
+    if (
+      this.viaRelay &&
+      (!relayRoute(url.pathname) || new TextEncoder().encode(String(init.body ?? '')).length > RELAY_MAX_MESSAGE / 2)
+    )
+      return Promise.reject(new ApiError('relay-lan-only', text('relayLanOnly')));
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
       const cleanup = () => {

@@ -351,6 +351,9 @@
     "models-free-vision",
     "photo-consent",
     "group",
-    "photo-consent-title"
+    "photo-consent-title",
+    "/swiftnest/relay",
+    "new-password",
+    "relay"
   ]
 }

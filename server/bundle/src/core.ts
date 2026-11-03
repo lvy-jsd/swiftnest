@@ -8,7 +8,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { deviceProxy, liveUpgrade, OWNER_PREFIXES, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
-import { CHANNEL_PATH } from '@swiftnest/channel';
+import { ServerRelay } from './relay.js';
+import { relaySettings } from './relay-settings.js';
+import { CHANNEL_PATH, relayConfig } from '@swiftnest/channel';
 import { loadChannelIdentity } from './channel-identity.js';
 import { appChannel } from './channel.js';
 import { nativePairings, type NativeConnection } from './native-pairings.js';
@@ -105,22 +107,59 @@ function ownerRoutes(ctx: CoreContext, config: CoreConfig): void {
     ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path, handler }), `swiftnest-core: ${path}`);
 }
 
-export async function apply(ctx: CoreContext, config: CoreConfig = {}): Promise<void> {
-  ownerRoutes(ctx, config);
+async function channelRoutes(ctx: CoreContext, config: CoreConfig): Promise<void> {
   if (config.home && ctx.connection && ctx.webServer.getOrigin) {
+    const identity = await loadChannelIdentity(config.home);
+    let relay: ServerRelay;
     const channel = appChannel(
-      await loadChannelIdentity(config.home),
+      identity,
       () => ctx.webServer.getOrigin!(),
       ctx.connection,
+      () => ({
+        pairing: relay.pairing(`${ctx.webServer.getOrigin!()}/`),
+        relaySecret: relay.config?.secret,
+      }),
+    );
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'exact', path: '/swiftnest/channel/bootstrap', handler: channel.bootstrap }),
+      'swiftnest-core: browser channel resume',
+    );
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'exact', path: '/swiftnest/channel/sign-in', handler: channel.signIn }),
+      'swiftnest-core: browser sign-in',
+    );
+    relay = new ServerRelay(config.home, identity, channel.accept);
+    await relay.load(
+      process.env.SWIFTNEST_RELAY_ADDRESS
+        ? relayConfig({
+            address: process.env.SWIFTNEST_RELAY_ADDRESS,
+            secret: process.env.SWIFTNEST_RELAY_SECRET,
+          })
+        : undefined,
+    );
+    const handler = relaySettings(relay, ctx.connection, () => ctx.webServer.getOrigin!());
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'exact', path: '/swiftnest/relay/connection', handler }),
+      'swiftnest-core: relay connection',
+    );
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'exact', path: '/swiftnest/relay', handler }),
+      'swiftnest-core: relay settings',
     );
     ctx.effect(() => {
       const off = ctx.webServer.registerUpgrade({ path: CHANNEL_PATH, handler: channel.handler });
       return () => {
         off();
+        relay.close();
         channel.close();
       };
     }, 'swiftnest-core: encrypted App channel');
   }
+}
+
+export async function apply(ctx: CoreContext, config: CoreConfig = {}): Promise<void> {
+  ownerRoutes(ctx, config);
+  await channelRoutes(ctx, config);
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/app', handler }), 'swiftnest-core: /app');

@@ -222,6 +222,21 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await page.getByRole('button', { name: 'Go back' }).click();
       // Cross-device language sync, explicit English system locale, and persistence.
       await page.getByRole('button', { name: 'Open preferences' }).first().click();
+      const relayForm = page
+        .locator('details')
+        .filter({ has: page.getByText('Advanced: access away from home', { exact: true }) });
+      expect(await relayForm.getAttribute('open')).toBeNull();
+      await relayForm.locator('summary').click();
+      await relayForm.getByLabel('Relay address', { exact: true }).fill('http://127.0.0.1:1/');
+      const relaySecret = 'r'.repeat(32);
+      await relayForm.getByLabel('Relay secret', { exact: true }).fill(relaySecret);
+      await relayForm.getByRole('button', { name: 'Save', exact: true }).click();
+      await relayForm.getByText('Saved.', { exact: false }).waitFor();
+      expect(await relayForm.getByLabel('Relay secret', { exact: true }).inputValue()).toBe('');
+      expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(relaySecret);
+      await relayForm.getByRole('button', { name: 'Turn off remote access', exact: true }).click();
+      await expect.poll(() => relayForm.getByLabel('Relay address', { exact: true }).inputValue()).toBe('');
+      await relayForm.locator('summary').click();
       await page.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await page.getByRole('button', { name: '完成', exact: true }).click();
       await page.getByRole('heading', { name: '聊天', exact: true }).waitFor();
@@ -246,10 +261,9 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await second.getByLabel('语言', { exact: true }).selectOption('en');
       await page.getByRole('heading', { name: 'Chats', exact: true }).waitFor();
       await second.reload();
-      await second.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
-      expect(await second.locator('html').getAttribute('lang')).toBe('en');
-      await second.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
       await second.getByRole('button', { name: 'New chat', exact: true }).waitFor();
+      expect(await second.locator('html').getAttribute('lang')).toBe('en');
+      expect(await second.getByRole('link', { name: 'Pair server', exact: true }).count()).toBe(0);
       // Return to Chinese and record the phone-width default view.
       await second.getByRole('button', { name: 'Open preferences' }).first().click();
       await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');

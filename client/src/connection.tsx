@@ -58,8 +58,8 @@ export class ConnectionStore {
   private generation = 0;
   private expectingRestart = false;
   private unpairing = false;
+  private relaySecrets = new Map<string, string>();
   private channelPins = new Map<string, ChannelPairing>();
-  private channelCookies = new Map<string, string>();
   private nativeCredentials = new Map<string, string>();
   private retry?: ReturnType<typeof setTimeout>;
   private activeOptions?: ClientOptions;
@@ -136,6 +136,13 @@ export class ConnectionStore {
   private channelOptions(options: ClientOptions): ClientOptions {
     return {
       ...options,
+      relaySecretStore: options.relaySecretStore ?? {
+        load: async (root) => this.relaySecrets.get(root),
+        save: async (root, secret) => {
+          if (secret) this.relaySecrets.set(root, secret);
+          else this.relaySecrets.delete(root);
+        },
+      },
       channelPairingStore: options.channelPairingStore ?? {
         load: async (root) => {
           if (this.channelPins.has(root)) return this.channelPins.get(root);
@@ -154,12 +161,6 @@ export class ConnectionStore {
           } catch {
             /* Public pins remain available in memory when storage is disabled. */
           }
-        },
-      },
-      channelBrowserCookie: options.channelBrowserCookie ?? {
-        load: (root) => this.channelCookies.get(root),
-        save: (root, cookie) => {
-          this.channelCookies.set(root, cookie);
         },
       },
     };
@@ -186,7 +187,14 @@ export class ConnectionStore {
   }
   /** Opening the native App restores its private saved pairing; transient failures use the same backoff. */
   restore(): void {
-    if (!isTauriRuntime() || !this.state.root || this.state.status !== 'disconnected' || this.state.pluginRestart)
+    const sameOriginBrowser =
+      typeof location !== 'undefined' && new URL(this.state.root || location.origin).origin === location.origin;
+    if (
+      (!isTauriRuntime() && !sameOriginBrowser) ||
+      !this.state.root ||
+      this.state.status !== 'disconnected' ||
+      this.state.pluginRestart
+    )
       return;
     this.startPluginReconnect();
   }
@@ -223,7 +231,11 @@ export class ConnectionStore {
           this.disconnect();
           this.update({ error: 'connectionLost' });
         };
-        if ([new URL('api/remote.mux', root).pathname, '/swiftnest/channel'].includes(new URL(address).pathname)) {
+        if (
+          [new URL('api/remote.mux', root).pathname, '/swiftnest/channel', '/swiftnest/relay'].includes(
+            new URL(address).pathname,
+          )
+        ) {
           socket.addEventListener('close', lost, { once: true });
           socket.addEventListener('error', lost, { once: true });
         }

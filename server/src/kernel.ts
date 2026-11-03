@@ -1,4 +1,5 @@
 import { channelPublicKey, type ChannelPairing } from '@swiftnest/channel';
+import { channelAddresses } from '@swiftnest/server-bundle/trusted-proxy';
 import { loadChannelIdentity } from '@swiftnest/server-bundle/channel-identity';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
@@ -133,6 +134,8 @@ function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, op
       ...opts.env,
       ...devices.env,
       ...devices.models.env(),
+      SWIFTNEST_RELAY_ADDRESS: config.relay?.address ?? '',
+      SWIFTNEST_RELAY_SECRET: config.relay?.secret ?? '',
       SWIFTNEST_LANG: config.lang ?? 'zh-CN',
       DSH_HOME: dshHome(config),
       SWIFTNEST_HOME: config.home,
@@ -208,12 +211,26 @@ class Kernel implements RunningKernel {
     private readonly publicKey: string,
     private readonly relaunch: () => Promise<DshProcess>,
     private readonly ready: (kernel: RunningKernel) => void,
+    private readonly channelEnv: NodeJS.ProcessEnv,
   ) {
     this.watch(current.child);
   }
 
   get channelPairing(): ChannelPairing {
-    return { v: 1, key: this.publicKey, addresses: { lan: [this.url], relay: [] } };
+    return {
+      v: 1,
+      key: this.publicKey,
+      addresses: { lan: channelAddresses(this.url, this.channelEnv), relay: this.relayAddresses() },
+    };
+  }
+
+  private relayAddresses(): string[] {
+    try {
+      const saved = JSON.parse(readFileSync(join(this.devices.plugins.config().home, 'relay.json'), 'utf8'));
+      return saved?.address ? [saved.address] : [];
+    } catch {
+      return this.devices.plugins.config().relay ? [this.devices.plugins.config().relay!.address] : [];
+    }
   }
 
   get url() {
@@ -278,7 +295,10 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     throw error;
   }
   const ready = opts.onReady ?? (() => {});
-  kernel = new Kernel(first, devices, publicKey, () => launch(paths, devices, opts), ready);
+  kernel = new Kernel(first, devices, publicKey, () => launch(paths, devices, opts), ready, {
+    ...process.env,
+    ...opts.env,
+  });
   ready(kernel);
   return kernel;
 }

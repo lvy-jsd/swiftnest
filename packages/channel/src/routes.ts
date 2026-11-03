@@ -1,6 +1,7 @@
 /** A channel is an App carrier, never a generic HTTP proxy or a new API. */
 const get = [
   /^\/swiftnest\/health$/,
+  /^\/swiftnest\/relay(?:\/connection)?$/,
   /^\/swiftnest\/api\/devices\/?$/,
   /^\/swiftnest\/api\/devices\/(preferences|transfers|approvals|pairing|audit|events)$/,
   /^\/swiftnest\/api\/plugins$/,
@@ -8,6 +9,7 @@ const get = [
   /^\/swiftnest\/api\/memory(?:\/topic)?$/,
 ];
 const post = [
+  /^\/swiftnest\/relay$/,
   /^\/api\/(session\/(list|create|attachment)|userQuestions\/answer|\$events\/result)$/,
   /^\/swiftnest\/native\/(issue|resume|rotate|bind|revoke)$/,
   /^\/swiftnest\/api\/chat$/,
@@ -35,12 +37,15 @@ export interface ChannelFrame {
   method?: string;
   cookie?: string;
   token?: string;
+  ticket?: string;
   browser?: boolean;
   interactions?: string;
   headers?: Record<string, string>;
   body?: string;
   status?: number;
   binary?: boolean;
+  pairing?: import('./index.js').ChannelPairing;
+  relaySecret?: string;
 }
 export function channelFrame(value: unknown): ChannelFrame {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid channel frame');
