@@ -20,6 +20,23 @@ struct DeviceState {
     language_path: std::path::PathBuf,
 }
 #[tauri::command]
+fn app_pairing_load(
+    root: String,
+    state: tauri::State<'_, swiftnest_app_pairing::PairingStore>,
+) -> Result<Option<String>, Failure> {
+    state.load(&root).map_err(Failure::from)
+}
+#[tauri::command]
+fn app_pairing_save(
+    root: String,
+    credential: Option<String>,
+    state: tauri::State<'_, swiftnest_app_pairing::PairingStore>,
+) -> Result<(), Failure> {
+    state
+        .save(&root, credential.as_deref())
+        .map_err(Failure::from)
+}
+#[tauri::command]
 fn set_language(
     lang: String,
     app: tauri::AppHandle,
@@ -303,6 +320,8 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             set_language,
+            app_pairing_load,
+            app_pairing_save,
             perch_snapshot,
             perch_stop_view,
             perch_configure,
@@ -316,6 +335,9 @@ pub fn run() {
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
+            app.manage(swiftnest_app_pairing::PairingStore::new(
+                data_dir.join("app-pairing"),
+            ));
             let core = Controller::open(data_dir.join("perch"))?;
             let language_path = data_dir.join("language");
             if let Ok(lang) = std::fs::read_to_string(&language_path) {

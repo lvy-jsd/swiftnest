@@ -233,3 +233,25 @@ See [Devices](../guide/devices.md) for configuration and the API contract.
 ## Owner language
 
 The App defaults to zh-CN regardless of browser language. Settings persist locally; authenticated `/swiftnest/api/devices/preferences` GET/POST persists the owner choice on the server. Connected Apps follow it within two seconds; offline changes are retried after pairing. CLI precedence is SWIFTNEST_LANG, then YAML lang, then zh-CN. Errors retain stable codes and include localized message and hint.
+
+### Durable native App admission
+
+Pinned DSH rc.5 `/connect` issues an ephemeral API Peer; its signed cookie alone cannot survive a
+process restart. Swiftnest exchanges it once at `POST /swiftnest/native/issue`, disposes the bootstrap
+Peer, and stores only a random 256-bit credential's SHA-256 hash under `<home>/native-pairings.json`
+(0600). The credential is carried only in a manual Cookie header. `resume`, `bind`, `rotate` and `revoke`
+are native-only POSTs on the same prefix; none accept query parameters or browser Origins.
+
+The parent is the sole writer. The bundle wraps the public `connection.admit` method because this DSH
+pin has no admission-provider registry. It retains DSH's Host/Origin fence, verifies current persisted
+state for every request, and creates a Peer with exactly the saved principal and interactions. Only
+DSH's current owner pairing is supported; other principal kinds fail closed rather than becoming owner.
+The API cookie is not the shared browser owner cookie, so each App remains individually revocable.
+Live Peers are disposed on revoke/rotate/expiry; the owner revoke proxy invalidates them before replying.
+
+`nativePairingStore` supplies private storage to `SwiftnestClient`; the Tauri adapter uses the small
+`swiftnest-app-pairing` crate, tested separately in CI. Manual SDK clients without this option retain
+DSH's ephemeral API behavior. `resume(root)` loads the credential, verifies it before opening the mux,
+and reports 401/403 as pairing-required; network failures reuse P1 backoff. It never reuses a launch
+URL or replays prompts. Explicit `rotateNativePairing()` invalidates the previous token while preserving
+scope and absolute expiry; regular restarts only verify, avoiding token loss if a resume response drops.

@@ -14,6 +14,8 @@ import { HttpError, openEventStream, readBody, readJsonObject } from './http.js'
 import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
+import type { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
+import { nativeDevices } from './native-pairings.js';
 
 export const PREFIX = '/swiftnest/api/devices';
 export const CONTROL = '/swiftnest/control/devices';
@@ -22,6 +24,7 @@ const KiB = 1024;
 
 export interface DeviceHub {
   config: ServerConfig;
+  nativePairings: NativePairings;
   nest: Nest;
   registry: DeviceRegistry;
   transfers: Transfers;
@@ -253,7 +256,7 @@ const routes: Route[] = [
 
   ...transferRoutes(PREFIX),
   ...pluginRoutes,
-  route('GET', `${PREFIX}/?`, ({ hub }) => hub.registry.list()),
+  route('GET', `${PREFIX}/?`, ({ hub }) => [...hub.registry.list(), ...nativeDevices(hub)]),
   route('GET', `${PREFIX}/approvals`, ({ hub }) => hub.nest.tasks.list({ state: 'pending_approval' })),
   route('GET', `${PREFIX}/pairing`, ({ hub }) =>
     hub.nest.pairing.pending().map(({ id, device, fingerprint }) => ({ id, device, fingerprint })),
@@ -271,7 +274,10 @@ const routes: Route[] = [
   ),
   route('POST', `${PREFIX}/revoke/${ID}`, async ({ hub, params }) => {
     const device = decodeURIComponent(params[0]!);
-    return withStatus((await hub.nest.revoke(device)) ? 200 : 404, { device });
+    const native = hub.nativePairings.revoke(device);
+    const paired = await hub.nest.revoke(device);
+    hub.publish('devices-changed');
+    return withStatus(native || paired ? 200 : 404, { device });
   }),
 ];
 

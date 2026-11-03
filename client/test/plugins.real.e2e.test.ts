@@ -134,7 +134,6 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   const toggle = page.getByRole('switch', { name: market.title, exact: true });
   await toggle.click();
   await expect.poll(() => toggle.isChecked()).toBe(false);
-  native.expectPluginRestart(true);
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect.poll(readyCount, { timeout: 25_000 }).toBe(2);
   expect(kernel.child.pid).not.toBe(originalChild.pid);
@@ -148,12 +147,88 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
     plugins: expect.arrayContaining([expect.objectContaining({ id: 'market', active: false, enabled: false })]),
   });
   expect(page.url()).toContain('#/plugins');
-  await expect.poll(() => native.getSnapshot().pluginRestart, { timeout: 15_000 }).toBe('pair-required');
-  expect(native.getSnapshot()).toMatchObject({ status: 'disconnected', error: undefined });
-  expect(native.client).toBeUndefined();
+  await expect.poll(() => native.getSnapshot().status, { timeout: 15_000 }).toBe('connected');
+  expect(native.getSnapshot()).toMatchObject({ pluginRestart: undefined, error: undefined });
+  expect(native.client).toBeDefined();
 }
 
-async function exerciseApply(page: Page, kernel: RunningKernel, native: ConnectionStore, readyCount: () => number) {
+function resumeWith(kernel: RunningKernel, credential: string) {
+  return fetch(new URL('swiftnest/native/resume', kernel.url), {
+    method: 'POST',
+    headers: { cookie: `swiftnest_native=${credential}` },
+  });
+}
+async function nativeChatAfterRestart(native: ConnectionStore, sessionId: string) {
+  const stream = await native.client!.follow(sessionId);
+  await native.client!.sendMessage(sessionId, 'native after restart');
+  const events = [];
+  for await (const event of stream) {
+    events.push(event);
+    if (event.type === 'assistant-end') break;
+  }
+  stream.close();
+  expect(events.filter((e) => e.type === 'user-message' && e.text === 'native after restart')).toHaveLength(1);
+  const replies = events.filter((e) => e.type === 'assistant-message' && e.text === 'Reply after real restart.');
+  expect(replies).toHaveLength(2);
+  expect(new Set(replies.map((e) => e.type === 'assistant-message' && e.messageId)).size).toBe(2);
+  expect(await native.client!.listSessions()).toHaveLength(1);
+}
+async function rotateAndRestart(kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {
+  // Rotation saves before reconnecting, and the old credential cannot restore even while the new one is live.
+  const beforeRotation = native.client;
+  await beforeRotation!.rotateNativePairing();
+  await expect.poll(() => native.client, { timeout: 15_000 }).not.toBe(beforeRotation);
+  await expect.poll(() => native.getSnapshot().status, { timeout: 15_000 }).toBe('connected');
+  expect(credentials).toHaveLength(2);
+  expect((await resumeWith(kernel, credentials[0]!)).status).toBe(401);
+  // An unannounced restart uses the same backoff and credential, too.
+  const nativeClient = native.client;
+  await kernel.restart();
+  await expect.poll(() => native.client, { timeout: 15_000 }).not.toBe(nativeClient);
+  await expect.poll(() => native.getSnapshot().status, { timeout: 15_000 }).toBe('connected');
+}
+async function revokeNative(page: Page, kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {
+  const app = (await native.client!.listDevices()).find((d) => d.device.startsWith('app-'))!;
+  expect(app).toMatchObject({ paired: true, capabilities: [] });
+  const [session] = await native.client!.listSessions();
+  const stream = await native.client!.follow(session!.sessionId);
+  let streamClosedAt = 0;
+  const closed = (async () => {
+    for await (const _ of stream) {
+      /* Drain history while keeping the stream open. */
+    }
+    streamClosedAt = performance.now();
+  })();
+  const revokeStartedAt = performance.now();
+  try {
+    expect(
+      await page.evaluate(
+        async (device) => (await fetch(`/swiftnest/api/devices/revoke/${device}`, { method: 'POST' })).status,
+        app.device,
+      ),
+    ).toBe(200);
+    await expect.poll(() => streamClosedAt, { timeout: 2000, interval: 25 }).toBeGreaterThan(0);
+    expect(streamClosedAt - revokeStartedAt).toBeLessThanOrEqual(2000);
+  } finally {
+    stream.close();
+    await closed;
+  }
+  await expect.poll(() => native.getSnapshot().pluginRestart, { timeout: 2000 }).toBe('pair-required');
+  expect(native.getSnapshot().sessions).toHaveLength(1);
+  expect(native.client).toBeUndefined();
+  expect((await resumeWith(kernel, credentials[1]!)).status).toBe(401);
+  await kernel.restart();
+  expect((await resumeWith(kernel, credentials[0]!)).status).toBe(401);
+  expect((await resumeWith(kernel, credentials[1]!)).status).toBe(401);
+}
+
+async function exerciseApply(
+  page: Page,
+  kernel: RunningKernel,
+  native: ConnectionStore,
+  readyCount: () => number,
+  credentials: string[],
+) {
   expect(await native.pair(pairingUrl(kernel.url, kernel.token))).toBe(true);
   const observed = observeBrowser(page);
   await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
@@ -164,20 +239,31 @@ async function exerciseApply(page: Page, kernel: RunningKernel, native: Connecti
   expect(observed.sockets()).toBeGreaterThan(1);
   expect(observed.exchanges).toEqual(['/']);
   await chatAfterRestart(page, route);
-  // Re-pairing the native client with the new token sees the same single session.
-  expect(await native.pair(pairingUrl(kernel.url, kernel.token))).toBe(true);
+  // Both carriers see the same single chat; the native App used no fresh launch token.
   expect(await native.client!.listSessions()).toMatchObject([{ sessionId: route.split('/').at(-1) }]);
+  await nativeChatAfterRestart(native, route.split('/').at(-1)!);
+  await rotateAndRestart(kernel, native, credentials);
+  await revokeNative(page, kernel, native, credentials);
   expect(observed.errors).toEqual([]);
 }
 
 it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !== '1')(
-  'real Apply replaces DSH, browser owner reconnects, native client needs pairing, and one chat survives',
+  'real Apply replaces DSH, browser and native owners reconnect automatically, chat survives, and revoke requires pairing',
   async () => {
     const home = await mkdtemp(join(tmpdir(), 'swiftnest-apply-real-'));
     const browser = await launchChromium();
     const model = createServer((req, res) => void respond(req, res));
     const logs: string[] = [];
+    const credentials: string[] = [];
+    let saved: string | undefined;
     const native = new ConnectionStore(async () => ({
+      nativePairingStore: {
+        load: async () => saved,
+        save: async (_root, credential) => {
+          saved = credential;
+          if (credential) credentials.push(credential);
+        },
+      },
       cookieMode: 'manual',
       timeoutMs: 2000,
       createWebSocket: (url, options) => new WebSocket(url, options),
@@ -193,7 +279,8 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !==
         () => ++readyCount,
       );
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await exerciseApply(page, kernel, native, () => readyCount);
+      await exerciseApply(page, kernel, native, () => readyCount, credentials);
+      expect(credentials.some((credential) => logs.join('\n').includes(credential))).toBe(false);
     } catch (error) {
       throw new Error(`${String(error)}\n${logs.slice(-40).join('\n')}`, { cause: error });
     } finally {

@@ -215,6 +215,7 @@ function restartHarness(native = false, reconnect = vi.fn(async () => {})) {
         options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} });
       };
       const client = {
+        options,
         connect: vi.fn(open),
         resume: vi.fn(open),
         close: vi.fn(),
@@ -246,7 +247,7 @@ it('recovers an expected restart with backoff, preserving sessions and using the
     vi.useRealTimers();
   }
 });
-it('turns native token rejection into a single re-pair step, then keeps sessions on successful pairing', async () => {
+it('turns revoked native credential rejection into a single re-pair step, then keeps sessions on successful pairing', async () => {
   const { ApiError } = await import('@swiftnest/api');
   const { store, sockets, clients } = restartHarness(
     true,
@@ -262,7 +263,8 @@ it('turns native token rejection into a single re-pair step, then keeps sessions
     sessions: [{ sessionId: 'saved' }],
   });
   expect(JSON.stringify(store.getSnapshot())).not.toContain('raw');
-  expect(clients[1].resume).not.toHaveBeenCalled();
+  expect(clients[1].resume).toHaveBeenCalledWith('http://127.0.0.1:3077/');
+  expect(clients[1].connect).not.toHaveBeenCalled();
   expect(await store.pair(url.replace('SECRET', 'NEW'))).toBe(true);
   expect(store.getSnapshot()).toMatchObject({
     status: 'connected',
@@ -288,4 +290,51 @@ it('cancels pending restart recovery when the user disconnects', async () => {
     store.disconnect();
     vi.useRealTimers();
   }
+});
+
+it('recovers an unannounced native restart without a pairing URL and ignores stale credential writes', async () => {
+  const { store, sockets, clients } = restartHarness(true);
+  await store.pair(url);
+  const original = clients[0].options.nativePairingStore;
+  await original.save('http://127.0.0.1:3077/', 'private-credential');
+  const sessions = store.getSnapshot().sessions;
+  sockets[0]!.dispatchEvent(new Event('close'));
+  await vi.waitFor(() => expect(store.getSnapshot().status).toBe('connected'));
+  await original.save('http://127.0.0.1:3077/', 'stale-overwrite');
+  expect(await clients[1].options.nativePairingStore.load('http://127.0.0.1:3077/')).toBe('private-credential');
+  expect(store.getSnapshot().sessions).toEqual(sessions);
+  expect(clients[1].resume).toHaveBeenCalledExactlyOnceWith('http://127.0.0.1:3077/');
+  expect(clients[1].connect).not.toHaveBeenCalled();
+  expect(JSON.stringify(store.getSnapshot())).not.toContain('private-credential');
+  store.disconnect();
+});
+it('unpair revokes before forgetting, without reconnecting during the self-revoke socket close', async () => {
+  const { store, sockets, clients } = restartHarness(true);
+  await store.pair(url);
+  clients[0].revokeNativePairing = vi.fn(async () => sockets[0]!.dispatchEvent(new Event('close')));
+  await store.unpair();
+  expect(clients[0].revokeNativePairing).toHaveBeenCalledOnce();
+  expect(clients).toHaveLength(1);
+  expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', sessions: [], pluginRestart: undefined });
+});
+it('restores a reopened native App from its private credential using only the remembered root', async () => {
+  vi.stubGlobal('localStorage', { getItem: () => 'https://server/', setItem: vi.fn() });
+  vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+  const resume = vi.fn(async () => {});
+  const connect = vi.fn();
+  const store = new ConnectionStore(
+    async () => ({ cookieMode: 'manual' }),
+    () =>
+      ({
+        resume,
+        connect,
+        listSessions: async () => [],
+        close: () => {},
+      }) as unknown as SwiftnestClient,
+  );
+  store.restore();
+  await vi.waitFor(() => expect(store.getSnapshot().status).toBe('connected'));
+  expect(resume).toHaveBeenCalledExactlyOnceWith('https://server/');
+  expect(connect).not.toHaveBeenCalled();
+  store.disconnect();
 });

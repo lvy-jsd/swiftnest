@@ -9,7 +9,7 @@ export {
   text,
 } from '@swiftnest/protocol';
 export type { Language, Text } from '@swiftnest/protocol';
-import { defaultLanguage, text } from '@swiftnest/protocol';
+import { defaultLanguage, text, isNativePairingCredential, NATIVE_PAIRING_COOKIE } from '@swiftnest/protocol';
 import { LiveView } from './live.js';
 export * from './live.js';
 import type {
@@ -90,7 +90,7 @@ export class SwiftnestClient {
       url.password
     )
       throw new ApiError('invalid-pairing-url', text('expectedHttpSConnectUrlToken'));
-    url.searchParams.set('interactions', 'answer');
+    if (!url.searchParams.has('interactions')) url.searchParams.set('interactions', 'answer');
     this.root = new URL('./', url);
     this.state = 'connecting';
     try {
@@ -116,6 +116,7 @@ export class SwiftnestClient {
         this.cookie = cookies.map((value) => value.split(';', 1)[0]!.trim()).join('; ');
         if (!this.cookie) throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
       }
+      if (this.manualCookies && this.options.nativePairingStore) await this.issueNativePairing();
       await this.openTransport();
     } catch (error) {
       this.close();
@@ -123,18 +124,84 @@ export class SwiftnestClient {
     }
   }
 
-  /** Reopen a web session using its existing HttpOnly cookie after an expected restart. */
+  /** Restore the browser cookie or private native credential without a launch token. */
   async resume(root: string): Promise<void> {
-    if (this.state !== 'new' || this.manualCookies)
-      throw new ApiError('invalid-state', text('createNewClientEachPairing'));
+    if (this.state !== 'new') throw new ApiError('invalid-state', text('createNewClientEachPairing'));
     this.root = new URL(root);
     this.state = 'connecting';
     try {
+      if (this.manualCookies) {
+        const credential = await this.options.nativePairingStore?.load(this.root.href);
+        if (!isNativePairingCredential(credential))
+          throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'), undefined, undefined, 401);
+        this.cookie = `${NATIVE_PAIRING_COOKIE}=${credential}`;
+        await this.nativePairingRequest('resume');
+      }
       await this.openTransport();
     } catch (error) {
       this.close();
       throw error;
     }
+  }
+
+  private async issueNativePairing(): Promise<void> {
+    const { credential } = await this.nativePairingRequest<{ credential: string }>(
+      'issue',
+      this.options.nativeDevice ?? {},
+    );
+    await this.saveNativeCredential(credential);
+  }
+
+  /** Explicit rotation preserves scope and expiry and invalidates the old credential. */
+  async rotateNativePairing(): Promise<void> {
+    this.assertConnected();
+    if (!this.manualCookies || !this.options.nativePairingStore)
+      throw new ApiError('invalid-state', text('createNewClientEachPairing'));
+    this.options.onNativeCredentialRotation?.(true);
+    try {
+      const { credential } = await this.nativePairingRequest<{ credential: string }>('rotate');
+      await this.saveNativeCredential(credential);
+    } finally {
+      this.options.onNativeCredentialRotation?.(false);
+    }
+  }
+
+  private async saveNativeCredential(credential: string): Promise<void> {
+    if (!isNativePairingCredential(credential))
+      throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
+    await this.options.nativePairingStore!.save(this.root!.href, credential);
+    this.cookie = `${NATIVE_PAIRING_COOKIE}=${credential}`;
+  }
+
+  async bindNativePairing(device: string, fingerprint: string): Promise<void> {
+    if (this.manualCookies && this.options.nativePairingStore)
+      await this.nativePairingRequest('bind', { device, fingerprint });
+  }
+
+  async revokeNativePairing(): Promise<void> {
+    if (!this.manualCookies || !this.options.nativePairingStore) return;
+    await this.nativePairingRequest('revoke');
+    await this.options.nativePairingStore.save(this.root!.href, undefined);
+  }
+
+  private async nativePairingRequest<T = unknown>(action: string, body = {}): Promise<T> {
+    const response = await this.request(this.url(`swiftnest/native/${action}`), {
+      method: 'POST',
+      redirect: 'error',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+    });
+    if (!response.ok) {
+      if ([401, 403].includes(response.status)) await this.options.nativePairingStore?.save(this.root!.href, undefined);
+      throw new ApiError(
+        'pairing-failed',
+        text('pairingReturnedHttp', response.status),
+        undefined,
+        undefined,
+        response.status,
+      );
+    }
+    return (await response.json()) as T;
   }
 
   private async openTransport(): Promise<void> {

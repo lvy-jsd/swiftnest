@@ -34,6 +34,21 @@ The desktop App includes a Rust Perch under **This device**, off by default. Fol
 [Control this computer](./control-this-computer) to choose folders and pair it. Android device control
 is hidden for now. The existing Node Perch remains available for CLI development.
 
+## App pairing survives restarts
+
+Pair the desktop or Android App once using the server's connection link. Applying plugins, updating the
+server or restarting DSH reconnects automatically and keeps your chats. Closing and reopening the App
+also restores its pairing. Reconnection never resends a message or creates a chat.
+
+Each App connection appears in **Devices** even before device control is enabled. **Revoke device**
+invalidates its saved App credential immediately. When **This device** is also paired, its device entry
+covers the App connection too; revoking it or choosing **Unpair** forgets the App pairing. Only revoked
+or expired pairings need a new connection link (App credentials expire after one year).
+
+The server saves credential hashes in `<home>/native-pairings.json` with mode 0600. The App saves its
+credential in its private application data folder with mode 0600 on Unix/Android; it never puts it in
+URLs, logs or Web storage. Keep the server home when upgrading to retain pairings.
+
 ## Approve a request
 
 Reads pass the default policy. Writes, execution and sensitive operations wait for you. A chat banner

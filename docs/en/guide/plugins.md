@@ -56,7 +56,7 @@ Open **Recommended plugins** from the App's main menu on desktop, phone or web. 
 
 Before enabling a plugin with a note, read it and choose **Enable** or **Cancel**. The community market asks for extra confirmation: community plugins are not checked by Swiftnest and may access data or take actions. Installed community packages appear separately, each labelled **Not reviewed**.
 
-After changing switches, choose **Apply**. The App explains that the assistant restarts briefly and shows preparation and restart progress. It keeps the page open while the web connection recovers automatically, then refreshes the list. A native App paired through `/connect` may need **Reconnect** because the launch token changes: use the new connection link in the existing pairing form, then the App returns to this page. Reconnection does not resend chat messages or create chats.
+After changing switches, choose **Apply**. The App explains that the assistant restarts briefly and shows preparation and restart progress. It keeps the page open while web, desktop and Android Apps reconnect automatically, then refreshes the list. A native App paired once stays paired across DSH restarts, including plugin Apply and server updates. Only a revoked or expired pairing needs a new connection link. Reconnection does not resend chat messages or create chats.
 
 If new plugins cannot start, the page says **The new plugins didn't start, so the previous settings were restored**. Other failures show the localized explanation and a retry button. Swiftnest Server installs missing plugins, checks integrity and restarts DSH; switches are saved in `<home>/plugin-settings.json`.
 

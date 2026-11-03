@@ -18,6 +18,10 @@
     "./memory": {
       "types": "./dist/memory.d.ts",
       "default": "./dist/memory.js"
+    },
+    "./native-pairings-store": {
+      "types": "./dist/native-pairings-store.d.ts",
+      "default": "./dist/native-pairings-store.js"
     }
   },
   "files": [

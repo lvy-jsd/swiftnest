@@ -24,7 +24,7 @@ export const PLUGINS_PREFIX = '/swiftnest/api/plugins';
 /** The owner-only parts of the loopback admin API this proxy forwards. */
 export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX];
 
-export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string) {
+export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string, invalidate?: () => void) {
   const target = new URL(endpoint);
   if (
     target.protocol !== 'http:' ||
@@ -83,6 +83,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
         signal: abort.signal,
         redirect: 'error',
       });
+      invalidate?.();
       res.writeHead(upstream.status, {
         'content-type': upstream.headers.get('content-type') ?? 'application/json',
         'cache-control': 'no-store',

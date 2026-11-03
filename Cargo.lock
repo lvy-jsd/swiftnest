@@ -3990,6 +3990,7 @@ name = "swiftnest-app"
 version = "0.0.1"
 dependencies = [
  "serde_json",
+ "swiftnest-app-pairing",
  "swiftnest-perch",
  "tauri",
  "tauri-build",
@@ -3997,6 +3998,13 @@ dependencies = [
  "tauri-plugin-http",
  "tauri-plugin-notification",
  "tauri-plugin-websocket",
+ "tempfile",
+]
+
+[[package]]
+name = "swiftnest-app-pairing"
+version = "0.0.1"
+dependencies = [
  "tempfile",
 ]
 

@@ -20,6 +20,8 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
   let model: Server;
   let kernel: RunningKernel;
   let home: string;
+  const lines: string[] = [];
+  const tokens: string[] = [];
 
   beforeAll(async () => {
     model = createServer((req, res) => {
@@ -46,13 +48,22 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
       SWIFTNEST_MODEL_ID: 'fake',
     });
-    kernel = await startStableKernel(config, { readyTimeoutMs: 90_000 });
+    kernel = await startStableKernel(config, {
+      readyTimeoutMs: 90_000,
+      onLine: (line) => lines.push(line),
+      onReady: (running) => tokens.push(running.token),
+    });
   }, 120_000);
 
   afterAll(async () => {
     await kernel?.stop();
     await new Promise((r) => model?.close(r));
     if (home) rmSync(home, { recursive: true, force: true });
+  });
+
+  it('redacts launch credentials before handing kernel output to log observers', () => {
+    expect(lines.some((line) => line.includes('token=…'))).toBe(true);
+    expect(tokens.some((token) => lines.some((line) => line.includes(token)))).toBe(false);
   });
 
   it('serves /swiftnest/health from the built-in module', async () => {

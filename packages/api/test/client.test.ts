@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { connect, SwiftnestClient, ApiError, type ApiWebSocket, type SocketEventMap } from '@swiftnest/api';
+import {
+  connect,
+  SwiftnestClient,
+  ApiError,
+  type ApiWebSocket,
+  type SocketEventMap,
+  type ClientOptions,
+} from '@swiftnest/api';
 
 class Socket implements ApiWebSocket {
   readyState = 0;
@@ -56,6 +63,8 @@ function harness(
     deviceSlug?: string;
     memory?: (url: string, init: RequestInit) => Response;
     devices?: (url: string, init: RequestInit) => Response;
+    nativePairingStore?: ClientOptions['nativePairingStore'];
+    native?: (url: string, init: RequestInit) => Response;
   } = {},
 ) {
   let socket!: Socket;
@@ -78,6 +87,8 @@ function harness(
       if (options.legacyHeaders) Object.defineProperty(response.headers, 'getSetCookie', { value: undefined });
       return response;
     }
+    if (url.includes('/swiftnest/native/'))
+      return options.native?.(url, init) ?? Response.json({ credential: 'N'.repeat(43) });
     if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
     if (url.includes('/swiftnest/api/memory'))
       return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
@@ -112,6 +123,7 @@ function harness(
   );
   const client = new SwiftnestClient({
     fetch: doFetch,
+    nativePairingStore: options.nativePairingStore,
     createWebSocket: factory,
     deviceSlug: options.deviceSlug,
     cookieMode: options.browser ? 'browser' : 'manual',
@@ -481,7 +493,7 @@ it('reports the paired native App connection on the prompt that sends the chat',
   }
 });
 
-it('resumes browser sessions without exchanging the old launch token and keeps native resume unavailable', async () => {
+it('resumes browser sessions without exchanging the old launch token and rejects native resume without a saved credential', async () => {
   const h = harness({ browser: true });
   await h.client.resume('https://server.test/mount/');
   expect(h.calls).toEqual([]);
@@ -489,7 +501,10 @@ it('resumes browser sessions without exchanging the old launch token and keeps n
   await h.client.listPlugins();
   h.client.close();
   const native = harness();
-  await expect(native.client.resume('https://server.test/')).rejects.toMatchObject({ code: 'invalid-state' });
+  await expect(native.client.resume('https://server.test/')).rejects.toMatchObject({
+    code: 'pairing-failed',
+    httpStatus: 401,
+  });
   expect(native.factory).not.toHaveBeenCalled();
 });
 
@@ -532,4 +547,48 @@ it('uses authenticated central memory endpoints and preserves catalog errors', a
   } finally {
     client.close();
   }
+});
+
+it('persists native credentials privately and resumes using only the scoped Cookie, without another launch exchange', async () => {
+  let saved: string | undefined;
+  const storage = {
+    load: vi.fn(async () => saved),
+    save: vi.fn(async (_root: string, credential: string | undefined) => {
+      saved = credential;
+    }),
+  };
+  const paired = harness({ nativePairingStore: storage });
+  await paired.client.connect(pairing.replace('answer', 'none'));
+  expect(new URL(paired.calls[0]!.url).searchParams.get('interactions')).toBe('none');
+  expect(paired.calls[1]).toMatchObject({
+    url: 'https://server.test/mount/swiftnest/native/issue',
+    init: { headers: { cookie: 'dsh_api=secret' } },
+  });
+  expect(storage.save).toHaveBeenCalledWith('https://server.test/mount/', 'N'.repeat(43));
+  paired.client.close();
+  const resumed = harness({ nativePairingStore: storage });
+  await resumed.client.resume('https://server.test/mount/');
+  expect(resumed.calls.map((r) => r.url)).toEqual(['https://server.test/mount/swiftnest/native/resume']);
+  expect(resumed.factory).toHaveBeenCalledWith('wss://server.test/mount/api/remote.mux', {
+    headers: { cookie: `swiftnest_native=${'N'.repeat(43)}` },
+  });
+  await resumed.client.bindNativePairing('phone', 'fingerprint');
+  expect(resumed.calls.at(-1)?.body).toEqual({ device: 'phone', fingerprint: 'fingerprint' });
+  await resumed.client.rotateNativePairing();
+  await resumed.client.revokeNativePairing();
+  expect(saved).toBeUndefined();
+  resumed.client.close();
+});
+it('preserves a native credential on temporary server failure, and forgets it only on authentication rejection', async () => {
+  const store = { load: async () => 'N'.repeat(43), save: vi.fn(async () => {}) };
+  const offline = harness({ nativePairingStore: store, native: () => new Response(null, { status: 503 }) });
+  await expect(offline.client.resume('https://server.test/')).rejects.toMatchObject({ httpStatus: 503 });
+  expect(store.save).not.toHaveBeenCalled();
+  const revoked = harness({ nativePairingStore: store, native: () => new Response(null, { status: 401 }) });
+  await expect(revoked.client.resume('https://server.test/')).rejects.toMatchObject({
+    code: 'pairing-failed',
+    httpStatus: 401,
+  });
+  expect(store.save).toHaveBeenCalledWith('https://server.test/', undefined);
+  expect(revoked.factory).not.toHaveBeenCalled();
 });

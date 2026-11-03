@@ -134,3 +134,20 @@ MCP 不提供审批工具。语言设置按所有者在服务器持久化，App 
 
 固定内核验收覆盖同一会话中的 tools/list_changed、真实 Node Perch 文件读写与审批审计；
 Chromium 在 390px 宽度检查设备管理和批准、拒绝操作。详见[设备指南](../guide/devices.md)。
+
+### 原生 App 持久配对
+
+固定版本 DSH rc.5 的 `/connect` 创建临时 API Peer，签名 cookie 本身无法跨进程恢复。
+Swiftnest 在 `POST /swiftnest/native/issue` 一次性换取 256 位随机凭据，并销毁引导 Peer。
+父进程是唯一写入者，`<home>/native-pairings.json` 只保存 SHA-256 哈希，权限为 0600。
+凭据只通过手动 Cookie 请求头传递；同前缀的 `resume`、`bind`、`rotate`、`revoke` 都只接受原生 POST，拒绝查询参数和浏览器 Origin。
+
+此 DSH 版本没有 admission-provider 注册接口，因此 bundle 包装公开的 `connection.admit`。
+保留 DSH 的 Host/Origin 检查，每次请求读取当前持久状态，创建的 Peer 严格沿用原 principal 和 interactions。
+目前只支持 DSH 实际签发的 owner 配对；其他 principal 默认拒绝，不会提升成 owner。
+独立凭据允许逐 App 撤销；撤销、轮换或过期会销毁存活的 Peer，设备撤销代理在回复之前执行失效检查。
+
+`SwiftnestClient` 的 `nativePairingStore` 提供私有存储，Tauri 使用单独在 CI 验证的小型
+`swiftnest-app-pairing` crate。没有提供该选项的手动 SDK 客户端仍使用 DSH 临时 API 模式。
+`resume(root)` 加载凭据，先验证再打开 mux，401/403 才进入重新配对；网络失败复用 P1 退避，保留聊天，不重放消息。
+显式 `rotateNativePairing()` 使旧凭据失效，保留权限与绝对到期时间；普通重启只验证，避免恢复响应丢失时丢掉新 token。

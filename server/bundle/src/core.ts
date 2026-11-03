@@ -8,6 +8,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { deviceProxy, liveUpgrade, OWNER_PREFIXES, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
+import { nativePairings, type NativeConnection } from './native-pairings.js';
 
 export const name = 'swiftnest-core';
 export const inject = ['webServer', 'connection'];
@@ -16,6 +17,7 @@ export interface CoreConfig {
   version?: string;
   modelBaseUrl?: string;
   appDist?: string;
+  home?: string;
   devicesAdminUrl?: string;
   devicesAdminToken?: string;
 }
@@ -73,21 +75,34 @@ export async function health(config: CoreConfig, dshVersion: string, fetchImpl?:
   };
 }
 
-export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
-  if (config.devicesAdminUrl && config.devicesAdminToken) {
-    if (!ctx.connection) throw new Error('Devices require owner session admission');
-    const handler = deviceProxy(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
-    const live = liveUpgrade(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
-    ctx.effect(() => {
-      const off = ctx.webServer.registerUpgrade({ path: '/swiftnest/api/devices/live', handler: live.handler });
-      return () => {
-        off();
-        live.close();
-      };
-    }, 'swiftnest-core: live');
-    for (const path of OWNER_PREFIXES)
-      ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path, handler }), `swiftnest-core: ${path}`);
+function ownerRoutes(ctx: CoreContext, config: CoreConfig): void {
+  if (!config.devicesAdminUrl || !config.devicesAdminToken) return;
+  if (!ctx.connection) throw new Error('Devices require owner session admission');
+  const native = config.home
+    ? nativePairings(ctx.connection as NativeConnection, config.home, config.devicesAdminUrl, config.devicesAdminToken)
+    : undefined;
+  if (native) {
+    ctx.effect(() => () => native.close(), 'swiftnest-core: native credentials');
+    ctx.effect(
+      () => ctx.webServer.register({ kind: 'prefix', path: '/swiftnest/native', handler: native.handler }),
+      'swiftnest-core: native pairing',
+    );
   }
+  const handler = deviceProxy(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken, native?.invalidate);
+  const live = liveUpgrade(ctx.connection, config.devicesAdminUrl, config.devicesAdminToken);
+  ctx.effect(() => {
+    const off = ctx.webServer.registerUpgrade({ path: '/swiftnest/api/devices/live', handler: live.handler });
+    return () => {
+      off();
+      live.close();
+    };
+  }, 'swiftnest-core: live');
+  for (const path of OWNER_PREFIXES)
+    ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path, handler }), `swiftnest-core: ${path}`);
+}
+
+export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
+  ownerRoutes(ctx, config);
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/app', handler }), 'swiftnest-core: /app');

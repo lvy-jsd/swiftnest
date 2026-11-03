@@ -3,7 +3,15 @@ import { randomBytes } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy, text } from '@swiftnest/core';
+import {
+  Nest,
+  JsonDeviceStore,
+  JsonlAuditLog,
+  loadOrCreateIdentity,
+  RulePolicy,
+  text,
+  fingerprintOf,
+} from '@swiftnest/core';
 import { WebSocketServer } from 'ws';
 import { binaryPeer, serveLan } from '@swiftnest/link-lan';
 import { serveMcpHttp } from '@swiftnest/surface-mcp';
@@ -17,6 +25,8 @@ import { installPlugins } from './plugin-install.js';
 import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
 import { Preferences } from './preferences.js';
 import { Transfers } from './transfers.js';
+import { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
+import { handleNativePairing } from './native-pairings.js';
 
 export const MCP_TOKEN_ENV = 'SWIFTNEST_DEVICES_MCP_TOKEN';
 export const ADMIN_TOKEN_ENV = 'SWIFTNEST_DEVICES_ADMIN_TOKEN';
@@ -52,7 +62,8 @@ function adminServer(hub: DeviceHub, adminToken: string) {
     const deny = (status: number, error: string) => sendJson(res, status, { error }, preferences.lang);
     if (!hasBearer(req, adminToken)) return deny(401, 'Unauthorized');
     if (req.headers.origin) return deny(403, 'Forbidden');
-    handleDeviceRequest(hub, req, res).catch((error) => {
+    const handle = req.url?.startsWith('/swiftnest/control/native/') ? handleNativePairing : handleDeviceRequest;
+    handle(hub, req, res).catch((error) => {
       nest.logger.error(text('deviceApiFailedLog'), error);
       if (res.headersSent) res.destroy();
       else deny(500, 'Device API failed');
@@ -82,13 +93,25 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
   const dir = join(config.home, 'devices');
   const nest = await openNest(dir);
   const preferences = await Preferences.open(join(config.home, 'preferences.json'), config.lang ?? 'zh-CN');
+  const nativePairings = new NativePairings(join(config.home, 'native-pairings.json'));
   const registry = await DeviceRegistry.open(nest, join(dir, 'seen.json'), () => preferences.lang);
   const streams = new Set<ServerResponse>();
   const publish = publisher(streams);
   const quota = config.files?.quotaBytes ?? 100 * 1024 ** 3;
   const transfers = await Transfers.open(nest, config.home, quota, () => publish('transfers-changed'));
 
-  const refresh = () => publish('devices-changed', registry.refresh());
+  const refresh = () => {
+    for (const record of nativePairings.list()) {
+      if (
+        record.device &&
+        !nest.devicesStore
+          .list()
+          .some((d) => d.device === record.device && fingerprintOf(d.publicKey) === record.fingerprint)
+      )
+        nativePairings.revoke(record.device);
+    }
+    publish('devices-changed', registry.refresh());
+  };
   const offTools = nest.onToolsChanged(refresh);
   const offEvents = [
     nest.devicesStore.onChange?.(refresh),
@@ -110,6 +133,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
   });
   const hub: DeviceHub = {
     config,
+    nativePairings,
     nest,
     registry,
     transfers,
