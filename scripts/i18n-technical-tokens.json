@@ -346,6 +346,11 @@
     "photo-missing",
     "message-photo",
     "lazy",
-    "message-photos"
+    "message-photos",
+    "on",
+    "models-free-vision",
+    "photo-consent",
+    "group",
+    "photo-consent-title"
   ]
 }

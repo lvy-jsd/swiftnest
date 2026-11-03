@@ -23,6 +23,9 @@ export interface ModelRoute {
 /** `ask`: every hand-off to the expert waits for the owner's approval. `auto`: the assistant decides. */
 export type ExpertApproval = 'ask' | 'auto';
 
+/** May photos go to the free anonymous vision service? `ask`: the owner has not answered yet. */
+export type FreeVisionChoice = 'ask' | 'on' | 'off';
+
 export interface ModelsView {
   /** `vision`: the local model reads images itself. */
   local: { name: string; model: string; contextWindow: number; vision: boolean };
@@ -32,6 +35,12 @@ export interface ModelsView {
   /** The stronger model hard tasks go to. Unset: no expert. */
   expert?: ModelRoute;
   expertApproval: ExpertApproval;
+  /**
+   * Photo reading for a main model that cannot see: `readers` are the owner's vision
+   * models (by provider id) that describe photos for it, best first; `free` is the
+   * owner's answer about the free service. `needed` is false when the main model sees.
+   */
+  vision: { needed: boolean; readers: string[]; free: FreeVisionChoice };
   /** Saved but not yet running: apply to restart the assistant with them. */
   pending: boolean;
   apply: { state: ApplyState; rolledBack?: boolean; error?: { code: string; message: string; hint: string } };
@@ -42,4 +51,6 @@ export interface ModelSettingsUpdate {
   main?: ModelRoute | null;
   expert?: ModelRoute | null;
   expertApproval?: ExpertApproval;
+  /** Takes effect at once, without applying. */
+  freeVision?: FreeVisionChoice;
 }

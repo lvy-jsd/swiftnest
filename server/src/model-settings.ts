@@ -6,7 +6,7 @@
  * here needs only an id and a key.
  */
 import { join } from 'node:path';
-import type { ExpertApproval, ModelRoute, ModelSettingsUpdate } from '@swiftnest/api';
+import type { ExpertApproval, FreeVisionChoice, ModelRoute, ModelSettingsUpdate } from '@swiftnest/api';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
 import { JsonFileWriter, readJsonFile } from './json-store.js';
@@ -17,16 +17,48 @@ export interface ModelProvider {
   keyUrl: string;
   /** A current strong model of this provider; the owner may type another id. */
   recommendedModel: string;
+  /** A fast model of this provider that reads images, used to describe photos to a model that cannot. */
+  visionModel?: string;
 }
 
 /** The providers the App offers, in display order. Ids are DSH catalog provider ids. */
 export const MODEL_PROVIDERS: readonly ModelProvider[] = [
-  { id: 'deepseek', keyUrl: 'https://platform.deepseek.com/api_keys', recommendedModel: 'deepseek-v4-pro' },
-  { id: 'moonshotai-cn', keyUrl: 'https://platform.moonshot.cn/console/api-keys', recommendedModel: 'kimi-k3' },
-  { id: 'google', keyUrl: 'https://aistudio.google.com/apikey', recommendedModel: 'gemini-pro-latest' },
-  { id: 'anthropic', keyUrl: 'https://platform.claude.com/settings/keys', recommendedModel: 'claude-opus-5-5' },
-  { id: 'openai', keyUrl: 'https://platform.openai.com/api-keys', recommendedModel: 'gpt-6.1-sol' },
-  { id: 'openrouter', keyUrl: 'https://openrouter.ai/keys', recommendedModel: 'anthropic/claude-opus-5.5' },
+  {
+    id: 'deepseek',
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+    recommendedModel: 'deepseek-v4-pro',
+    visionModel: 'deepseek-flash',
+  },
+  {
+    id: 'moonshotai-cn',
+    keyUrl: 'https://platform.moonshot.cn/console/api-keys',
+    recommendedModel: 'kimi-k3',
+    visionModel: 'kimi-k2.6',
+  },
+  {
+    id: 'google',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    recommendedModel: 'gemini-pro-latest',
+    visionModel: 'gemini-flash-latest',
+  },
+  {
+    id: 'anthropic',
+    keyUrl: 'https://platform.claude.com/settings/keys',
+    recommendedModel: 'claude-opus-5-5',
+    visionModel: 'claude-haiku-5-5',
+  },
+  {
+    id: 'openai',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    recommendedModel: 'gpt-6.1-sol',
+    visionModel: 'gpt-6-luna',
+  },
+  {
+    id: 'openrouter',
+    keyUrl: 'https://openrouter.ai/keys',
+    recommendedModel: 'anthropic/claude-opus-5.5',
+    visionModel: '~google/gemini-flash-latest',
+  },
 ];
 
 export const LOCAL_PROVIDER = 'local';
@@ -35,9 +67,21 @@ export interface ModelSettings {
   main?: ModelRoute;
   expert?: ModelRoute;
   expertApproval: ExpertApproval;
+  /**
+   * May photos go to the free anonymous vision service when nothing else can read
+   * them? `ask` until the owner answers. The kernel reads this field from the file at
+   * each photo, so the answer takes effect without a restart.
+   */
+  freeVision: FreeVisionChoice;
 }
 
-export const DEFAULT_MODEL_SETTINGS: ModelSettings = { expertApproval: 'ask' };
+export const DEFAULT_MODEL_SETTINGS: ModelSettings = { expertApproval: 'ask', freeVision: 'ask' };
+
+const FREE_VISION_CHOICES: readonly FreeVisionChoice[] = ['ask', 'on', 'off'];
+
+function isFreeVisionChoice(value: unknown): value is FreeVisionChoice {
+  return FREE_VISION_CHOICES.includes(value as FreeVisionChoice);
+}
 
 /** The environment variable that carries a provider's key into the DSH kernel. */
 export function modelKeyEnv(provider: string): string {
@@ -67,6 +111,7 @@ export function parseModelSettings(value: unknown): ModelSettings {
     ...(main ? { main } : {}),
     ...(expert ? { expert } : {}),
     expertApproval: saved.expertApproval === 'auto' ? 'auto' : 'ask',
+    freeVision: isFreeVisionChoice(saved.freeVision) ? saved.freeVision : 'ask',
   };
 }
 
@@ -81,6 +126,9 @@ export function updateModelSettings(current: ModelSettings, update: unknown): Mo
       if (fields.expertApproval !== 'ask' && fields.expertApproval !== 'auto')
         throw new ServerFailure(text('modelsInvalidUpdate'));
       next.expertApproval = fields.expertApproval;
+    } else if (key === 'freeVision') {
+      if (!isFreeVisionChoice(fields.freeVision)) throw new ServerFailure(text('modelsInvalidUpdate'));
+      next.freeVision = fields.freeVision;
     } else if (key === 'main' || key === 'expert') {
       setRoute(next, key, fields[key]);
     } else throw new ServerFailure(text('modelsInvalidUpdate'));

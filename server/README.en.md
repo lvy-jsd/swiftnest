@@ -73,7 +73,10 @@ Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environme
 | `assistantName` (string)                               | `SWIFTNEST_ASSISTANT_NAME` | unset (Apps show "Assistant")                                               |
 | `model.baseUrl`                                        | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1`                                                 |
 | `model.id`                                             | `SWIFTNEST_MODEL_ID`       | `qwen3`                                                                     |
-| `model.name`, `model.contextWindow`, `model.maxTokens` |                            | `Local model`, `32768`, `8192`                                              |
+| `model.name`, `model.maxTokens`                        |                            | `Local model`, `8192`                                                       |
+| `model.contextWindow`                                  | `SWIFTNEST_MODEL_CONTEXT_WINDOW` | asked from the local model server, else `32768`                       |
+| `model.vision` (the model reads images itself)         | `SWIFTNEST_MODEL_VISION`   | asked from the local model server, else `false`                             |
+| `freeVision.baseUrl`, `freeVision.models` (free photo reading, used only after the owner agrees in the App) | `SWIFTNEST_FREE_VISION_BASE_URL` | OVHcloud AI Endpoints, `Qwen3.5-397B-A17B`, `Qwen2.5-VL-72B-Instruct` |
 | `model.apiKeyEnv` (name of the key variable)           |                            | `SWIFTNEST_MODEL_API_KEY`                                                   |
 | Node binary for the kernel                             | `SWIFTNEST_KERNEL_NODE`    | the Node running Swiftnest                                                  |
 

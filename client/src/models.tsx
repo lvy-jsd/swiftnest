@@ -45,6 +45,53 @@ function LocalModel({ view }: { view: ModelsView }) {
   );
 }
 
+/** How photos reach a main model that cannot see, and the switch for the free service. */
+function Photos({
+  view,
+  disabled,
+  save,
+}: {
+  view: ModelsView;
+  disabled: boolean;
+  save: (update: ModelSettingsUpdate) => void;
+}) {
+  const { t } = useI18n();
+  const { needed, readers, free } = view.vision;
+  const names = readers.map((id) => providerName(view, id)).join(', ');
+  const on = free === 'on';
+  return (
+    <Card className="plugin-card">
+      <h2>{t('visionTitle')}</h2>
+      <p className="plugin-muted">
+        {!needed
+          ? t('visionSees')
+          : readers.length
+            ? `${t('visionReaders')} ${names}`
+            : t(on ? 'visionFree' : 'visionNone')}
+      </p>
+      {needed && (
+        <div className="plugin-card__row">
+          <div>
+            <p className="model-label" id="models-free-vision">
+              {t('visionFreeSwitch')}
+            </p>
+            <p className="plugin-muted">{t('visionFreeHelp')}</p>
+          </div>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-labelledby="models-free-vision"
+            checked={on}
+            aria-checked={on}
+            disabled={disabled}
+            onChange={() => save({ freeVision: on ? 'off' : 'on' })}
+          />
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Expert({
   view,
   disabled,
@@ -282,6 +329,7 @@ function ModelSettings({ view, disabled, act }: { view: ModelsView; disabled: bo
   return (
     <>
       <LocalModel view={view} />
+      <Photos view={view} disabled={disabled} save={save} />
       <Expert view={view} disabled={disabled} choose={() => setChoosing(true)} save={save} />
       <CloudKeys view={view} disabled={disabled} remove={remove} />
       <MainModel view={view} disabled={disabled} save={save} />

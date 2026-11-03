@@ -20,7 +20,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { isMap, isScalar, isSeq, parseDocument, stringify } from 'yaml';
 import type { ModelRoute } from '@swiftnest/api';
-import type { ServerConfig } from './config.js';
+import { FREE_VISION, type ServerConfig } from './config.js';
 import { LOCAL_PROVIDER, modelKeyEnv } from './model-settings.js';
 
 export const PROFILE_NAME = 'swiftnest';
@@ -40,14 +40,26 @@ export function profileDir(config: ServerConfig): string {
 /** The patch rows Swiftnest owns: model providers, the default model and the expert. */
 export function modelPatch(config: ServerConfig): unknown[] {
   const main = dshRoute(config, config.cloud?.main);
+  const eyes = needsEyes(config);
   return [
-    { id: 'llm-pi-ai', config: { providers: { [PROVIDER_ID]: localProvider(config), ...cloudProviders(config) } } },
+    {
+      id: 'llm-pi-ai',
+      config: { providers: { [PROVIDER_ID]: localProvider(config, eyes), ...cloudProviders(config, eyes) } },
+    },
     { id: 'agent-default-model', config: main },
     ...expertRows(config),
+    ...(eyes ? visionRows(config) : []),
   ];
 }
 
-function localProvider(config: ServerConfig) {
+/** The local model runs the chats and cannot see, so photos are described to it. */
+function needsEyes(config: ServerConfig): boolean {
+  const main = config.cloud?.main;
+  return !config.model.vision && (!main || main.provider === LOCAL_PROVIDER);
+}
+
+/** With eyes the local route accepts photos; the vision module turns them into text before the call. */
+function localProvider(config: ServerConfig, eyes: boolean) {
   const m = config.model;
   return {
     displayName: m.name,
@@ -60,7 +72,7 @@ function localProvider(config: ServerConfig) {
         name: m.name,
         contextWindow: m.contextWindow,
         maxTokens: m.maxTokens,
-        input: m.vision ? ['text', 'image'] : ['text'],
+        input: m.vision || eyes ? ['text', 'image'] : ['text'],
       },
     ],
   };
@@ -72,9 +84,10 @@ function dshRoute(config: ServerConfig, route: ModelRoute | undefined): ModelRou
 }
 
 /** Catalog providers need only their key and the models in use; the catalog supplies the rest. */
-function cloudProviders(config: ServerConfig): Record<string, unknown> {
+function cloudProviders(config: ServerConfig, eyes: boolean): Record<string, unknown> {
   const providers: Record<string, { apiKeyEnv: string; models: { id: string }[] }> = {};
-  for (const route of [config.cloud?.main, config.cloud?.expert]) {
+  const vision = eyes ? (config.cloud?.vision ?? []) : [];
+  for (const route of [config.cloud?.main, config.cloud?.expert, ...vision]) {
     if (!route || route.provider === LOCAL_PROVIDER) continue;
     providers[route.provider] ??= { apiKeyEnv: modelKeyEnv(route.provider), models: [] };
     const provider = providers[route.provider]!;
@@ -106,6 +119,16 @@ function expertRows(config: ServerConfig): unknown[] {
       ],
     },
   ];
+}
+
+function visionRows(config: ServerConfig): unknown[] {
+  const vision = {
+    provider: PROVIDER_ID,
+    services: config.cloud?.vision ?? [],
+    free: config.freeVision ?? FREE_VISION,
+    home: config.home,
+  };
+  return [{ insert: [{ id: 'swiftnest-vision', name: `${BUNDLE_PACKAGE}/vision`, config: vision }] }];
 }
 
 /** DSH uses !!js for deferred expressions. Treat them as inert strings, never evaluate them. */

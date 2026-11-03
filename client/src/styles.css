@@ -932,6 +932,12 @@ details.plugin-card summary {
   font-weight: 600;
   padding: 0;
 }
+.photo-consent {
+  margin: 0 0 8px;
+  display: grid;
+  gap: 6px;
+}
+
 .photo-drafts {
   display: flex;
   gap: 8px;

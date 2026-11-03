@@ -70,7 +70,10 @@ swiftnest-server start --config swiftnest.yaml
 | `assistantName`（字符串）                              | `SWIFTNEST_ASSISTANT_NAME` | 不设置（App 显示“助手”）                                                    |
 | `model.baseUrl`                                        | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1`                                                 |
 | `model.id`                                             | `SWIFTNEST_MODEL_ID`       | `qwen3`                                                                     |
-| `model.name`、`model.contextWindow`、`model.maxTokens` |                            | `Local model`、`32768`、`8192`                                              |
+| `model.name`、`model.maxTokens`                        |                            | `本地模型`、`8192`                                                           |
+| `model.contextWindow`                                  | `SWIFTNEST_MODEL_CONTEXT_WINDOW` | 向本地模型服务查询，查不到时为 `32768`                                  |
+| `model.vision`（模型自己能看图）                       | `SWIFTNEST_MODEL_VISION`   | 向本地模型服务查询，查不到时为 `false`                                      |
+| `freeVision.baseUrl`、`freeVision.models`（免费识图服务，只有主人在 App 里同意后才使用） | `SWIFTNEST_FREE_VISION_BASE_URL` | OVHcloud AI Endpoints，`Qwen3.5-397B-A17B`、`Qwen2.5-VL-72B-Instruct` |
 | `model.apiKeyEnv`（存放密钥的变量名）                  |                            | `SWIFTNEST_MODEL_API_KEY`                                                   |
 | 内核用的 Node 可执行文件                               | `SWIFTNEST_KERNEL_NODE`    | 运行 Swiftnest 的那个 Node                                                  |
 

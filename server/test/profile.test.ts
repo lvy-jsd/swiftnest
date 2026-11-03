@@ -113,14 +113,14 @@ describe('writeProfile', () => {
 
   it('writes the model as an OpenAI-compatible provider and the default model', () => {
     const { config, bundleDir } = setup();
-    writeProfile(config, { bundleDir });
+    writeProfile({ ...config, model: { ...config.model, vision: true } }, { bundleDir });
     const rows = parse(readFileSync(join(profileDir(config), 'cordis.patch.yml'), 'utf8'), { customTags });
     const llm = rows.find((r: { id: string }) => r.id === 'llm-pi-ai');
     expect(llm.config.providers[PROVIDER_ID]).toMatchObject({
       api: 'openai-completions',
       apiKeyEnv: config.model.apiKeyEnv,
       baseURL: config.model.baseUrl,
-      models: [{ id: 'm1', input: ['text'] }],
+      models: [{ id: 'm1', input: ['text', 'image'] }],
     });
     expect(rows.find((r: { id: string }) => r.id === 'agent-default-model').config).toEqual({
       provider: PROVIDER_ID,
@@ -128,12 +128,35 @@ describe('writeProfile', () => {
     });
   });
 
-  it('lets a local vision model receive images', () => {
-    const { config, bundleDir } = setup();
-    writeProfile({ ...config, model: { ...config.model, vision: true } }, { bundleDir });
-    const rows = parse(readFileSync(join(profileDir(config), 'cordis.patch.yml'), 'utf8'), { customTags });
-    const llm = rows.find((r: { id: string }) => r.id === 'llm-pi-ai');
-    expect(llm.config.providers[PROVIDER_ID].models[0].input).toEqual(['text', 'image']);
+  it('gives a local model that cannot see photo descriptions from the owner’s vision models', () => {
+    const { config } = setup();
+    const google = { provider: 'google', model: 'gemini-flash-latest' };
+    const rows = modelPatch({ ...config, cloud: { expertApproval: 'ask', vision: [google] } }) as {
+      id?: string;
+      config?: any;
+      insert?: { id: string; name: string; config: any }[];
+    }[];
+    const providers = rows.find((row) => row.id === 'llm-pi-ai')!.config.providers;
+    expect(providers[PROVIDER_ID].models[0].input).toEqual(['text', 'image']);
+    expect(providers.google).toEqual({ apiKeyEnv: modelKeyEnv('google'), models: [{ id: 'gemini-flash-latest' }] });
+    const [vision] = rows.find((row) => row.insert)!.insert!;
+    expect(vision).toMatchObject({
+      name: '@swiftnest/server-bundle/vision',
+      config: { provider: PROVIDER_ID, services: [google], free: { baseUrl: expect.any(String) }, home: config.home },
+    });
+  });
+
+  it('adds no photo reader when the model in charge sees, or is a cloud model', () => {
+    const { config } = setup();
+    const seeing = modelPatch({ ...config, model: { ...config.model, vision: true } }) as { insert?: unknown }[];
+    expect(seeing.some((row) => row.insert)).toBe(false);
+    const cloud = modelPatch({
+      ...config,
+      cloud: { main: { provider: 'deepseek', model: 'deepseek-v4-pro' }, expertApproval: 'ask' },
+    }) as { id?: string; config?: any }[];
+    expect(cloud.find((row) => row.id === 'llm-pi-ai')!.config.providers[PROVIDER_ID].models[0].input).toEqual([
+      'text',
+    ]);
   });
 
   it('routes chats to a cloud main model and hard tasks to the expert, keeping the local model', () => {
@@ -173,7 +196,14 @@ describe('writeProfile', () => {
 
   it('adds no expert and keeps the local default without cloud models', () => {
     const { config } = setup();
-    const rows = modelPatch({ ...config, cloud: { expertApproval: 'ask' } }) as { id?: string; insert?: unknown }[];
+    const rows = modelPatch({
+      ...config,
+      model: { ...config.model, vision: true },
+      cloud: { expertApproval: 'ask' },
+    }) as {
+      id?: string;
+      insert?: unknown;
+    }[];
     expect(rows.some((row) => row.insert)).toBe(false);
     expect(rows.find((row) => row.id === 'agent-default-model')).toMatchObject({ config: { provider: PROVIDER_ID } });
   });

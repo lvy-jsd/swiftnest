@@ -1,3 +1,4 @@
+import type { ModelsView } from '@swiftnest/api';
 /**
  * Photos the App attaches to a message. The device shrinks each photo before sending, so a
  * message with photos fits one encrypted channel record and uploads quickly on mobile data.
@@ -42,3 +43,8 @@ export function photoName(name: string): string | undefined {
 
 /** Files the photo picker and paste accept. */
 export const isPhoto = (file: File) => file.type.startsWith('image/');
+
+/** The main model cannot see, nothing else reads photos, and the owner has not said whether the free service may. */
+export function needsFreeVisionAnswer(vision: ModelsView['vision']): boolean {
+  return vision.needed && !vision.readers.length && vision.free === 'ask';
+}

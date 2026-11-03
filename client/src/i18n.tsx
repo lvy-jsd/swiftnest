@@ -261,6 +261,20 @@ export const en = {
   photoRemove: 'Remove photo',
   photoFailed: 'Some photos could not be added. Try a smaller JPEG or PNG.',
   photoUnavailable: 'Photo unavailable',
+  visionTitle: 'Photos',
+  visionSees: 'The model your chats use can see photos itself.',
+  visionReaders: 'Your local model cannot see photos, so this cloud model looks at them and describes them to it:',
+  visionFree: 'Your local model cannot see photos, so the free photo reading service describes them to it.',
+  visionNone:
+    'Your local model cannot see photos. Turn on the free service below, or add a cloud model key, and it can.',
+  visionFreeSwitch: 'Use the free photo reading service',
+  visionFreeHelp:
+    'Photos are sent without your name or any account to a free service run by OVHcloud in France, which may be slow at busy times. Keys you add above are always tried first.',
+  photoConsentTitle: 'Your local model cannot see photos',
+  photoConsentHelp:
+    'May a free photo reading service look at them and describe them to it? Photos go without your name or any account to OVHcloud in France. You can change this any time under Models.',
+  photoConsentAgree: 'Allow',
+  photoConsentDecline: 'Not now',
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -512,6 +526,19 @@ export const zhCN: Record<StringKey, string> = {
   photoRemove: '移除图片',
   photoFailed: '有图片没能添加，请换一张小一点的 JPEG 或 PNG。',
   photoUnavailable: '图片无法显示',
+  visionTitle: '看图片',
+  visionSees: '聊天用的模型自己就能看图片。',
+  visionReaders: '本地模型看不了图片，所以由这个云端模型先看图，再把内容讲给它：',
+  visionFree: '本地模型看不了图片，所以由免费识图服务先看图，再把内容讲给它。',
+  visionNone: '本地模型看不了图片。打开下面的免费识图服务，或添加一个云端模型密钥，它就能"看"图了。',
+  visionFreeSwitch: '使用免费识图服务',
+  visionFreeHelp:
+    '图片会匿名发送到 OVHcloud（法国）提供的免费服务，不需要账号，忙的时候可能较慢。你在上面添加的密钥总是优先使用。',
+  photoConsentTitle: '本地模型看不了图片',
+  photoConsentHelp:
+    '要不要让免费识图服务看一下图片，再把内容讲给它？图片会匿名发送到 OVHcloud（法国），不需要账号。之后随时可以在"模型"页修改。',
+  photoConsentAgree: '允许',
+  photoConsentDecline: '暂不',
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];
