@@ -12,7 +12,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { definePlugin, SwiftnestFailure, type Nest } from '@swiftnest/core';
+import { definePlugin, SwiftnestFailure, text, type Nest } from '@swiftnest/core';
 import {
   localize,
   translateMessage,
@@ -188,12 +188,7 @@ export function createMcpServer(nest: Nest, opts: McpSurfaceOptions = {}): Serve
         if (name === META.cancel) return describeTask(await nest.tasks.cancel(id), language);
         if (name === META.status) {
           const s = nest.tasks.get(id);
-          if (!s)
-            throw new SwiftnestFailure(
-              'UNKNOWN_TASK',
-              `No task ${id}.`,
-              "Use the task id from the original call's response.",
-            );
+          if (!s) throw new SwiftnestFailure('UNKNOWN_TASK', text('noTask', id), text('hintUseOriginalTaskId'));
           return describeTask(s, language);
         }
         const secs = Math.min(Math.max(Number(args.seconds ?? 25), 1), 300);

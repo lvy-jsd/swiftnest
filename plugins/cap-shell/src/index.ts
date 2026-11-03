@@ -10,7 +10,7 @@
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, resolve } from 'node:path';
-import { definePlugin, PathGuard, SwiftnestFailure, type Capability, type InvokeContext } from '@swiftnest/core';
+import { definePlugin, PathGuard, SwiftnestFailure, text, type Capability, type InvokeContext } from '@swiftnest/core';
 import type { Risk } from '@swiftnest/protocol';
 import rules from './shell-rules.json' with { type: 'json' };
 
@@ -172,11 +172,7 @@ function run(file: string, args: string[], cwd: string, ctx: InvokeContext) {
         ctx.signal.removeEventListener('abort', kill);
         reject(
           (e as NodeJS.ErrnoException).code === 'ENOENT'
-            ? new SwiftnestFailure(
-                'COMMAND_NOT_FOUND',
-                `"${file}" was not found on this device.`,
-                'Check the program name, or install it on the device.',
-              )
+            ? new SwiftnestFailure('COMMAND_NOT_FOUND', text('notFoundDevice', file), text('hintCheckProgramName'))
             : e,
         );
       });
@@ -231,8 +227,7 @@ export function shellCapability(
     },
     async invoke(_tool, args, ctx) {
       const command = String(args.command ?? '').trim();
-      if (!command)
-        throw new SwiftnestFailure('BAD_ARGS', 'command is empty.', 'Pass a command, e.g. {"command": "ls"}.');
+      if (!command) throw new SwiftnestFailure('BAD_ARGS', text('commandEmpty'), text('hintPassCommand'));
       const cwd = typeof args.cwd === 'string' && args.cwd ? args.cwd : (opts.cwd ?? homedir());
       const { risk } = classifyCommand(command, readOnly, guard);
       // Read-only commands run without a shell; anything else only gets here after approval and uses sh -c.
@@ -248,14 +243,14 @@ export function shellCapability(
             if (c.secret)
               throw new SwiftnestFailure(
                 'PATH_REFUSED',
-                `${a} is a protected location (keys, credentials or browser data).`,
-                'Swiftnest never reads these, whatever the policy says.',
+                text('protectedLocationKeysCredentialsBrowserData', a),
+                text('hintNeverReadsSecrets'),
               );
             if (!c.inside && risk === 'read')
               throw new SwiftnestFailure(
                 'PATH_NOT_ALLOWED',
-                `${a} is outside the folders this device shares (${guard.roots.join(', ')}).`,
-                'Ask the owner to add the folder to the shared roots on this device.',
+                text('outsideFoldersDeviceShares', a, guard.roots.join(', ')),
+                text('hintAskOwnerToShareRoot'),
               );
           }
         }

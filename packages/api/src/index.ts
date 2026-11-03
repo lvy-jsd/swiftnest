@@ -8,8 +8,10 @@ export {
   defaultLanguage,
   messageEn,
   messageZh,
+  text,
 } from '@swiftnest/protocol';
-export type { Language } from '@swiftnest/protocol';
+export type { Language, Text } from '@swiftnest/protocol';
+import { text } from '@swiftnest/protocol';
 import { LiveView } from './live.js';
 export * from './live.js';
 import type {
@@ -30,7 +32,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/types';
 import type { RemoteEventDownlinkFrame } from '@deepseek-ai/dsh-api-gateway/stream-protocol';
 import { mapFrame } from './events.js';
-import { ApiError, Inbox, Mux, randomId } from './transport.js';
+import { ApiError, Inbox, Mux, randomId, type ServerFailureBody } from './transport.js';
 import type {
   ApprovalAnswer,
   ClientOptions,
@@ -76,7 +78,7 @@ export class SwiftnestClient {
 
   /** Pair once, exchange the token for a cookie, then establish an answering Peer. */
   async connect(pairingUrl: string): Promise<void> {
-    if (this.state !== 'new') throw new ApiError('invalid-state', 'Create a new client for each pairing');
+    if (this.state !== 'new') throw new ApiError('invalid-state', text('createNewClientEachPairing'));
     const url = new URL(pairingUrl);
     if (
       !['http:', 'https:'].includes(url.protocol) ||
@@ -85,7 +87,7 @@ export class SwiftnestClient {
       url.username ||
       url.password
     )
-      throw new ApiError('invalid-pairing-url', 'Expected an HTTP(S) /connect URL with a token');
+      throw new ApiError('invalid-pairing-url', text('expectedHttpSConnectUrlToken'));
     url.searchParams.set('interactions', 'answer');
     this.root = new URL('./', url);
     this.state = 'connecting';
@@ -94,22 +96,19 @@ export class SwiftnestClient {
       // Browser fetch deliberately hides redirect status/headers; its cookie jar
       // still processes Set-Cookie. Socket authentication verifies the exchange.
       if (response.status !== 302 && !(response.type === 'opaqueredirect' && !this.manualCookies))
-        throw new ApiError('pairing-failed', `Pairing returned HTTP ${response.status}`);
+        throw new ApiError('pairing-failed', text('pairingReturnedHttp', response.status));
       if (this.manualCookies) {
         const cookies =
           typeof response.headers.getSetCookie === 'function'
             ? response.headers.getSetCookie()
             : (response.headers.get('set-cookie') ?? '').split(/,(?=\s*[^;,=\s]+=)/).filter(Boolean);
         this.cookie = cookies.map((value) => value.split(';', 1)[0]!.trim()).join('; ');
-        if (!this.cookie) throw new ApiError('pairing-failed', 'Pairing did not issue an API cookie');
+        if (!this.cookie) throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
       }
       const socketUrl = new URL('api/remote.mux', this.root);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       if (this.manualCookies && !this.options.createWebSocket)
-        throw new ApiError(
-          'transport-required',
-          'Node requires createWebSocket with cookie header support (for example ws)',
-        );
+        throw new ApiError('transport-required', text('nodeRequiresCreatewebsocketCookieHeaderSupport'));
       const socket = this.options.createWebSocket
         ? this.options.createWebSocket(socketUrl.href, { headers: this.headers() })
         : new WebSocket(socketUrl.href);
@@ -121,7 +120,7 @@ export class SwiftnestClient {
       const first = await this.withTimeout(events.next());
       const ready = first.value as RemoteEventDownlinkFrame;
       if (first.done || ready?.type !== 'ready')
-        throw new ApiError('protocol-error', 'Event stream did not begin with ready');
+        throw new ApiError('protocol-error', text('eventStreamDidNotBeginReady'));
       this.clientId = ready.clientId;
       this.state = 'connected';
       void this.pumpInteractions(events);
@@ -133,7 +132,7 @@ export class SwiftnestClient {
 
   async health(): Promise<Health> {
     const response = await this.request(this.url('swiftnest/health'));
-    if (!response.ok) throw new ApiError('http-error', `Health returned HTTP ${response.status}`);
+    if (!response.ok) throw new ApiError('http-error', text('healthReturnedHttp', response.status));
     return (await response.json()) as Health;
   }
   /** The owner's language and the assistant's display name (when the server sets one). */
@@ -164,9 +163,9 @@ export class SwiftnestClient {
   ): Promise<LiveView> {
     this.assertConnected();
     if (this.root?.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(this.root?.hostname ?? ''))
-      throw new ApiError('tls-required', 'Use an HTTPS server connection for live view');
+      throw new ApiError('tls-required', text('useHttpsServerConnectionLiveView'));
     if (!globalThis.crypto?.subtle)
-      throw new ApiError('secure-context-required', 'Live view requires a secure App context');
+      throw new ApiError('secure-context-required', text('liveViewRequiresSecureAppContext'));
     const query = new URLSearchParams({
       device,
       maxDimension: String(options.maxDimension ?? 1280),
@@ -232,7 +231,7 @@ export class SwiftnestClient {
         signal,
       });
       if (!response.ok || !response.body)
-        throw new ApiError('http-error', `Device events returned HTTP ${response.status}`);
+        throw new ApiError('http-error', text('deviceEventsReturnedHttp', response.status));
       void (async () => {
         const reader = response.body!.getReader();
         const cancel = () => {
@@ -247,7 +246,7 @@ export class SwiftnestClient {
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
-            if (buffer.length > 65536) throw new ApiError('protocol-error', 'Device event exceeds size limit');
+            if (buffer.length > 65536) throw new ApiError('protocol-error', text('deviceEventExceedsSizeLimit'));
             for (let end = buffer.indexOf('\n\n'); end >= 0; end = buffer.indexOf('\n\n')) {
               const frame = buffer.slice(0, end);
               buffer = buffer.slice(end + 2);
@@ -267,7 +266,7 @@ export class SwiftnestClient {
                   'transfers-changed',
                 ].includes(event.type)
               )
-                throw new ApiError('protocol-error', 'Unknown device event');
+                throw new ApiError('protocol-error', text('unknownDeviceEvent'));
               inbox.push(event);
             }
           }
@@ -296,14 +295,9 @@ export class SwiftnestClient {
       ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      const failure = (await response.json().catch(() => ({}))) as { code?: string; message?: string; hint?: string };
-      const error = new ApiError(
-        response.status === 409 ? 'device-conflict' : 'http-error',
-        failure.message ?? `Device API returned HTTP ${response.status}`,
-        failure.hint,
-        failure.code,
-      );
-      throw error;
+      const failure = (await response.json().catch(() => undefined)) as ServerFailureBody | undefined;
+      const code = response.status === 409 ? 'device-conflict' : 'http-error';
+      throw ApiError.fromServer(code, failure, text('deviceApiReturnedHttp', response.status));
     }
     return (await response.json()) as T;
   }
@@ -326,26 +320,22 @@ export class SwiftnestClient {
     const result = await this.rpc<SessionCreateValue>('session/create', { request: options });
     return { sessionId: result.sessionId };
   }
-  async sendMessage(sessionId: string, text: string): Promise<MessageReceipt> {
-    if (!text.trim()) throw new ApiError('invalid-message', 'Message text must not be empty');
+  async sendMessage(sessionId: string, message: string): Promise<MessageReceipt> {
+    if (!message.trim()) throw new ApiError('invalid-message', text('messageTextMustNotEmpty'));
     const requestId = randomId();
     this.assertConnected();
     const response = await this.request(this.url('swiftnest/api/chat'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text }] },
+        request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text: message }] },
         deviceSlug: this.options.deviceSlug,
       }),
     });
     if (!response.ok) {
-      const failure = (await response.json().catch(() => undefined)) as
-        | { error?: { code?: string; message?: string } }
-        | undefined;
-      throw new ApiError(
-        failure?.error?.code ?? 'http-error',
-        failure?.error?.message ?? `App prompt returned HTTP ${response.status}`,
-      );
+      const failure = (await response.json().catch(() => undefined)) as { error?: ServerFailureBody } | undefined;
+      const code = failure?.error?.code ?? 'http-error';
+      throw ApiError.fromServer(code, failure?.error, text('appPromptReturnedHttp', response.status));
     }
     const result = (await response.json()) as SessionPromptValue;
     return { requestId, accepted: result.accepted };
@@ -375,7 +365,7 @@ export class SwiftnestClient {
     try {
       const first = await this.withTimeout(wire.next());
       if (first.done || (first.value as SessionFollowFrame)?.type !== 'snapshot')
-        throw new ApiError('protocol-error', 'Session follow did not begin with a snapshot');
+        throw new ApiError('protocol-error', text('sessionFollowDidNotBeginSnapshot'));
       for (const event of mapFrame(sessionId, first.value as SessionFollowFrame)) inbox.push(event);
       void (async () => {
         try {
@@ -414,7 +404,7 @@ export class SwiftnestClient {
         callId: target.callId,
         answer,
       });
-      if (!accepted) throw new ApiError('interaction-expired', 'Question no longer accepts an answer');
+      if (!accepted) throw new ApiError('interaction-expired', text('questionNoLongerAcceptsAnswer'));
       return;
     }
     const pending = this.getPending(target, 'question');
@@ -489,7 +479,7 @@ export class SwiftnestClient {
             });
         }
       }
-      if (this.state === 'connected') throw new ApiError('disconnected', 'Interaction stream ended');
+      if (this.state === 'connected') throw new ApiError('disconnected', text('interactionStreamEnded'));
     } catch (error) {
       if (this.state !== 'closed') {
         this.mux?.close(error instanceof Error ? error : new Error(String(error)));
@@ -509,7 +499,7 @@ export class SwiftnestClient {
       pending.wait = stream;
       // Do not expose an answerable card until the Host confirms this claim.
       const opening = await this.withTimeout(stream.next());
-      if (opening.done) throw new ApiError('interaction-expired', 'Question wait already ended');
+      if (opening.done) throw new ApiError('interaction-expired', text('questionWaitAlreadyEnded'));
       if (this.pending.get(frame.eventId) !== pending) return;
       void (async () => {
         try {
@@ -544,7 +534,8 @@ export class SwiftnestClient {
   }
   private getPending(id: string, kind: Pending['kind']): Pending {
     const pending = this.pending.get(id);
-    if (!pending || pending.kind !== kind) throw new ApiError('interaction-expired', 'No matching pending interaction');
+    if (!pending || pending.kind !== kind)
+      throw new ApiError('interaction-expired', text('noMatchingPendingInteraction'));
     return pending;
   }
   private answerEvent(eventId: string, value: unknown): Promise<unknown> {
@@ -562,10 +553,10 @@ export class SwiftnestClient {
     };
   }
   private assertConnected(): void {
-    if (this.state !== 'connected') throw new ApiError('not-connected', 'Connect the client first');
+    if (this.state !== 'connected') throw new ApiError('not-connected', text('connectClientFirst'));
   }
   private url(path: string): URL {
-    if (!this.root) throw new ApiError('not-connected', 'Connect the client first');
+    if (!this.root) throw new ApiError('not-connected', text('connectClientFirst'));
     return new URL(path, this.root);
   }
   private headers(): Record<string, string> {
@@ -591,14 +582,14 @@ export class SwiftnestClient {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }),
     });
-    if (!response.ok) throw new ApiError('http-error', `API returned HTTP ${response.status}`);
+    if (!response.ok) throw new ApiError('http-error', text('apiReturnedHttp', response.status));
     const envelope = (await response.json()) as {
       type: string;
       rpcId: string;
       result: { ok: true; value: T } | { ok: false; error: { code: string; message: string } };
     };
     if (envelope.type !== 'server-response' || envelope.rpcId !== rpcId || typeof envelope.result?.ok !== 'boolean')
-      throw new ApiError('protocol-error', 'Invalid or mismatched RPC response');
+      throw new ApiError('protocol-error', text('invalidMismatchedRpcResponse'));
     if (!envelope.result.ok) throw new ApiError(envelope.result.error.code, envelope.result.error.message);
     return envelope.result.value;
   }
@@ -608,10 +599,7 @@ export class SwiftnestClient {
       return await Promise.race([
         promise,
         new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new ApiError('timeout', 'API stream did not become ready in time')),
-            this.timeoutMs,
-          );
+          timer = setTimeout(() => reject(new ApiError('timeout', text('apiStreamDidNotBecomeReady'))), this.timeoutMs);
         }),
       ]);
     } finally {
