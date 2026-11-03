@@ -39,6 +39,8 @@ export interface ServerConfig {
   assistantName?: string;
   /** Per-plugin on/off overrides of the plugin manifest's defaults, by id. */
   plugins: Record<string, boolean>;
+  /** The subset set by SWIFTNEST_PLUGINS: the administrator's choice, which the App cannot change. */
+  pluginLocks: Record<string, boolean>;
   model: ModelConfig;
   files?: { quotaBytes: number };
   devices: { host: string; port: number; mdns: boolean };
@@ -72,6 +74,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
   }
   const num = (v: string | undefined) => (v === undefined || v === '' ? undefined : Number(v));
   const appDist = env.SWIFTNEST_APP_DIST || fromFile.appDist;
+  const pluginLocks = parsePluginsEnv(env.SWIFTNEST_PLUGINS);
   const config: ServerConfig = {
     lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'en' : 'zh-CN',
     home: resolve(env.SWIFTNEST_HOME ?? fromFile.home ?? defaultHome(env)),
@@ -85,7 +88,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
         ? 'You are a helpful assistant in Swiftnest, powered by the {{model}} model.'
         : DEFAULT_PERSONA),
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName,
-    plugins: { ...fileOverrides(fromFile.plugins), ...parsePluginsEnv(env.SWIFTNEST_PLUGINS) },
+    plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
+    pluginLocks,
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,

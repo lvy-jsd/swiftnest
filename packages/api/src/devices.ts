@@ -28,7 +28,13 @@ export interface DevicePairingCandidate {
   fingerprint: string;
 }
 export type DeviceEvent = {
-  type: 'devices-changed' | 'approval-pending' | 'approvals-changed' | 'pairing-changed' | 'transfers-changed';
+  type:
+    | 'devices-changed'
+    | 'approval-pending'
+    | 'approvals-changed'
+    | 'pairing-changed'
+    | 'transfers-changed'
+    | 'plugins-changed';
 };
 export interface DeviceSubscription extends AsyncIterableIterator<DeviceEvent> {
   close(): void;

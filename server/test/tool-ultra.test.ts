@@ -166,7 +166,7 @@ describe('Tool Ultra', () => {
     fixture(dir);
     writeFileSync(join(dir, TOOL_ULTRA_MARKER), TOOL_ULTRA_SOURCE.commit);
     const opts = { bundleDir: home, log: vi.fn() };
-    const profile = writeProfile(config, opts);
+    const { dir: profile } = writeProfile(config, opts);
     const user = join(profile, 'user.patch.yml');
     writeFileSync(user, '- id: core\n  config: { pinned: [mine] }\n');
     writeProfile(config, opts);
@@ -186,7 +186,7 @@ describe('Tool Ultra', () => {
       const { config, home } = setup();
       config.lang = lang;
       const log = vi.fn();
-      const profile = writeProfile(config, { bundleDir: home, log });
+      const { dir: profile } = writeProfile(config, { bundleDir: home, log });
       expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
       expect(log).toHaveBeenCalledWith(expect.stringContaining('swiftnest-server plugins install'));
       expect(log.mock.calls[0]![0]).toContain(lang === 'en' ? 'not installed: tool-ultra' : '尚未安装：tool-ultra');

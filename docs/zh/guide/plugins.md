@@ -36,7 +36,7 @@ swiftnest-server start --config swiftnest.yaml
 
 安装会构建 Tool Ultra，再用 DSH 自带的 `dsh plugin install` 把启用的 npm 插件装进 `<home>/dsh/profiles/swiftnest`，最后核对校验值。需要 Git、npm、pnpm、Node 24 和网络。启动不会自动下载；未安装的插件只打印提示，服务器照常启动。
 
-按 id 开关，环境变量优先：
+按 id 开关。优先级从低到高：清单默认值、配置文件、App 里的开关、`SWIFTNEST_PLUGINS`：
 
 ```yaml
 plugins:
@@ -49,6 +49,29 @@ SWIFTNEST_PLUGINS=im=true,smart-title=false
 ```
 
 改了开关后重新运行 `plugins install` 再重启。打开 `vision-router` 之前先在它的设置里配好识图模型（比如 Gemini），并关掉免 key 的云端兜底，否则图片会发到默认服务。
+
+## 在 App 里管理
+
+App 的插件页列出审过的插件，每个都有名字和一句话说明，语言跟随用户设置。默认关闭的插件会附一句开启前要知道的事。用户拨好开关后点“应用”：Swiftnest Server 会安装缺的插件、核对校验值，再重启 DSH。如果 DSH 用新插件起不来，服务器会恢复到上一次能启动的插件，并报告失败原因，保证服务器始终连得上。开关保存在 `<home>/plugin-settings.json`。被 `SWIFTNEST_PLUGINS` 设定的插件显示为锁定。
+
+重启 DSH 会换掉启动令牌。网页版 App 的登录状态不受影响；通过 `/connect` 配对的原生 App 需要重新配对。
+
+插件页背后是只给所有者用的接口，`SwiftnestClient` 里对应 `listPlugins`、`setPluginEnabled` 和 `applyPlugins`：
+
+| 请求                                       | 返回                                            |
+| ------------------------------------------ | ----------------------------------------------- |
+| `GET /swiftnest/api/plugins`               | `PluginsView`                                   |
+| `POST /swiftnest/api/plugins/{id}/enable`  | `PluginsView`；未知 id 返回 404，被锁定返回 409 |
+| `POST /swiftnest/api/plugins/{id}/disable` | 同上                                            |
+| `POST /swiftnest/api/plugins/apply`        | 202 `PluginsView`；已在应用时返回 409           |
+
+`PluginsView` 分三部分：
+
+- `plugins`：每个插件的 `id`、`title`、`summary`、`note?`、`enabled`、`recommended`（默认开启）、`active`（正在运行的 DSH 已加载）、`locked`、`license` 和 `homepage?`；
+- `unaudited`：从社区市场装的包名；
+- `pending` 和 `apply`：开关和已加载的不一致时 `pending` 为 true；`apply` 是 `{ state: idle | installing | restarting | failed, rolledBack?, error? }`。
+
+这些有变化时，设备事件流会发 `plugins-changed`。应用接口在重启前就返回，之后连接会短暂断开，重新读取 `apply.state` 即可。
 
 ## 加一个插件
 

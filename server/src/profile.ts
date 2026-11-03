@@ -149,7 +149,11 @@ function reportPlugins(plugins: ProfilePlugins, config: ServerConfig, log: (line
   for (const [key, names] of notes) if (names.length) log(message(key, config.lang, [names.join(', ')]));
 }
 
-export function writeProfile(config: ServerConfig, opts: WriteProfileOptions): string {
+/** Write the `swiftnest` profile; returns its directory and what the enabled plugins contributed. */
+export function writeProfile(
+  config: ServerConfig,
+  opts: WriteProfileOptions,
+): { dir: string; plugins: ProfilePlugins } {
   const dir = profileDir(config);
   const plugins = profilePlugins(config, dir);
   reportPlugins(plugins, config, opts.log ?? console.warn);
@@ -173,7 +177,7 @@ export function writeProfile(config: ServerConfig, opts: WriteProfileOptions): s
   const userPatch = join(dir, 'user.patch.yml');
   if (!existsSync(userPatch)) writeFileSync(userPatch, '# Your own DSH patch rows, applied last.\n[]\n');
   linkBundle(dir, opts.bundleDir);
-  return dir;
+  return { dir, plugins };
 }
 
 /** Bundles resolve from the profile's node_modules after DSH's own install. */

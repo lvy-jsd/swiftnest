@@ -14,6 +14,7 @@ import {
   isEnabled,
   type NpmSource,
   type Plugin,
+  PLUGIN_MANIFEST,
   pluginById,
 } from './plugins.js';
 import { isBuilt, TOOL_ULTRA_ID, toolUltraDir, toolUltraPatch } from './tool-ultra.js';
@@ -22,6 +23,8 @@ export interface ProfilePlugins {
   dependencies: Record<string, string>;
   bundles: string[];
   rows: unknown[];
+  /** Ids of the manifest plugins this profile loads. */
+  loaded: string[];
   /** Ids of enabled plugins that are not installed yet. */
   missing: string[];
   /** Community market installs kept while the market is on. */
@@ -73,17 +76,18 @@ function keepMarketInstalls(config: ServerConfig, profile: string, plugins: Prof
   plugins.bundles.push(...(previous.dsh?.profile?.bundles ?? []).filter((name) => names.includes(name)));
 }
 
-function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] {
-  if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return [];
+/** Tool Ultra's patch rows once its pinned build exists; undefined while it is off or not built. */
+function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] | undefined {
+  if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return undefined;
   const dir = toolUltraDir(config);
   if (isBuilt(dir)) return toolUltraPatch(dir);
   missing.push(TOOL_ULTRA_ID);
-  return [];
+  return undefined;
 }
 
 export function profilePlugins(config: ServerConfig, profile: string): ProfilePlugins {
   const missing: string[] = [];
-  const rows = toolUltraRows(config, missing);
+  const toolUltra = toolUltraRows(config, missing);
   const dependencies: Record<string, string> = {};
   // Bundles shipped with the kernel are always present.
   const loaded: Plugin[] = enabledPlugins<DshSource>(config.plugins, 'dsh');
@@ -92,9 +96,23 @@ export function profilePlugins(config: ServerConfig, profile: string): ProfilePl
     if (isInstalled(profile, plugin)) loaded.push(plugin);
     else missing.push(plugin.id);
   }
-  const bundles = loaded.map((plugin) => (plugin.source as DshSource | NpmSource).package);
-  rows.push(...loaded.flatMap((plugin) => plugin.patch ?? []));
-  const plugins = { dependencies, bundles, rows, missing, unaudited: [], dropped: [] };
+  const plugins: ProfilePlugins = {
+    dependencies,
+    bundles: loaded.map((plugin) => (plugin.source as DshSource | NpmSource).package),
+    rows: [...(toolUltra ?? []), ...loaded.flatMap((plugin) => plugin.patch ?? [])],
+    loaded: [...(toolUltra ? [TOOL_ULTRA_ID] : []), ...loaded.map((plugin) => plugin.id)],
+    missing,
+    unaudited: [],
+    dropped: [],
+  };
   keepMarketInstalls(config, profile, plugins);
   return plugins;
+}
+
+/** Profile dependencies that did not come from the manifest: community market installs. */
+export function marketInstalls(profile: string): string[] {
+  const audited = new Set(
+    PLUGIN_MANIFEST.plugins.flatMap((plugin) => (plugin.source.type === 'npm' ? [plugin.source.package] : [])),
+  );
+  return Object.keys(readProfileManifest(profile).dependencies ?? {}).filter((name) => !audited.has(name));
 }

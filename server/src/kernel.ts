@@ -48,14 +48,20 @@ export function resolveKernel(): KernelPaths {
   };
 }
 
+type Devices = Awaited<ReturnType<typeof startDevices>>;
+
 export interface RunningKernel {
   /** Root URL the kernel serves, without the launch token. */
-  url: string;
-  /** Per-process launch token; trades for a session cookie at `/` or `/connect`. */
-  token: string;
-  child: ChildProcess;
-  devices: Awaited<ReturnType<typeof startDevices>>;
+  readonly url: string;
+  /** Per-process launch token; trades for a session cookie at `/` or `/connect`. Changes on restart. */
+  readonly token: string;
+  readonly child: ChildProcess;
+  devices: Devices;
   stop(): Promise<void>;
+  /** Stop DSH and start it again with a freshly written profile; the device hub keeps running. */
+  restart(): Promise<void>;
+  /** Runs when DSH exits on its own (not through stop or restart); the device hub is closed by then. */
+  onExit(listener: (code: number | null) => void): void;
 }
 
 export interface StartOptions {
@@ -65,6 +71,8 @@ export interface StartOptions {
   env?: NodeJS.ProcessEnv;
   /** Receives every kernel output line. */
   onLine?: (line: string) => void;
+  /** Runs each time DSH is ready, including after a restart. */
+  onReady?: (kernel: RunningKernel) => void;
   readyTimeoutMs?: number;
 }
 
@@ -86,15 +94,22 @@ export function parseReadyLine(line: string): { url: string; token: string } | u
   return { url: full.toString(), token };
 }
 
-export async function startKernel(config: ServerConfig, opts: StartOptions = {}): Promise<RunningKernel> {
-  const paths = resolveKernel();
-  const devices = await startDevices(config);
-  try {
-    writeProfile(config, { bundleDir: paths.bundleDir });
-  } catch (error) {
-    await devices.close();
-    throw error;
-  }
+interface DshProcess {
+  child: ChildProcess;
+  url: string;
+  token: string;
+}
+
+function stopChild(child: ChildProcess): Promise<void> {
+  return new Promise<void>((resolveStop) => {
+    if (!child.pid || child.exitCode !== null || child.signalCode !== null) return resolveStop();
+    child.once('exit', () => resolveStop());
+    child.kill('SIGTERM');
+    setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+  });
+}
+
+function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, opts: StartOptions): ChildProcess {
   const args = [
     paths.dshBin,
     '--profile',
@@ -107,7 +122,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     '--port',
     String(config.port),
   ];
-  const child = spawn(opts.node ?? process.env.SWIFTNEST_KERNEL_NODE ?? process.execPath, args, {
+  return spawn(opts.node ?? process.env.SWIFTNEST_KERNEL_NODE ?? process.execPath, args, {
     cwd: config.home,
     env: {
       ...process.env,
@@ -123,24 +138,13 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+}
 
-  child.once('exit', () => {
-    void devices.close();
-  });
-  const stopChild = () =>
-    new Promise<void>((resolveStop) => {
-      if (!child.pid || child.exitCode !== null || child.signalCode !== null) return resolveStop();
-      child.once('exit', () => resolveStop());
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 5000).unref();
-    });
+const NODE_HINT = '\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary.';
 
-  const stop = async () => {
-    await stopChild();
-    await devices.close();
-  };
-
-  return new Promise<RunningKernel>((resolveStart, rejectStart) => {
+/** Resolve with DSH's URL once it prints the ready line; on any failure, stop it and reject with its output. */
+function waitReady(child: ChildProcess, opts: StartOptions): Promise<DshProcess> {
+  return new Promise<DshProcess>((resolveStart, rejectStart) => {
     let settled = false;
     const tail: string[] = [];
     const timer = setTimeout(
@@ -151,10 +155,9 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const hint = tail.some((l) => l.includes('node-addon-require-builtin'))
-        ? '\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary.'
-        : '';
-      void stop().then(() => rejectStart(new ServerFailure(text('kernelOutput', err.message, hint, tail.join('\n')))));
+      const hint = tail.some((l) => l.includes('node-addon-require-builtin')) ? NODE_HINT : '';
+      const failure = new ServerFailure(text('kernelOutput', err.message, hint, tail.join('\n')));
+      void stopChild(child).then(() => rejectStart(failure));
     };
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split(/\r?\n/)) {
@@ -166,7 +169,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
         if (ready) {
           settled = true;
           clearTimeout(timer);
-          resolveStart({ ...ready, child, devices, stop });
+          resolveStart({ ...ready, child });
         }
       }
     };
@@ -175,4 +178,92 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     child.once('error', fail);
     child.once('exit', (code, signal) => fail(new ServerFailure(text('dshKernelExited', String(signal ?? code)))));
   });
+}
+
+/** Write the profile with the owner's current plugin switches, then start DSH on it. */
+function launch(paths: KernelPaths, devices: Devices, opts: StartOptions): Promise<DshProcess> {
+  const config = devices.plugins.config();
+  const { plugins } = writeProfile(config, { bundleDir: paths.bundleDir });
+  devices.plugins.loaded(plugins);
+  return waitReady(spawnDsh(config, paths, devices, opts), opts);
+}
+
+class Kernel implements RunningKernel {
+  private exitListeners: ((code: number | null) => void)[] = [];
+  /** Set while stop or restart ends the current child on purpose. */
+  private ending = false;
+
+  constructor(
+    private current: DshProcess,
+    readonly devices: Devices,
+    private readonly relaunch: () => Promise<DshProcess>,
+    private readonly ready: (kernel: RunningKernel) => void,
+  ) {
+    this.watch(current.child);
+  }
+
+  get url() {
+    return this.current.url;
+  }
+  get token() {
+    return this.current.token;
+  }
+  get child() {
+    return this.current.child;
+  }
+
+  onExit(listener: (code: number | null) => void): void {
+    this.exitListeners.push(listener);
+  }
+
+  private watch(child: ChildProcess): void {
+    child.once('exit', (code) => {
+      if (!this.ending && child === this.current.child) this.fail(code);
+    });
+  }
+
+  /** DSH is gone and will not come back: close the hub and tell the listeners. */
+  fail(code: number | null = 1): void {
+    void this.devices.close().then(() => {
+      for (const listener of this.exitListeners) listener(code);
+    });
+  }
+
+  async restart(): Promise<void> {
+    this.ending = true;
+    try {
+      await stopChild(this.current.child);
+      this.current = await this.relaunch();
+    } finally {
+      this.ending = false;
+    }
+    this.watch(this.current.child);
+    this.ready(this);
+  }
+
+  async stop(): Promise<void> {
+    this.ending = true;
+    await stopChild(this.current.child);
+    await this.devices.close();
+  }
+}
+
+export async function startKernel(config: ServerConfig, opts: StartOptions = {}): Promise<RunningKernel> {
+  const paths = resolveKernel();
+  let kernel: Kernel | undefined;
+  const devices = await startDevices(config, {
+    restartKernel: () => kernel?.restart() ?? Promise.resolve(),
+    kernelFailed: () => kernel?.fail(),
+  });
+  let first: DshProcess;
+  try {
+    first = await launch(paths, devices, opts);
+  } catch (error) {
+    await devices.close();
+    throw error;
+  }
+  const ready = opts.onReady ?? (() => {});
+  kernel = new Kernel(first, devices, () => launch(paths, devices, opts), ready);
+  ready(kernel);
+  return kernel;
 }

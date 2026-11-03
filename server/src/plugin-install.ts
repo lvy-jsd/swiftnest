@@ -32,7 +32,7 @@ async function installNpmPlugins(config: ServerConfig, log: Log): Promise<void> 
   const plugins = enabledNpmPlugins(config.plugins);
   if (!plugins.length) return;
   const kernel = resolveKernel();
-  const profile = writeProfile(config, { bundleDir: kernel.bundleDir, log: () => {} });
+  const { dir: profile } = writeProfile(config, { bundleDir: kernel.bundleDir, log: () => {} });
   log(message('pluginsInstalling', config.lang, [plugins.map((plugin) => plugin.id).join(', ')]));
   const env = { ...process.env, DSH_HOME: dshHome(config) };
   await run(process.execPath, [kernel.dshBin, 'plugin', '--profile', PROFILE_NAME, 'install'], profile, env, log);
