@@ -10,8 +10,7 @@ import type { Page } from '@playwright/test';
 import { expect, it } from 'vitest';
 import type { ApiWebSocket, PluginsView } from '@swiftnest/api';
 import { loadConfig } from '../../server/src/config';
-import type { RunningKernel } from '../../server/src/kernel';
-import { startStableKernel } from '../../server/test/fixtures/kernel';
+import { startKernel, type RunningKernel } from '../../server/src/kernel';
 import { pairingUrl, webAppUrl } from '../../server/src/pairing';
 import { PLUGIN_MANIFEST } from '../../server/src/plugins';
 import { ConnectionStore } from '../src/connection';
@@ -55,6 +54,7 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
     SWIFTNEST_HOME: home,
     SWIFTNEST_LANG: 'en',
     SWIFTNEST_HOST: '127.0.0.1',
+    SWIFTNEST_PORT: '0',
     SWIFTNEST_DEVICES_PORT: '0',
     SWIFTNEST_DEVICES_MDNS: 'false',
     SWIFTNEST_APP_DIST: fileURLToPath(new URL('../dist/', import.meta.url)),
@@ -62,9 +62,13 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
     SWIFTNEST_MODEL_BASE_URL: modelUrl,
   });
   config.plugins = Object.fromEntries(PLUGIN_MANIFEST.plugins.map(({ id }) => [id, id === 'market']));
-  return startStableKernel(config, {
+  return startKernel(config, {
     readyTimeoutMs: 20_000,
-    onReady: ready,
+    onReady(kernel) {
+      // Keep the allocated origin and its session cookie when Apply restarts DSH.
+      config.port = Number(new URL(kernel.url).port);
+      ready();
+    },
     onLine: (line) => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
   });
 }
@@ -122,6 +126,7 @@ function observeBrowser(page: Page) {
 async function applyAndReconnect(page: Page, kernel: RunningKernel, native: ConnectionStore, readyCount: () => number) {
   const originalChild = kernel.child;
   const originalToken = kernel.token;
+  const originalUrl = kernel.url;
   await page.getByRole('main').getByRole('link', { name: 'Recommended plugins', exact: true }).click();
   const initial = await pluginsView(page);
   const market = initial.plugins.find((plugin) => plugin.id === 'market')!;
@@ -135,6 +140,7 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   expect(kernel.child.pid).not.toBe(originalChild.pid);
   expect(originalChild.exitCode !== null || originalChild.signalCode !== null).toBe(true);
   expect(kernel.token).not.toBe(originalToken);
+  expect(kernel.url).toBe(originalUrl);
   await expect.poll(() => toggle.isEnabled(), { timeout: 15_000 }).toBe(true);
   expect(await pluginsView(page)).toMatchObject({
     pending: false,
