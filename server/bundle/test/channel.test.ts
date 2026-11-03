@@ -177,6 +177,10 @@ describe('standard Noise App channel', () => {
     expect(channelRoute('GET', '/api/session/create')).toBe(false);
     expect(channelRoute('DELETE', '/swiftnest/api/devices')).toBe(false);
     expect(channelRoute('WS', '/api/session/follow')).toBe(false);
+    expect(channelRoute('GET', '/swiftnest/api/models')).toBe(true);
+    expect(channelRoute('POST', '/swiftnest/api/models/keys/moonshotai-cn')).toBe(true);
+    expect(channelRoute('POST', '/swiftnest/api/models/keys/../apply')).toBe(false);
+    expect(channelRoute('POST', '/swiftnest/api/models/delete')).toBe(false);
   });
   it('permits only the App mux subscriptions, never arbitrary RPCs or binary uplinks', () => {
     for (const endpoint of ['$events', 'session/follow', 'userQuestions/attachWait'])

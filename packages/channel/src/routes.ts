@@ -4,6 +4,7 @@ const get = [
   /^\/swiftnest\/api\/devices\/?$/,
   /^\/swiftnest\/api\/devices\/(preferences|transfers|approvals|pairing|audit|events)$/,
   /^\/swiftnest\/api\/plugins$/,
+  /^\/swiftnest\/api\/models$/,
   /^\/swiftnest\/api\/memory(?:\/topic)?$/,
 ];
 const post = [
@@ -17,6 +18,8 @@ const post = [
   /^\/swiftnest\/api\/devices\/revoke\/[^/]+$/,
   /^\/swiftnest\/api\/plugins\/apply$/,
   /^\/swiftnest\/api\/plugins\/[^/]+\/(enable|disable)$/,
+  /^\/swiftnest\/api\/models\/(settings|apply)$/,
+  /^\/swiftnest\/api\/models\/keys\/[a-z0-9-]+$/,
 ];
 export function channelRoute(method: string, path: string): boolean {
   if (!path.startsWith('/') || path.startsWith('//') || /[\\#\r\n\0]/.test(path)) return false;
