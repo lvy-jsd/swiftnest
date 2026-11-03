@@ -14,7 +14,11 @@
       "default": "./dist/core.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./memory": {
+      "types": "./dist/memory.d.ts",
+      "default": "./dist/memory.js"
+    }
   },
   "files": [
     "dist",
@@ -32,7 +36,8 @@
   },
   "dependencies": {
     "ws": "^8.22.0",
-    "@swiftnest/protocol": "workspace:*"
+    "@swiftnest/protocol": "workspace:*",
+    "@swiftnest/core": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2"

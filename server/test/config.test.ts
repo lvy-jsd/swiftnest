@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MODEL, DEFAULT_PORT, DEFAULT_PERSONA, loadConfig } from '../src/config.js';
+import { DEFAULT_MODEL, DEFAULT_PORT, DEFAULT_PERSONA, loadConfig, validate } from '../src/config.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'swiftnest-config-'));
 
@@ -95,4 +95,12 @@ it.each(['42', 'false', '[]', '{}', 'null'])('rejects non-string assistantName: 
   const file = join(tmp(), 'assistant.yaml');
   writeFileSync(file, `assistantName: ${value}\n`);
   expect(() => loadConfig(file, {})).toThrow('assistantName must be a string');
+});
+
+it('defaults memory on, accepts explicit off, and rejects invalid memory configuration', () => {
+  expect(loadConfig(undefined, {}).memory).toEqual({ enabled: true });
+  expect(loadConfig(undefined, { SWIFTNEST_MEMORY: 'false' }).memory).toEqual({ enabled: false });
+  expect(() => loadConfig(undefined, { SWIFTNEST_MEMORY: 'no' })).toThrow(/memory.enabled/);
+  const config = loadConfig(undefined, {});
+  expect(() => validate({ ...config, memory: { enabled: 'false' as unknown as boolean } })).toThrow(/memory.enabled/);
 });

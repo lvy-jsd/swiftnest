@@ -40,6 +40,7 @@ export interface ServerConfig {
   toolUltra: boolean;
   model: ModelConfig;
   files?: { quotaBytes: number };
+  memory?: { enabled: boolean };
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -71,6 +72,13 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
   }
   const num = (v: string | undefined) => (v === undefined || v === '' ? undefined : Number(v));
   const appDist = env.SWIFTNEST_APP_DIST || fromFile.appDist;
+  if (env.SWIFTNEST_MEMORY !== undefined && !['true', 'false'].includes(env.SWIFTNEST_MEMORY))
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
+  if (
+    fromFile.memory !== undefined &&
+    (!fromFile.memory || typeof fromFile.memory !== 'object' || typeof fromFile.memory.enabled !== 'boolean')
+  )
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
   const config: ServerConfig = {
     lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'en' : 'zh-CN',
     home: resolve(env.SWIFTNEST_HOME ?? fromFile.home ?? defaultHome(env)),
@@ -86,6 +94,10 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName,
     toolUltra:
       env.SWIFTNEST_TOOL_ULTRA === undefined ? (fromFile.toolUltra ?? true) : env.SWIFTNEST_TOOL_ULTRA !== 'false',
+    memory: {
+      enabled:
+        env.SWIFTNEST_MEMORY === undefined ? (fromFile.memory?.enabled ?? true) : env.SWIFTNEST_MEMORY === 'true',
+    },
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
@@ -108,6 +120,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
     throw new ServerFailure(text('assistantNameMustString'));
   if (typeof config.toolUltra !== 'boolean') throw new ServerFailure(text('toolUltraMustBoolean'));

@@ -1,3 +1,4 @@
+import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
@@ -421,12 +422,13 @@ function AppContent() {
   const pairing = hash.startsWith('#/pair');
   const devicesPage = hash.startsWith('#/devices');
   const transfersPage = hash.startsWith('#/transfers');
+  const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
     Avatar = icons.avatar;
   const visibleChats = sessions.filter((item) =>
     (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
-  const back = () => {
+  const _back = () => {
     window.location.hash = '/';
   };
   // Read current state without re-registering the async native listener on every
@@ -544,6 +546,9 @@ function AppContent() {
         <a className="devices-link" href="#/transfers">
           {t('transfers')}
         </a>
+        <a className="devices-link" href="#/memory">
+          {t('memory')}
+        </a>
         <nav aria-label={t('chatNavigation')}>
           <VirtualList
             items={sessions}
@@ -575,7 +580,9 @@ function AppContent() {
               : undefined
           }
         >
-          {transfersPage ? (
+          {memoryPage ? (
+            <MemoryPage key={status} onBack={goHome} />
+          ) : transfersPage ? (
             <TransfersPage onBack={goHome} />
           ) : devicesPage ? (
             <DevicesPage onBack={goHome} />
@@ -604,6 +611,9 @@ function AppContent() {
               </a>
               <a className="devices-link" href="#/transfers">
                 {t('transfers')}
+              </a>
+              <a className="devices-link" href="#/memory">
+                {t('memory')}
               </a>
               <DeviceApprovals compact />
               <TransferCards compact />

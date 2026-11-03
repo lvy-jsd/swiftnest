@@ -115,6 +115,8 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       ...devices.env,
       SWIFTNEST_LANG: config.lang ?? 'zh-CN',
       DSH_HOME: dshHome(config),
+      SWIFTNEST_HOME: config.home,
+      SWIFTNEST_MEMORY: String(config.memory?.enabled ?? true),
       SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
       SWIFTNEST_MODEL_BASE_URL: config.model.baseUrl,

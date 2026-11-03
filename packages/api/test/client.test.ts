@@ -54,6 +54,7 @@ function harness(
     browser?: boolean;
     legacyHeaders?: boolean;
     deviceSlug?: string;
+    memory?: (url: string, init: RequestInit) => Response;
     devices?: (url: string, init: RequestInit) => Response;
   } = {},
 ) {
@@ -78,6 +79,8 @@ function harness(
       return response;
     }
     if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
+    if (url.includes('/swiftnest/api/memory'))
+      return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
     const value =
       body?.method === 'session/create'
@@ -443,5 +446,45 @@ it('reports the paired native App connection on the prompt that sends the chat',
     expect(h.calls.at(-1)?.body).toMatchObject({ deviceSlug: 'phone', request: { sessionId: 'session-1' } });
   } finally {
     h.client.close();
+  }
+});
+
+it('uses authenticated central memory endpoints and preserves catalog errors', async () => {
+  const { client, calls } = harness({
+    memory: (_url, init) => {
+      const body = init.body ? JSON.parse(String(init.body)) : undefined;
+      if (body?.text === 'rejected')
+        return Response.json({ code: 'MEMORY_SECRET', text: { key: 'memorySecret' } }, { status: 400 });
+      return Response.json({ entries: [], topics: [] });
+    },
+  });
+  await client.connect('http://localhost:3077/connect?token=test');
+  try {
+    await client.listMemory();
+    await client.addMemory('fact', 'Work');
+    await client.editMemory('id-one', 'updated');
+    await client.deleteMemory('id-one');
+    await client.readMemoryTopic('中文 space');
+    await client.writeMemoryTopic('Work', '- next');
+    const memory = calls.filter((call) => call.url.includes('/swiftnest/api/memory'));
+    expect(memory.map((call) => new URL(call.url).pathname)).toEqual([
+      '/swiftnest/api/memory',
+      '/swiftnest/api/memory/add',
+      '/swiftnest/api/memory/edit',
+      '/swiftnest/api/memory/delete',
+      '/swiftnest/api/memory/topic',
+      '/swiftnest/api/memory/topic',
+    ]);
+    expect(new URL(memory[4]!.url).searchParams.get('topic')).toBe('中文 space');
+    expect(memory.every((call) => (call.init.headers as Record<string, string>).cookie === 'dsh_api=secret')).toBe(
+      true,
+    );
+    expect(memory[1]!.body).toEqual({ text: 'fact', topic: 'Work' });
+    await expect(client.addMemory('rejected')).rejects.toMatchObject({
+      text: { key: 'memorySecret' },
+      serverCode: 'MEMORY_SECRET',
+    });
+  } finally {
+    client.close();
   }
 });

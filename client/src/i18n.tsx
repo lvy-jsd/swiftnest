@@ -187,6 +187,21 @@ export const en = {
   desktop: 'Desktop app',
   web: 'Web app',
   skipToContent: 'Skip to content',
+  memory: 'Memory',
+  memoryHelp:
+    'Saved on the server and shared across your Apps. Existing chats keep their initial memory; the assistant can recall newer entries.',
+  memoryEntries: 'Entries',
+  memoryEmpty: 'No memories yet.',
+  memoryEntry: 'Memory entry',
+  memoryTopicOptional: 'Topic (optional)',
+  memoryAdd: 'Add memory',
+  memoryTopics: 'Topics',
+  memoryNewTopic: 'New topic',
+  memoryTopicName: 'Topic name',
+  memoryTopicContent: 'Topic content',
+  memorySaveTopic: 'Save topic',
+  memoryEdit: 'Edit',
+  memoryDelete: 'Delete',
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -367,6 +382,20 @@ export const zhCN: Record<StringKey, string> = {
   desktop: '桌面应用',
   web: '网页应用',
   skipToContent: '跳转到内容',
+  memory: '记忆',
+  memoryHelp: '记忆保存在服务器，所有 App 共用。已有对话保留初始记忆，助手可查询之后保存的条目。',
+  memoryEntries: '条目',
+  memoryEmpty: '还没有保存记忆。',
+  memoryEntry: '记忆条目',
+  memoryTopicOptional: '主题（可选）',
+  memoryAdd: '添加记忆',
+  memoryTopics: '主题',
+  memoryNewTopic: '新建主题',
+  memoryTopicName: '主题名称',
+  memoryTopicContent: '主题内容',
+  memorySaveTopic: '保存主题',
+  memoryEdit: '编辑',
+  memoryDelete: '删除',
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];
