@@ -883,4 +883,15 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   greetWho: '要问候的人',
   connectionClosedDuringStepBecause: '{0} 期间连接已关闭：{1}。',
   handshakeStep: '握手',
+  assistantNameMustString: 'assistantName 必须是字符串',
+  toolUltraMustBoolean: 'toolUltra 必须是布尔值',
+  toolUltraMissing:
+    'Tool Ultra 已启用但尚未构建。请使用相同的 --config / SWIFTNEST_HOME 运行 swiftnest-server tools install，然后重启。',
+  toolUltraFetch: '正在获取 Tool Ultra 固定提交 {0}…',
+  toolUltraDependencies: '正在安装 Tool Ultra 依赖（npm ci）…',
+  toolUltraBuild: '正在构建 Tool Ultra…',
+  toolUltraAlreadyBuilt: 'Tool Ultra 已构建：{0}。',
+  toolUltraInstalled: 'Tool Ultra 已安装到 {0}。重启 Swiftnest 服务器后生效。',
+  toolUltraCommandFailed: 'Tool Ultra 命令 {0} 失败（退出码 {1}）。',
+  toolUltraInstallBusy: 'Tool Ultra 正在安装（锁目录：{0}）。',
 };
