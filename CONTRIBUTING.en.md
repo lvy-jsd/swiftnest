@@ -50,4 +50,4 @@ By submitting, you agree that your contribution is licensed under [Apache-2.0](L
 
 ## Language policy
 
-Simplified Chinese is the owner-facing default; English remains selectable. Keep App, server and native catalog keys and placeholders in parity. Never renumber message keys or change existing error codes. Run `pnpm lint:i18n`, `pnpm test` and `cargo test --workspace`. The UI allowlist is for technical tokens, never visible prose. Set e2e locales explicitly and retain Chinese screenshots. Every English docs page needs a Chinese counterpart.
+Simplified Chinese is the owner-facing default; English remains selectable. Server, CLI and native hosts share one message catalog, packages/protocol/src/locales/en.json and zh-CN.json, with `{0}`-style placeholders; keep its two languages and the App catalog in parity. Never renumber message keys or change existing error codes. Run `pnpm lint:i18n`, `pnpm test` and `cargo test --workspace`. The UI allowlist is for technical tokens, never visible prose. Set e2e locales explicitly and retain Chinese screenshots. Every English docs page needs a Chinese counterpart.

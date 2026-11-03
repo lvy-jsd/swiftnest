@@ -3,6 +3,7 @@ use std::sync::{
     Arc,
 };
 use swiftnest_perch::i18n;
+use swiftnest_perch::i18n::text;
 use swiftnest_perch::{
     runtime::{Controller, Snapshot},
     store::Settings,
@@ -25,7 +26,7 @@ fn set_language(
     state: tauri::State<'_, DeviceState>,
 ) -> Result<(), Failure> {
     if lang != "en" && lang != "zh-CN" {
-        return Err(Failure::new("BAD_ARGS", "Invalid language"));
+        return Err(Failure::new("BAD_ARGS", text!("invalidLanguage")));
     }
     let mut file = tempfile::NamedTempFile::new_in(state.language_path.parent().unwrap())
         .map_err(Failure::from)?;
@@ -47,7 +48,7 @@ fn device_control_supported() -> Result<(), Failure> {
     if cfg!(target_os = "ios") {
         Err(Failure::new(
             "UNSUPPORTED_PLATFORM",
-            "This device control is available on desktop for now",
+            text!("deviceControlAvailableDesktopNow"),
         ))
     } else {
         Ok(())
@@ -72,7 +73,7 @@ fn desktop_only() -> Result<(), Failure> {
     if cfg!(any(target_os = "android", target_os = "ios")) {
         Err(Failure::new(
             "UNSUPPORTED_PLATFORM",
-            "This device control is available on desktop for now",
+            text!("deviceControlAvailableDesktopNow"),
         ))
     } else {
         Ok(())
@@ -99,7 +100,7 @@ async fn perch_configure(
     {
         return Err(Failure::new(
             "TRAY_UNAVAILABLE",
-            "No system tray is available. Enable a tray on your desktop and restart the App.",
+            text!("noSystemTrayAvailableEnableTray"),
         ));
     }
     state.core.configure(settings, code).await?;
@@ -135,14 +136,14 @@ async fn perch_pick_file(app: tauri::AppHandle) -> Result<Option<String>, Failur
         let (send, receive) = std::sync::mpsc::sync_channel(1);
         app.dialog()
             .file()
-            .set_title(i18n::text("pickFile"))
+            .set_title(i18n::message("pickFile"))
             .pick_file(move |path| {
                 let _ = send.send(path);
             });
         tauri::async_runtime::spawn_blocking(move || {
             receive
                 .recv()
-                .map_err(|_| Failure::new("PICKER_FAILED", "File picker closed"))?
+                .map_err(|_| Failure::new("PICKER_FAILED", text!("filePickerClosed")))?
                 .map(|p| {
                     p.into_path()
                         .map(|p| p.to_string_lossy().into_owned())
@@ -156,7 +157,7 @@ async fn perch_pick_file(app: tauri::AppHandle) -> Result<Option<String>, Failur
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let _ = app;
-        Err(Failure::new("UNSUPPORTED", "Desktop file picker only"))
+        Err(Failure::new("UNSUPPORTED", text!("desktopFilePickerOnly")))
     }
 }
 #[tauri::command]
@@ -168,14 +169,14 @@ async fn perch_pick_folders(app: tauri::AppHandle) -> Result<Vec<String>, Failur
         let (send, receive) = std::sync::mpsc::sync_channel(1);
         app.dialog()
             .file()
-            .set_title(i18n::text("pickFolders"))
+            .set_title(i18n::message("pickFolders"))
             .pick_folders(move |paths| {
                 let _ = send.send(paths);
             });
         tauri::async_runtime::spawn_blocking(move || {
             let paths = receive
                 .recv()
-                .map_err(|_| Failure::new("PICKER_FAILED", "Folder picker closed"))?;
+                .map_err(|_| Failure::new("PICKER_FAILED", text!("folderPickerClosed")))?;
             paths
                 .unwrap_or_default()
                 .into_iter()
@@ -230,18 +231,30 @@ async fn phone_call(
 ) -> Result<serde_json::Value, Failure> {
     Err(Failure::new(
         "UNSUPPORTED_PLATFORM",
-        "Phone settings exist only on Android",
+        text!("phoneSettingsAndroidOnly"),
     ))
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn tray_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, MenuItem};
-    let show = MenuItem::with_id(app, "show", i18n::text("openSwiftnest"), true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", i18n::text("quitSwiftnest"), true, None::<&str>)?;
+    let show = MenuItem::with_id(
+        app,
+        "show",
+        i18n::message("openSwiftnest"),
+        true,
+        None::<&str>,
+    )?;
+    let quit = MenuItem::with_id(
+        app,
+        "quit",
+        i18n::message("quitSwiftnest"),
+        true,
+        None::<&str>,
+    )?;
     let stop = MenuItem::with_id(
         app,
         "stop-view",
-        i18n::text("stopLiveView"),
+        i18n::message("stopLiveView"),
         true,
         None::<&str>,
     )?;
@@ -340,7 +353,7 @@ pub fn run() {
                         let watching = snapshot.watching;
                         if let Some(tray) = handle.tray_by_id("perch-status") {
                             let title = if watching {
-                                i18n::text("sharingDesktop")
+                                i18n::message("sharingDesktop")
                             } else {
                                 "Swiftnest".into()
                             };
@@ -370,8 +383,8 @@ pub fn run() {
                             let _ = handle
                                 .notification()
                                 .builder()
-                                .title(i18n::text("desktopSharing"))
-                                .body(i18n::text("desktopBeingViewedStopSwiftnestTray"))
+                                .title(i18n::message("desktopSharing"))
+                                .body(i18n::message("desktopBeingViewedStopSwiftnestTray"))
                                 .show();
                         }
                         was_watching = watching;
@@ -393,7 +406,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .unwrap_or_else(|_| panic!("{}", i18n::text("couldNotStartSwiftnestRestartApp")))
+        .unwrap_or_else(|_| panic!("{}", i18n::message("couldNotStartSwiftnestRestartApp")))
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 let core = app.state::<DeviceState>().core.clone();

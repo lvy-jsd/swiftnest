@@ -1,5 +1,6 @@
 //! Windows GDI fallback and SendInput. DXGI duplication can replace capture without changing the stream.
 use super::*;
+use crate::i18n::text;
 use windows_sys::core::BOOL;
 use windows_sys::Win32::{
     Foundation::{LPARAM, RECT},
@@ -7,7 +8,13 @@ use windows_sys::Win32::{
     UI::{HiDpi::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
 fn failure() -> Failure {
-    Failure::new("NATIVE_INPUT_FAILED",format!("Windows desktop access failed ({}). Secure/UAC desktops and higher-integrity windows cannot be controlled.",std::io::Error::last_os_error()))
+    Failure::new(
+        "NATIVE_INPUT_FAILED",
+        text!(
+            "windowsDesktopAccessFailedSecureUac",
+            std::io::Error::last_os_error()
+        ),
+    )
 }
 unsafe extern "system" fn monitor(handle: HMONITOR, _: HDC, _: *mut RECT, data: LPARAM) -> BOOL {
     let mut info: MONITORINFO = std::mem::zeroed();
@@ -224,9 +231,9 @@ pub fn input(
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()
-                .ok_or_else(|| Failure::new("BAD_ARGS", "Unsupported Windows key"))?;
+                .ok_or_else(|| Failure::new("BAD_ARGS", text!("unsupportedWindowsKey")))?;
             if keys.len() > 5 {
-                return Err(Failure::new("BAD_ARGS", "Too many keys"));
+                return Err(Failure::new("BAD_ARGS", text!("tooManyKeys")));
             }
             for &key in &keys {
                 events.push(keyboard(key, 0, 0));

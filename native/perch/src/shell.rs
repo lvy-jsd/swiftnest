@@ -1,3 +1,4 @@
+use crate::i18n::{text, Text};
 use crate::{
     capability::*,
     paths::{realish, PathGuard},
@@ -40,13 +41,22 @@ struct WritingRule {
     value_flags: Vec<String>,
     max_positionals: Option<usize>,
     positional_prefix: Option<String>,
-    reason: String,
+    /// Catalog key of why the invocation writes.
+    reason_key: String,
 }
 static RULES: LazyLock<Rules> = LazyLock::new(|| {
-    serde_json::from_str(include_str!(
+    let rules: Rules = serde_json::from_str(include_str!(
         "../../../plugins/cap-shell/src/shell-rules.json"
     ))
-    .expect("shell-rules.json")
+    .expect("shell-rules.json");
+    for (program, rule) in &rules.writing_invocations {
+        assert!(
+            crate::i18n::known(&rule.reason_key),
+            "shell rule {program}: unknown reasonKey {}",
+            rule.reason_key
+        );
+    }
+    rules
 });
 /// Programs that run without approval when they only read inside the shared folders.
 pub static READ_ONLY: LazyLock<Vec<&'static str>> =
@@ -70,7 +80,7 @@ fn positionals<'a>(args: &'a [String], value_flags: &[String]) -> Vec<&'a str> {
 }
 /// Why this invocation of a read-only program writes files, runs programs or changes the system,
 /// or None when it only reads. Doubtful cases count as writes.
-pub fn writing_invocation(program: &str, args: &[String]) -> Option<&'static str> {
+pub fn writing_invocation(program: &str, args: &[String]) -> Option<Text> {
     let rule = RULES.writing_invocations.get(program)?;
     // Short-flag clusters (`-ro`) are split by the program, so a letter anywhere counts.
     let short_flag = |a: &str| {
@@ -92,7 +102,10 @@ pub fn writing_invocation(program: &str, args: &[String]) -> Option<&'static str
             .positional_prefix
             .as_deref()
             .is_some_and(|p| rest.iter().any(|a| !a.starts_with(p)));
-    writes.then_some(rule.reason.as_str())
+    writes.then(|| Text {
+        key: rule.reason_key.as_str(),
+        args: vec![],
+    })
 }
 pub fn tokenize(command: &str) -> Option<Vec<String>> {
     let mut tokens = vec![];
@@ -144,7 +157,7 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
         if start && listed(&RULES.destructive, name) {
             return Classification::new(
                 Risk::Sensitive,
-                format!("runs \"{name}\", which can destroy data or change the system"),
+                text!("runsWhichCanDestroyDataChange", name),
             );
         }
     }
@@ -155,23 +168,17 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
     {
         return Classification::new(
             Risk::Sensitive,
-            format!("runs \"{program}\", which can destroy data or change the system"),
+            text!("runsWhichCanDestroyDataChange", program),
         );
     }
     if tokens.is_none() || program.is_empty() {
-        return Classification::new(Risk::Exec, "could not parse the command");
+        return Classification::new(Risk::Exec, text!("couldNotParseCommand"));
     }
     if unquoted.contains(|c| RULES.shell_operators.contains(c)) {
-        return Classification::new(
-            Risk::Exec,
-            "uses shell operators (pipes, redirects, globs or substitutions)",
-        );
+        return Classification::new(Risk::Exec, text!("usesShellOperatorsPipesRedirectsGlobs"));
     }
     if program == "find" && toks.iter().any(|t| listed(&RULES.find_writes, t)) {
-        return Classification::new(
-            Risk::Sensitive,
-            "find with -delete/-exec/-fprint can modify files",
-        );
+        return Classification::new(Risk::Sensitive, text!("findDeleteExecFprintCanModify"));
     }
     if read_only.contains(&program) {
         if let Some(reason) = writing_invocation(program, &toks[1..]) {
@@ -183,32 +190,20 @@ pub fn classify_command(command: &str, read_only: &[&str], guard: &PathGuard) ->
                 if c.secret {
                     return Classification::new(
                         Risk::Sensitive,
-                        format!(
-                            "\"{program} {arg}\" reads a protected location ({})",
-                            c.path.display()
-                        ),
+                        text!("readsProtectedLocation", program, arg, c.path.display()),
                     );
                 }
                 if !c.inside {
                     return Classification::new(
                         Risk::Exec,
-                        format!(
-                            "\"{program} {arg}\" reads outside the shared folders ({})",
-                            c.path.display()
-                        ),
+                        text!("readsOutsideSharedFolders", program, arg, c.path.display()),
                     );
                 }
             }
         }
-        return Classification::new(
-            Risk::Read,
-            format!("\"{program}\" is on the read-only list"),
-        );
+        return Classification::new(Risk::Read, text!("readOnlyList", program));
     }
-    Classification::new(
-        Risk::Exec,
-        format!("\"{program}\" is not on the read-only list"),
-    )
+    Classification::new(Risk::Exec, text!("notReadOnlyList", program))
 }
 #[derive(Clone)]
 pub struct Shell {
@@ -225,10 +220,10 @@ impl Capability for Shell {
         if let Some(cwd) = args["cwd"].as_str() {
             let c = guard.lexical(Path::new(cwd));
             if c.secret {
-                return Classification::new(Risk::Sensitive, "cwd is a protected location");
+                return Classification::new(Risk::Sensitive, text!("cwdProtectedLocation"));
             }
             if !c.inside {
-                return Classification::new(Risk::Exec, "cwd is outside the shared folders");
+                return Classification::new(Risk::Exec, text!("cwdOutsideSharedFolders"));
             }
             guard.roots.insert(0, c.path);
         }
@@ -236,26 +231,25 @@ impl Capability for Shell {
     }
     async fn invoke(&self, tool: &str, args: Value, ctx: InvokeContext) -> Result<ToolResult> {
         if tool != "run" {
-            return Err(Failure::new("UNKNOWN_TOOL", "shell has only run"));
+            return Err(Failure::new("UNKNOWN_TOOL", text!("shellOnlyRun")));
         }
         let command = string_arg(&args, "command")?.trim();
         if command.is_empty() {
-            return Err(Failure::new("BAD_ARGS", "command is empty"));
+            return Err(Failure::new("BAD_ARGS", text!("commandEmpty")));
         }
-        let root = self
-            .guard
-            .roots
-            .first()
-            .ok_or_else(|| Failure::new("PATH_NOT_ALLOWED", "Choose a shared folder first"))?;
+        let root =
+            self.guard.roots.first().ok_or_else(|| {
+                Failure::new("PATH_NOT_ALLOWED", text!("chooseSharedFolderFirst"))
+            })?;
         let cwd = self
             .guard
             .allowed(args["cwd"].as_str().map(Path::new).unwrap_or(root))?;
         let classification = self.classify(tool, &args);
         let tokens =
-            tokenize(command).ok_or_else(|| Failure::new("BAD_ARGS", "Unbalanced quotes"))?;
+            tokenize(command).ok_or_else(|| Failure::new("BAD_ARGS", text!("unbalancedQuotes")))?;
         let program = tokens
             .first()
-            .ok_or_else(|| Failure::new("BAD_ARGS", "Empty command"))?;
+            .ok_or_else(|| Failure::new("BAD_ARGS", text!("emptyCommand")))?;
         if listed(&RULES.file_reading, basename(program)) {
             for arg in tokens.iter().skip(1).filter(|a| !a.starts_with('-')) {
                 // The sandbox also enforces paths hidden in flags, substitutions and scripts.
@@ -307,7 +301,7 @@ impl Capability for Shell {
         };
         let (out, err, status) = tokio::select! {
             biased;
-            _ = ctx.cancel.cancelled() => { return Err(Failure::new("CANCELLED", "Cancelled by request")); },
+            _ = ctx.cancel.cancelled() => { return Err(Failure::new("CANCELLED", text!("cancelledRequest"))); },
             result = work => result?,
         };
         let remaining = MAX_OUTPUT.saturating_sub(out.0.len());
@@ -381,7 +375,7 @@ fn find_program(program: &str) -> Result<PathBuf> {
     };
     if program.contains(['/', '\\']) {
         return named(PathBuf::from(program))
-            .ok_or_else(|| Failure::new("COMMAND_NOT_FOUND", format!("{program} was not found")));
+            .ok_or_else(|| Failure::new("COMMAND_NOT_FOUND", text!("programNotFound", program)));
     }
     for dir in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
         if let Some(path) = named(dir.join(program)) {
@@ -390,7 +384,7 @@ fn find_program(program: &str) -> Result<PathBuf> {
     }
     Err(Failure::new(
         "COMMAND_NOT_FOUND",
-        format!("{program} was not found on this device"),
+        text!("programNotFoundDevice", program),
     ))
 }
 fn sandbox(
@@ -405,7 +399,7 @@ fn sandbox(
         let bwrap = find_program("bwrap").map_err(|_| {
             Failure::new(
                 "SANDBOX_UNAVAILABLE",
-                "Install bubblewrap in the App environment to run confined commands",
+                text!("installBubblewrapAppEnvironmentRunConfined"),
             )
         })?;
         let mut cmd = Command::new(bwrap);
@@ -437,7 +431,7 @@ fn sandbox(
             if guard.check(&root)?.secret {
                 return Err(Failure::new(
                     "PATH_REFUSED",
-                    "Cannot share a protected root",
+                    text!("cannotShareProtectedRoot"),
                 ));
             }
             // Never let a shared root replace the sandbox's runtime or namespace mounts.
@@ -450,7 +444,7 @@ fn sandbox(
             {
                 return Err(Failure::new(
                     "PATH_REFUSED",
-                    "Choose a user folder rather than a system root",
+                    text!("chooseUserFolderRatherSystemRoot"),
                 ));
             }
             cmd.arg(if read_only { "--ro-bind" } else { "--bind" })
@@ -525,7 +519,7 @@ fn sandbox(
         let _ = (guard, cwd, file, argv, read_only);
         Err(Failure::new(
             "SANDBOX_UNAVAILABLE",
-            "This platform needs a filesystem sandbox before shell commands can run",
+            text!("platformNeedsFilesystemSandboxBeforeShell"),
         ))
     }
 }

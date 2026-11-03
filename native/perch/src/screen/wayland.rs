@@ -1,5 +1,6 @@
 //! wl_output discovery and zwlr_virtual_pointer_v1. Keyboard uses wtype's virtual keyboard implementation.
 use super::*;
+use crate::i18n::text;
 use wayland_client::{
     protocol::{wl_output, wl_registry},
     Connection, Dispatch, Proxy, QueueHandle, WEnum,
@@ -228,15 +229,12 @@ pub fn input(
                 .iter()
                 .any(|s| s.is_empty() || !s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
         {
-            return Err(Failure::new(
-                "BAD_ARGS",
-                "Use a key or combo such as ctrl+c",
-            ));
+            return Err(Failure::new("BAD_ARGS", text!("useKeyComboSuchCtrlC")));
         }
         let mut a = vec![];
         for modifier in &parts[..parts.len() - 1] {
             if !["ctrl", "alt", "shift", "super", "logo"].contains(modifier) {
-                return Err(Failure::new("BAD_ARGS", "Unknown modifier"));
+                return Err(Failure::new("BAD_ARGS", text!("unknownModifier")));
             }
             a.extend(["-M", *modifier]);
         }
@@ -247,7 +245,7 @@ pub fn input(
     let m = s.manager.as_ref().ok_or_else(|| {
         Failure::new(
             "BACKEND_UNAVAILABLE",
-            "Compositor lacks virtual pointer; RemoteDesktop portal required",
+            text!("compositorLacksVirtualPointerRemotedesktopPortal"),
         )
     })?;
     let output = s
@@ -258,7 +256,7 @@ pub fn input(
     if m.version() < 2 {
         return Err(Failure::new(
             "BACKEND_UNAVAILABLE",
-            "Output-bound virtual pointer v2 required",
+            text!("outputBoundVirtualPointerV2Required"),
         ));
     }
     let p = m.create_virtual_pointer_with_output(None, output, &q.handle(), ());

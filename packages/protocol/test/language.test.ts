@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import {
   defaultLanguage,
@@ -22,17 +22,6 @@ it('requires zh keys and matching placeholders for all server/API messages and C
     expect(pair.zh, key).toBeTruthy();
     expect(pair.en, key).toBeTruthy();
   }
-});
-it('requires matching zh keys and format slots for the native catalog', () => {
-  const read = (name: string) =>
-    JSON.parse(
-      readFileSync(new URL(`../../../native/locale/src/locales/${name}.json`, import.meta.url), 'utf8'),
-    ) as Record<string, string>;
-  const en = read('en'),
-    zh = read('zh-CN');
-  expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
-  for (const [key, value] of Object.entries(en))
-    expect((zh[key]!.match(/\{[^{}]*\}/g) ?? []).sort(), key).toEqual((value.match(/\{[^{}]*\}/g) ?? []).sort());
 });
 it('defaults to Chinese regardless of OS language and accepts an explicit English override', () => {
   vi.stubEnv('SWIFTNEST_LANG', '');
@@ -66,7 +55,6 @@ it('preserves codes and technical parameters while localizing message and hint',
   expect(translateMessage('来源文件已变化，请重新发起传输', 'en')).toBe('Source changed; start a new transfer');
   expect(translateMessage('Source changed; start a new transfer', 'zh-CN')).toBe('来源文件已变化，请重新发起传输');
   expect(translateMessage('my file.txt', 'zh-CN')).toBe('my file.txt');
-  expect(translateMessage('Loading high-risk tool(s): delete_file', 'zh-CN')).toBe('正在加载高风险工具：delete_file');
 });
 it('rejects new prose in JSX, attributes, expressions and template strings while allowing technical tokens', () => {
   const allowed = new Set(['MCP']);

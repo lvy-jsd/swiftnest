@@ -1,3 +1,4 @@
+use crate::i18n::text;
 use crate::{Failure, Result};
 use std::{
     fs,
@@ -67,14 +68,14 @@ pub fn realish(path: &Path) -> Result<PathBuf> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             // A dangling symlink must never be treated as a new ordinary file.
             if fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
-                return Err(Failure::new("PATH_REFUSED", "Dangling symlink"));
+                return Err(Failure::new("PATH_REFUSED", text!("danglingSymlink")));
             }
             let parent = path
                 .parent()
-                .ok_or_else(|| Failure::new("PATH_REFUSED", "Unresolvable path"))?;
+                .ok_or_else(|| Failure::new("PATH_REFUSED", text!("unresolvablePath")))?;
             Ok(realish(parent)?.join(
                 path.file_name()
-                    .ok_or_else(|| Failure::new("PATH_REFUSED", "Invalid path"))?,
+                    .ok_or_else(|| Failure::new("PATH_REFUSED", text!("invalidPath")))?,
             ))
         }
         Err(e) => Err(e.into()),
@@ -144,13 +145,13 @@ impl PathGuard {
         if c.secret {
             return Err(Failure::new(
                 "PATH_REFUSED",
-                "Protected keys, credentials, browser or Swiftnest data are never shared",
+                text!("protectedKeysCredentialsBrowserSwiftnestData"),
             ));
         }
         if !c.inside {
             return Err(Failure::new(
                 "PATH_NOT_ALLOWED",
-                "Path is outside the shared folders. Add its folder in This device.",
+                text!("pathOutsideSharedFoldersAddFolder"),
             ));
         }
         Ok(c.path)
