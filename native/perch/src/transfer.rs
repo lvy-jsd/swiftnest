@@ -1,4 +1,5 @@
 //! Reliable file records over stream-v1. One 4 MiB chunk is in flight; ACK means fsync + journal.
+use crate::i18n::text;
 use crate::{
     capability::*,
     paths::PathGuard,
@@ -29,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 
 pub const CHUNK: usize = 4 * 1024 * 1024;
 const PREFIX: usize = 1024 * 1024;
-fn bad(message: impl Into<String>) -> Failure {
+fn bad(message: impl Into<crate::Words>) -> Failure {
     Failure::new("TRANSFER_FAILED", message)
 }
 pub fn hex(bytes: impl AsRef<[u8]>) -> String {
@@ -77,7 +78,7 @@ impl Binding {
             || self.meta.prefix.len() != 64
             || !self.meta.prefix.bytes().all(|b| b.is_ascii_hexdigit())
         {
-            return Err(bad("Invalid file identity"));
+            return Err(bad(text!("invalidFileIdentity")));
         }
         Ok(())
     }
@@ -104,7 +105,7 @@ impl Transfers {
                 .bytes()
                 .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         {
-            return Err(bad("Invalid transfer id"));
+            return Err(bad(text!("invalidTransferId")));
         }
         Ok(self.dir.join(format!("{id}.json")))
     }
@@ -140,7 +141,7 @@ impl Transfers {
             &binding.destination
         }) != &self.identity
         {
-            return Err(bad("Transfer belongs to a different paired identity"));
+            return Err(bad(text!("transferBelongsDifferentPairedIdentity")));
         }
         Ok(())
     }
@@ -151,15 +152,17 @@ impl Transfers {
             if old.binding == binding {
                 return Ok(old);
             }
-            return Err(bad("Resume binding changed"));
+            return Err(bad(text!("resumeBindingChanged")));
         }
         if target.exists() {
-            return Err(bad("Destination exists; choose another name"));
+            return Err(bad(text!("destinationExistsChooseAnotherName")));
         }
-        let parent = target.parent().ok_or_else(|| bad("Invalid destination"))?;
+        let parent = target
+            .parent()
+            .ok_or_else(|| bad(text!("invalidDestination")))?;
         // Existing folder only: the approval identifies exactly where the temporary file goes.
         if !parent.is_dir() {
-            return Err(bad("Destination folder must exist"));
+            return Err(bad(text!("destinationFolderMustExist")));
         }
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
@@ -183,7 +186,7 @@ impl Transfers {
 pub fn inspect(path: &Path) -> Result<Metadata> {
     let m = std::fs::metadata(path)?;
     if !m.is_file() {
-        return Err(bad("Source must be a regular file"));
+        return Err(bad(text!("sourceMustRegularFile")));
     }
     let mut data = Vec::with_capacity(PREFIX);
     std::fs::File::open(path)?
@@ -214,7 +217,7 @@ impl Capability for Transfers {
             if self.guard.allowed(Path::new(path)).is_err() {
                 return Classification::new(
                     Risk::Sensitive,
-                    "Path is outside shared folders or protected and will be refused",
+                    text!("pathOutsideSharedFoldersProtectedWill"),
                 );
             }
         }
@@ -226,7 +229,7 @@ impl Capability for Transfers {
             } else {
                 Risk::Sensitive
             },
-            format!("File transfer {tool}: {}", args),
+            text!("fileTransfer", tool, args),
         )
     }
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult> {
@@ -234,7 +237,7 @@ impl Capability for Transfers {
         let tool = tool.to_string();
         tokio::task::spawn_blocking(move || {
             if context.cancel.is_cancelled() {
-                return Err(bad("Cancelled"));
+                return Err(bad(text!("transferCancelled")));
             }
             let data = match tool.as_str() {
                 "inspect" => serde_json::to_value(inspect(
@@ -244,7 +247,7 @@ impl Capability for Transfers {
                     this.prepare(serde_json::from_value(args["binding"].clone())?)?,
                 )?,
                 "status" => serde_json::to_value(this.load(string_arg(&args, "id")?)?)?,
-                _ => return Err(bad("Unknown transfer tool")),
+                _ => return Err(bad(text!("unknownTransferTool"))),
             };
             Ok(ToolResult::data("File transfer", data, false))
         })
@@ -284,14 +287,14 @@ pub async fn run(
     let file = offer
         .file
         .as_ref()
-        .ok_or_else(|| bad("Missing file offer"))?
+        .ok_or_else(|| bad(text!("missingFileOffer")))?
         .clone();
     host.check_binding(&file.binding, file.sender)?;
     let key: [u8; 32] = B64
         .decode(&file.key)
-        .map_err(|_| bad("Invalid file key"))?
+        .map_err(|_| bad(text!("invalidFileKey")))?
         .try_into()
-        .map_err(|_| bad("Invalid file key"))?;
+        .map_err(|_| bad(text!("invalidFileKey")))?;
     let mut cipher = StreamCipher::new(&key, &[0; 32], &file.cipher_id, file.sender)?;
     let operation = async {
         let cfg = WebSocketConfig::default()
@@ -333,7 +336,7 @@ pub async fn run(
             for candidate in file.candidates.iter().take(3) {
                 let uri = candidate
                     .parse::<tokio_tungstenite::tungstenite::http::Uri>()
-                    .map_err(|_| bad("Invalid candidate"))?;
+                    .map_err(|_| bad(text!("invalidCandidate")))?;
                 if uri.scheme_str() != Some("ws")
                     || uri.path() != "/file"
                     || uri.host().is_none()
@@ -371,7 +374,7 @@ pub async fn run(
                     tokio_tungstenite::connect_async_with_config(address, Some(cfg), false),
                 )
                 .await
-                .map_err(|_| bad("Relay timeout"))?
+                .map_err(|_| bad(text!("relayTimeout")))?
                 .map_err(|e| bad(e.to_string()))?
                 .0
             }
@@ -384,7 +387,7 @@ pub async fn run(
         let _ = socket.close(None).await;
         outcome
     };
-    tokio::select! { biased; _=cancel.cancelled()=>Err(bad("Paused or disconnected")), result=operation=>result }
+    tokio::select! { biased; _=cancel.cancelled()=>Err(bad(text!("pausedDisconnected"))), result=operation=>result }
 }
 async fn put(ws: &mut Socket, cipher: &mut StreamCipher, flag: u8, bytes: &[u8]) -> Result<()> {
     timeout(
@@ -392,7 +395,7 @@ async fn put(ws: &mut Socket, cipher: &mut StreamCipher, flag: u8, bytes: &[u8])
         ws.send(Message::Binary(cipher.seal(flag, bytes)?.into())),
     )
     .await
-    .map_err(|_| bad("Write timeout"))?
+    .map_err(|_| bad(text!("writeTimeout")))?
     .map_err(|e| bad(e.to_string()))
 }
 async fn control(ws: &mut Socket, cipher: &mut StreamCipher, value: Value) -> Result<()> {
@@ -402,21 +405,21 @@ async fn get(ws: &mut Socket, cipher: &mut StreamCipher) -> Result<(u8, Vec<u8>)
     loop {
         let msg = timeout(Duration::from_secs(1800), ws.next())
             .await
-            .map_err(|_| bad("Read timeout"))?
-            .ok_or_else(|| bad("Link dropped"))?
+            .map_err(|_| bad(text!("readTimeout")))?
+            .ok_or_else(|| bad(text!("linkDropped")))?
             .map_err(|e| bad(e.to_string()))?;
         match msg {
             Message::Binary(data) => return cipher.open(&data),
             Message::Ping(_) => ws.flush().await.map_err(|e| bad(e.to_string()))?,
             Message::Pong(_) => {}
-            _ => return Err(bad("Link closed")),
+            _ => return Err(bad(text!("linkClosed"))),
         }
     }
 }
 async fn message(ws: &mut Socket, cipher: &mut StreamCipher) -> Result<Value> {
     let (flag, data) = get(ws, cipher).await?;
     if flag != 4 || data.len() > 8192 {
-        return Err(bad("Expected file control record"));
+        return Err(bad(text!("expectedFileControlRecord")));
     }
     Ok(serde_json::from_slice(&data)?)
 }
@@ -429,7 +432,7 @@ async fn hash_prefix(file: &mut fs::File, size: u64) -> Result<Sha256> {
         let want = remaining.min(buf.len() as u64) as usize;
         let n = file.read(&mut buf[..want]).await?;
         if n == 0 {
-            return Err(bad("File truncated"));
+            return Err(bad(text!("fileTruncated")));
         }
         hash.update(&buf[..n]);
         remaining -= n as u64;
@@ -444,7 +447,7 @@ async fn send(
 ) -> Result<()> {
     let path = host.guard.allowed(Path::new(&offer.binding.source_path))?;
     if inspect(&path)? != offer.binding.meta {
-        return Err(bad("Source changed; start a new transfer"));
+        return Err(bad(text!("sourceChangedStartNewTransfer")));
     }
     let ready = message(ws, cipher).await?;
     if ready["type"] == "complete" {
@@ -452,13 +455,13 @@ async fn send(
     }
     let mut offset = ready["offset"]
         .as_u64()
-        .ok_or_else(|| bad("Missing offset"))?;
+        .ok_or_else(|| bad(text!("missingOffset")))?;
     validate_offset(offset, offer.binding.meta.size)?;
     let mut input = fs::File::open(&path).await?;
     let mut hash = hash_prefix(&mut input, offset).await?;
     if ready["prefix"] != hex(hash.clone().finalize()) {
         control(ws, cipher, json!({"type":"reset"})).await?;
-        return Err(bad("Partial file hash changed; retry from zero"));
+        return Err(bad(text!("partialFileHashChangedRetryZero")));
     }
     let mut buffer = vec![0; CHUNK];
     while offset < offer.binding.meta.size {
@@ -474,17 +477,17 @@ async fn send(
                 break;
             }
             if ack["type"] != "retry" || ack["offset"] != offset {
-                return Err(bad("Invalid acknowledgement"));
+                return Err(bad(text!("invalidAcknowledgement")));
             }
         }
         if !accepted {
-            return Err(bad("Repeated bad chunk"));
+            return Err(bad(text!("repeatedBadChunk")));
         }
         hash.update(&buffer[..size]);
         offset += size as u64;
     }
     if inspect(&path)? != offer.binding.meta {
-        return Err(bad("Source changed during transfer"));
+        return Err(bad(text!("sourceChangedDuringTransfer")));
     }
     control(
         ws,
@@ -493,13 +496,13 @@ async fn send(
     )
     .await?;
     if message(ws, cipher).await?["type"] != "complete" {
-        return Err(bad("Final verification failed"));
+        return Err(bad(text!("finalVerificationFailed")));
     }
     Ok(())
 }
 pub fn validate_offset(offset: u64, size: u64) -> Result<()> {
     if offset > size || (offset != size && !offset.is_multiple_of(CHUNK as u64)) {
-        Err(bad("Invalid acknowledged offset"))
+        Err(bad(text!("invalidAcknowledgedOffset")))
     } else {
         Ok(())
     }
@@ -513,7 +516,7 @@ async fn receive(
 ) -> Result<()> {
     let mut state = host.load(&offer.binding.id())?;
     if state.binding != offer.binding {
-        return Err(bad("Unapproved transfer"));
+        return Err(bad(text!("unapprovedTransfer")));
     }
     if state.state == "complete" {
         control(ws, cipher, json!({"type":"complete"})).await?;
@@ -531,7 +534,7 @@ async fn receive(
                 .as_str(),
             )
         {
-            return Err(bad("Committed file hash changed"));
+            return Err(bad(text!("committedFileHashChanged")));
         }
         state.state = "complete".into();
         host.save(&state)?;
@@ -539,7 +542,7 @@ async fn receive(
         return Ok(());
     }
     if std::fs::symlink_metadata(&part)?.file_type().is_symlink() {
-        return Err(bad("Temporary file is a symlink"));
+        return Err(bad(text!("temporaryFileSymlink")));
     }
     let mut output = fs::OpenOptions::new()
         .write(true)
@@ -568,7 +571,7 @@ async fn receive(
             output.set_len(0).await?;
             output.sync_all().await?;
             host.save(&state)?;
-            return Err(bad("Resume prefix reset"));
+            return Err(bad(text!("resumePrefixReset")));
         }
         if message["type"] == "finish" {
             if state.offset != state.binding.meta.size
@@ -577,12 +580,12 @@ async fn receive(
                 state.offset = 0;
                 state.state = "ready".into();
                 host.save(&state)?;
-                return Err(bad("Whole file hash mismatch; retry from zero"));
+                return Err(bad(text!("wholeFileHashMismatchRetryZero")));
             }
             output.sync_all().await?;
             let target = host.target(&state.binding)?;
             if target.exists() {
-                return Err(bad("Destination exists; choose another name"));
+                return Err(bad(text!("destinationExistsChooseAnotherName")));
             }
             state.state = "committing".into();
             state.hash = message["hash"].as_str().map(str::to_string);
@@ -600,14 +603,14 @@ async fn receive(
         }
         let length = message["length"]
             .as_u64()
-            .ok_or_else(|| bad("Missing chunk length"))?;
+            .ok_or_else(|| bad(text!("missingChunkLength")))?;
         let expected = (state.binding.meta.size - state.offset).min(CHUNK as u64);
         if message["type"] != "chunk"
             || message["offset"] != state.offset
             || length != expected
             || length == 0
         {
-            return Err(bad("Invalid chunk offset or size"));
+            return Err(bad(text!("invalidChunkOffsetSize")));
         }
         let (flag, data) = get(ws, cipher).await?;
         if flag != 5 || data.len() as u64 != length || message["hash"] != hex(Sha256::digest(&data))

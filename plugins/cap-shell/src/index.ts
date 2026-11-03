@@ -21,8 +21,7 @@ interface WritingRule {
   valueFlags?: string[];
   maxPositionals?: number;
   positionalPrefix?: string;
-  /** English, for the Rust Perch until it sends keys too; `reasonKey` names the same catalog entry. */
-  reason: string;
+  /** Catalog key of why the invocation writes; checked when the rules load. */
   reasonKey: MessageKey;
 }
 const RULES: {

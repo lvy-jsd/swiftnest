@@ -1,4 +1,5 @@
 use super::*;
+use crate::i18n::text;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -62,16 +63,19 @@ pub fn capture(d: &Display) -> Result<image::DynamicImage> {
         .pixmap_formats
         .iter()
         .find(|f| f.depth == reply.depth)
-        .ok_or_else(|| Failure::new("CAPTURE_FAILED", "Unknown X11 pixel format"))?;
+        .ok_or_else(|| Failure::new("CAPTURE_FAILED", text!("unknownX11PixelFormat")))?;
     if fmt.bits_per_pixel != 32 {
-        return Err(Failure::new("CAPTURE_FAILED", "X11 requires 32-bit pixels"));
+        return Err(Failure::new(
+            "CAPTURE_FAILED",
+            text!("x11Requires32BitPixels"),
+        ));
     }
     let visual = root
         .allowed_depths
         .iter()
         .flat_map(|d| &d.visuals)
         .find(|v| v.visual_id == reply.visual)
-        .ok_or_else(|| Failure::new("CAPTURE_FAILED", "Unknown X11 visual"))?;
+        .ok_or_else(|| Failure::new("CAPTURE_FAILED", text!("unknownX11Visual")))?;
     let mut img = image::RgbImage::new(d.width, d.height);
     let stride = (d.width as usize * 4).div_ceil(fmt.scanline_pad as usize / 8)
         * (fmt.scanline_pad as usize / 8);
@@ -80,7 +84,7 @@ pub fn capture(d: &Display) -> Result<image::DynamicImage> {
         let b: &[u8; 4] = reply
             .data
             .get(at..at + 4)
-            .ok_or_else(|| Failure::new("CAPTURE_FAILED", "Truncated X11 image"))?
+            .ok_or_else(|| Failure::new("CAPTURE_FAILED", text!("truncatedX11Image")))?
             .try_into()
             .unwrap();
         let value = if c.setup().image_byte_order == x11rb::protocol::xproto::ImageOrder::LSB_FIRST
@@ -171,12 +175,12 @@ pub fn input(
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'_')
             {
-                return Err(Failure::new("BAD_ARGS", "Invalid key combo"));
+                return Err(Failure::new("BAD_ARGS", text!("invalidKeyCombo")));
             }
             command("xdotool", &["key", "--clearmodifiers", "--", key])?;
         }
         "input_move" => {}
-        _ => return Err(Failure::new("UNKNOWN_TOOL", "Unknown input tool")),
+        _ => return Err(Failure::new("UNKNOWN_TOOL", text!("unknownInputTool"))),
     }
     Ok(())
 }

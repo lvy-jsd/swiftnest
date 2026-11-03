@@ -1,4 +1,5 @@
 //! Stream v1: authenticated header (version/id/sequence/flags/length), then AEAD payload.
+use crate::i18n::text;
 use crate::{Failure, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit, Payload},
@@ -49,16 +50,16 @@ impl Offer {
         {
             return Err(Failure::new(
                 "BAD_STREAM",
-                "Invalid or expired stream offer",
+                text!("invalidExpiredStreamOffer"),
             ));
         }
         let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(root).expect("key");
         mac.update(format!("swiftnest/ticket/v1\0{}\0{}", self.id, self.expires).as_bytes());
         let ticket = B64
             .decode(&self.ticket)
-            .map_err(|_| Failure::new("BAD_STREAM", "Invalid stream ticket"))?;
+            .map_err(|_| Failure::new("BAD_STREAM", text!("invalidStreamTicket")))?;
         mac.verify_slice(&ticket)
-            .map_err(|_| Failure::new("BAD_STREAM", "Stream ticket does not match parent"))
+            .map_err(|_| Failure::new("BAD_STREAM", text!("streamTicketNotMatchParent")))
     }
 }
 pub struct StreamCipher {
@@ -72,16 +73,16 @@ impl StreamCipher {
     pub fn new(root: &[u8; 32], transcript: &[u8; 32], id: &str, initiator: bool) -> Result<Self> {
         let mut raw = [0; 16];
         if id.len() != 32 {
-            return Err(Failure::new("BAD_STREAM", "Invalid stream id"));
+            return Err(Failure::new("BAD_STREAM", text!("invalidStreamId")));
         }
         for (i, b) in raw.iter_mut().enumerate() {
             *b = u8::from_str_radix(&id[i * 2..i * 2 + 2], 16)
-                .map_err(|_| Failure::new("BAD_STREAM", "Invalid stream id"))?;
+                .map_err(|_| Failure::new("BAD_STREAM", text!("invalidStreamId")))?;
         }
         let mut keys = zeroize::Zeroizing::new([0u8; 64]);
         Hkdf::<Sha256>::new(Some(transcript), root)
             .expand(format!("swiftnest/stream/v1/{id}").as_bytes(), &mut *keys)
-            .map_err(|_| Failure::new("BAD_STREAM", "Key derivation failed"))?;
+            .map_err(|_| Failure::new("BAD_STREAM", text!("keyDerivationFailed")))?;
         let (a, b) = if initiator {
             (&keys[..32], &keys[32..])
         } else {
@@ -97,7 +98,7 @@ impl StreamCipher {
     }
     pub fn seal(&mut self, flag: u8, plain: &[u8]) -> Result<Vec<u8>> {
         if plain.len() > MAX || self.sent == u64::MAX {
-            return Err(Failure::new("BAD_STREAM", "Stream record limit"));
+            return Err(Failure::new("BAD_STREAM", text!("streamRecordLimit")));
         }
         let mut h = vec![1];
         h.extend(self.id);
@@ -115,7 +116,7 @@ impl StreamCipher {
                     aad: &h,
                 },
             )
-            .map_err(|_| Failure::new("BAD_STREAM", "Encryption failed"))?;
+            .map_err(|_| Failure::new("BAD_STREAM", text!("encryptionFailed")))?;
         self.sent += 1;
         h.extend(body);
         Ok(h)
@@ -124,7 +125,7 @@ impl StreamCipher {
         let bad = || {
             Failure::new(
                 "BAD_STREAM",
-                "Invalid stream record, replay or authentication tag",
+                text!("invalidStreamRecordReplayAuthenticationTag"),
             )
         };
         if frame.len() < 46
