@@ -1,11 +1,17 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PropsWithChildren } from 'react';
 import { ApiError, SwiftnestClient } from '@swiftnest/api';
-import type { ClientOptions, Device, SessionSummary } from '@swiftnest/api';
+import type { ChannelPairing, ClientOptions, Device, SessionSummary } from '@swiftnest/api';
 import { isTauriRuntime } from './runtime';
 
 type Status = 'disconnected' | 'connecting' | 'connected';
-export type ConnectionError = 'pairFailed' | 'sameOrigin' | 'loadFailed' | 'connectionLost';
+export type ConnectionError =
+  | 'pairFailed'
+  | 'sameOrigin'
+  | 'loadFailed'
+  | 'connectionLost'
+  | 'channelPairAgain'
+  | 'channelBrowserHttps';
 export interface ConnectionState {
   status: Status;
   root: string;
@@ -15,6 +21,7 @@ export interface ConnectionState {
   /** Display name the server gives the assistant; Apps show a generic label without it. */
   assistantName?: string;
 }
+const PIN_KEY = 'swiftnest.channelPins';
 export const ROOT_KEY = 'swiftnest.serverRoot';
 export function serverRoot(value: string): string {
   const url = new URL(value);
@@ -51,6 +58,8 @@ export class ConnectionStore {
   private generation = 0;
   private expectingRestart = false;
   private unpairing = false;
+  private channelPins = new Map<string, ChannelPairing>();
+  private channelCookies = new Map<string, string>();
   private nativeCredentials = new Map<string, string>();
   private retry?: ReturnType<typeof setTimeout>;
   private activeOptions?: ClientOptions;
@@ -90,7 +99,7 @@ export class ConnectionStore {
       }
       const options = this.withNativeStore(await this.options());
       if (generation !== this.generation) return false;
-      const activeOptions = this.socketOptions(options, root, generation);
+      const activeOptions = this.socketOptions(this.channelOptions(options), root, generation);
       this.activeOptions = activeOptions;
       candidate = this.create(activeOptions);
       this.client = candidate;
@@ -107,14 +116,53 @@ export class ConnectionStore {
       }
       await this.refresh();
       return generation === this.generation;
-    } catch {
+    } catch (error) {
       candidate?.close();
       if (generation === this.generation) {
         this.client = undefined;
-        this.update({ status: 'disconnected', error: 'pairFailed' });
+        this.update({
+          status: 'disconnected',
+          error:
+            error instanceof ApiError && error.code === 'channel-key-mismatch'
+              ? error.text?.key === 'channelBrowserHttps'
+                ? 'channelBrowserHttps'
+                : 'channelPairAgain'
+              : 'pairFailed',
+        });
       }
       return false;
     }
+  }
+  private channelOptions(options: ClientOptions): ClientOptions {
+    return {
+      ...options,
+      channelPairingStore: options.channelPairingStore ?? {
+        load: async (root) => {
+          if (this.channelPins.has(root)) return this.channelPins.get(root);
+          try {
+            return JSON.parse(localStorage.getItem(PIN_KEY) ?? '{}')[root] as ChannelPairing | undefined;
+          } catch {
+            return undefined;
+          }
+        },
+        save: async (root, pairing) => {
+          this.channelPins.set(root, pairing);
+          try {
+            const pins = JSON.parse(localStorage.getItem(PIN_KEY) ?? '{}');
+            pins[root] = pairing;
+            localStorage.setItem(PIN_KEY, JSON.stringify(pins));
+          } catch {
+            /* Public pins remain available in memory when storage is disabled. */
+          }
+        },
+      },
+      channelBrowserCookie: options.channelBrowserCookie ?? {
+        load: (root) => this.channelCookies.get(root),
+        save: (root, cookie) => {
+          this.channelCookies.set(root, cookie);
+        },
+      },
+    };
   }
   private withNativeStore(options: ClientOptions): ClientOptions {
     if (options.cookieMode !== 'manual') return options;
@@ -175,7 +223,7 @@ export class ConnectionStore {
           this.disconnect();
           this.update({ error: 'connectionLost' });
         };
-        if (new URL(address).pathname === new URL('api/remote.mux', root).pathname) {
+        if ([new URL('api/remote.mux', root).pathname, '/swiftnest/channel'].includes(new URL(address).pathname)) {
           socket.addEventListener('close', lost, { once: true });
           socket.addEventListener('error', lost, { once: true });
         }
@@ -198,7 +246,7 @@ export class ConnectionStore {
     try {
       const options = this.withNativeStore(await this.options());
       if (generation !== this.generation) return;
-      this.activeOptions = this.socketOptions(options, this.state.root, generation);
+      this.activeOptions = this.socketOptions(this.channelOptions(options), this.state.root, generation);
       candidate = this.create(this.activeOptions);
       await candidate.resume(this.state.root);
       if (generation !== this.generation) {
@@ -211,8 +259,16 @@ export class ConnectionStore {
     } catch (error) {
       candidate?.close();
       if (generation !== this.generation) return;
-      if (error instanceof ApiError && error.code === 'pairing-failed' && [401, 403].includes(error.httpStatus ?? 0)) {
-        this.update({ status: 'disconnected', pluginRestart: 'pair-required', error: undefined });
+      if (
+        error instanceof ApiError &&
+        (error.code === 'channel-key-mismatch' ||
+          (error.code === 'pairing-failed' && [401, 403].includes(error.httpStatus ?? 0)))
+      ) {
+        this.update({
+          status: 'disconnected',
+          pluginRestart: 'pair-required',
+          error: error.code === 'channel-key-mismatch' ? 'channelPairAgain' : undefined,
+        });
         return;
       }
       this.retry = setTimeout(

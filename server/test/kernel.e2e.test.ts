@@ -13,6 +13,8 @@ import { loadConfig } from '../src/config.js';
 import type { RunningKernel } from '../src/kernel.js';
 import { startStableKernel } from './fixtures/kernel.js';
 import { pairingUrl } from '../src/pairing.js';
+import { connect } from '@swiftnest/api';
+import WebSocket from 'ws';
 
 const enabled = process.env.SWIFTNEST_E2E === '1';
 
@@ -91,10 +93,26 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
   });
 
   it('lets an App trade the launch token for an API session', async () => {
-    const res = await fetch(pairingUrl(kernel.url, kernel.token), { redirect: 'manual' });
+    const res = await fetch(pairingUrl(kernel.url, kernel.token, kernel.channelPairing), { redirect: 'manual' });
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('./api/remote.mux');
     expect(res.headers.get('set-cookie')).toBeTruthy();
+  });
+
+  it('carries App health and session requests inside the pinned channel', async () => {
+    const client = await connect(pairingUrl(kernel.url, kernel.token, kernel.channelPairing), {
+      fetch: async () => {
+        throw new Error('Plain App HTTP is forbidden in this test');
+      },
+      createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
+    });
+    try {
+      expect(await client.health()).toMatchObject({ ok: true });
+      const session = await client.createSession();
+      expect(await client.listSessions()).toEqual(expect.arrayContaining([expect.objectContaining(session)]));
+    } finally {
+      client.close();
+    }
   });
 
   it('serves the plugin page to the owner and keeps browser sessions across a plugin restart', async () => {
@@ -107,7 +125,9 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
     expect(before.status).toBe(200);
     expect((await before.json()).apply).toEqual({ state: 'idle' });
     const { token } = kernel;
+    const pin = kernel.channelPairing;
     await kernel.restart();
+    expect(kernel.channelPairing).toEqual(pin);
     expect(kernel.token).not.toBe(token);
     expect(kernel.child.exitCode).toBeNull();
     expect((await plugins()).status).toBe(200);

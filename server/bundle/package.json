@@ -22,6 +22,10 @@
     "./native-pairings-store": {
       "types": "./dist/native-pairings-store.d.ts",
       "default": "./dist/native-pairings-store.js"
+    },
+    "./channel-identity": {
+      "types": "./dist/channel-identity.d.ts",
+      "default": "./dist/channel-identity.js"
     }
   },
   "files": [
@@ -41,7 +45,8 @@
   "dependencies": {
     "ws": "^8.22.0",
     "@swiftnest/protocol": "workspace:*",
-    "@swiftnest/core": "workspace:*"
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/channel": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2"

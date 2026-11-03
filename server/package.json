@@ -30,7 +30,8 @@
     "@swiftnest/link-lan": "workspace:*",
     "@swiftnest/surface-mcp": "workspace:*",
     "@swiftnest/api": "workspace:*",
-    "ws": "^8.22.0"
+    "ws": "^8.22.0",
+    "@swiftnest/channel": "workspace:*"
   },
   "optionalDependencies": {
     "@swiftnest/app": "workspace:*"

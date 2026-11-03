@@ -25,6 +25,7 @@
     "@types/ws": "^8.18.1"
   },
   "dependencies": {
-    "@swiftnest/protocol": "workspace:*"
+    "@swiftnest/protocol": "workspace:*",
+    "@swiftnest/channel": "workspace:*"
   }
 }

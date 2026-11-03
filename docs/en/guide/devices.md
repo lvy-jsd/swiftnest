@@ -49,6 +49,14 @@ The server saves credential hashes in `<home>/native-pairings.json` with mode 06
 credential in its private application data folder with mode 0600 on Unix/Android; it never puts it in
 URLs, logs or Web storage. Keep the server home when upgrading to retain pairings.
 
+## How the App connection is protected
+
+New App pairing links carry the server identity and LAN addresses. The App checks that identity before sending its pairing credential inside an encrypted channel. Chats, approvals and device events share that channel. Each connection gets fresh session keys; altered or replayed data closes the connection. If the server identity changes, the App asks you to pair again. Get the new link from a server you trust.
+
+Native Apps use this channel even with LAN HTTP addresses. LAN browsers must open the server page over HTTPS to protect the page's code as well; only the same-origin localhost page may keep its existing direct connection. Old links still work locally or over HTTPS. Old LAN HTTP links need a fresh pairing link, and browsers also need HTTPS. Browser pairing credentials stay in memory: page reloads require pairing again, while plugin restarts reconnect automatically.
+
+Keep `app-channel-key.json` in the server home when upgrading or moving it; this mode-0600 file holds its identity. The address list reserves an empty relay slot. There is no default relay or automatic connection to an external relay.
+
 ## Approve a request
 
 Reads pass the default policy. Writes, execution and sensitive operations wait for you. A chat banner

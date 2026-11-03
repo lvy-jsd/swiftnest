@@ -315,6 +315,9 @@
     "memory-entries",
     "memory-actions",
     "memory-form",
-    "memory-item"
+    "memory-item",
+    "swiftnest.channelPins",
+    "channel-key-mismatch",
+    "/swiftnest/channel"
   ]
 }

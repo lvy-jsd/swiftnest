@@ -223,6 +223,8 @@ export const en = {
   pluginsRequestFailed: messageEn.pluginsRequestFailed,
   pluginsOwnerOnly: messageEn.pluginsOwnerOnly,
   pluginsLoading: messageEn.pluginsLoading,
+  channelPairAgain: messageEn.channelPairAgain,
+  channelBrowserHttps: messageEn.channelBrowserHttps,
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -437,6 +439,8 @@ export const zhCN: Record<StringKey, string> = {
   pluginsRequestFailed: messageZh.pluginsRequestFailed,
   pluginsOwnerOnly: messageZh.pluginsOwnerOnly,
   pluginsLoading: messageZh.pluginsLoading,
+  channelPairAgain: messageZh.channelPairAgain,
+  channelBrowserHttps: messageZh.channelBrowserHttps,
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];

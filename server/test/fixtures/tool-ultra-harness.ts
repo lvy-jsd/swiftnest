@@ -52,7 +52,7 @@ export class ToolUltraHarness {
     this.kernel = await startKernel(config, {
       onLine: (line) => this.log.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
     });
-    this.client = await connect(pairingUrl(this.kernel.url, this.kernel.token), {
+    this.client = await connect(pairingUrl(this.kernel.url, this.kernel.token, this.kernel.channelPairing), {
       createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
     });
     await this.pair();

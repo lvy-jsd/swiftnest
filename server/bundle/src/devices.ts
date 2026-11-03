@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 export interface DeviceConnection {
   admit(request: {
     headers: IncomingMessage['headers'];
+    socket?: IncomingMessage['socket'];
   }): { peer: { principal: { kind: string } } } | { rejection: number };
 }
 

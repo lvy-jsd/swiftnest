@@ -651,5 +651,7 @@
   "pluginsRequestFailed": "未能保存或刷新更改，请重试。",
   "pluginsOwnerOnly": "只有服务器所有者可以打开此页面。",
   "pluginsLoading": "正在加载插件…",
-  "pluginsPreparing": "正在准备插件…"
+  "pluginsPreparing": "正在准备插件…",
+  "channelPairAgain": "无法确认这台服务器。请让主人重新配对。",
+  "channelBrowserHttps": "请通过 HTTPS 打开网页版，或在安装的 App 中配对。"
 }
