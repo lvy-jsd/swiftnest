@@ -1,16 +1,16 @@
 /**
  * What the App's plugin page drives: the audited plugins and their switches, community
  * market installs (labelled unaudited), and applying changes, which installs what is
- * missing and restarts the DSH kernel. If the kernel cannot start with the new plugins,
- * the switches go back to the last ones that booted, so a novice is never left without
- * a running server.
+ * missing and restarts the DSH kernel through the shared `KernelApply`. If the kernel
+ * cannot start with the new plugins, the switches go back to the last ones that booted.
  */
-import type { ApplyState, PluginsView, PluginView } from '@swiftnest/api';
+import type { PluginsView, PluginView } from '@swiftnest/api';
 import { isText, text } from '@swiftnest/core';
 import type { Log } from './command.js';
 import type { ServerConfig } from './config.js';
-import { localizedError, message, ServerFailure } from './i18n.js';
+import { message, ServerFailure } from './i18n.js';
 import { JsonFileWriter } from './json-store.js';
+import type { KernelApply, KernelChange } from './kernel-apply.js';
 import type { Language } from './preferences.js';
 import { type PluginSwitches, pluginSettingsFile, readPluginSettings, withPluginSettings } from './plugin-settings.js';
 import { isEnabled, PLUGIN_MANIFEST, type Plugin } from './plugins.js';
@@ -19,10 +19,8 @@ import { profileDir } from './profile.js';
 
 export interface PluginManagerDeps {
   install(config: ServerConfig, log: Log): Promise<void>;
-  /** Restart the DSH kernel; it reads `config()` and reports back through `loaded()`. */
-  restart(): Promise<void>;
-  /** The kernel could not start even with the previous plugins. */
-  fail(error: unknown): void;
+  /** Restarts the kernel; it reads `config()` and reports back through `loaded()`. */
+  kernel: KernelApply;
   /** The view changed (switch, apply progress). */
   changed(): void;
   log: Log;
@@ -44,10 +42,8 @@ export class PluginManager {
   /** Switches the running kernel booted with: the rollback point. */
   private booted: PluginSwitches;
   private active = new Set<string>();
-  private state: ApplyState = 'idle';
-  private failure?: unknown;
-  private rolledBack = false;
   private readonly writer: JsonFileWriter;
+  private readonly change: KernelChange;
 
   constructor(
     private readonly base: ServerConfig,
@@ -56,6 +52,12 @@ export class PluginManager {
     this.switches = readPluginSettings(base.home);
     this.booted = { ...this.switches };
     this.writer = new JsonFileWriter(pluginSettingsFile(base.home));
+    this.change = {
+      prepare: () => this.deps.install(this.config(), this.deps.log),
+      rollback: () => this.save(this.booted),
+      changed: () => this.deps.changed(),
+      messages: { applied: 'pluginsApplied', rolledBack: 'pluginsRolledBack', busy: 'pluginsApplyBusy' },
+    };
   }
 
   /** The server config with the App's switches applied. */
@@ -76,11 +78,7 @@ export class PluginManager {
       plugins,
       unaudited: marketInstalls(profileDir(this.base)),
       pending: plugins.some((plugin) => plugin.enabled !== plugin.active),
-      apply: {
-        state: this.state,
-        ...(this.rolledBack ? { rolledBack: true } : {}),
-        ...(this.failure === undefined ? {} : { error: localizedError(this.failure, lang) }),
-      },
+      apply: this.deps.kernel.view(this.change, lang),
     };
   }
 
@@ -116,50 +114,15 @@ export class PluginManager {
   }
 
   get busy(): boolean {
-    return this.state === 'installing' || this.state === 'restarting';
+    return this.deps.kernel.busy;
   }
 
   /** Install what the switches need and restart the kernel, in the background. */
   apply(): void {
-    if (this.busy) throw new ServerFailure(text('pluginsApplyBusy'));
-    this.failure = undefined;
-    this.rolledBack = false;
-    this.setState('installing');
-    void this.run();
+    this.deps.kernel.start(this.change);
   }
 
   flush(): Promise<void> {
     return this.writer.flush();
-  }
-
-  private async run(): Promise<void> {
-    try {
-      await this.deps.install(this.config(), this.deps.log);
-      this.setState('restarting');
-      await this.deps.restart();
-      this.deps.log(message('pluginsApplied', this.base.lang));
-      this.setState('idle');
-    } catch (error) {
-      this.failure = error;
-      if (this.state === 'restarting') await this.rollback();
-      this.setState('failed');
-    }
-  }
-
-  /** The kernel did not come back with the new plugins: restore the switches it last booted with. */
-  private async rollback(): Promise<void> {
-    this.rolledBack = true;
-    this.deps.log(message('pluginsRolledBack', this.base.lang));
-    try {
-      await this.save(this.booted);
-      await this.deps.restart();
-    } catch (error) {
-      this.deps.fail(error);
-    }
-  }
-
-  private setState(state: ApplyState): void {
-    this.state = state;
-    this.deps.changed();
   }
 }

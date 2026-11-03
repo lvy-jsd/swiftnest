@@ -1,9 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { PluginsView, PluginView } from '@swiftnest/api';
-import { applyBusy, applyMessage, orderedPlugins, toggleDecision } from '../src/pluginState';
+import { applyBusy, applyProgress, orderedPlugins, toggleDecision } from '../src/pluginState';
+import { ApplyStatus } from '../src/applyPanel';
 import { I18nProvider, translate } from '../src/i18n';
-import { CommunityPlugins, PluginCard, PluginApplyStatus } from '../src/plugins';
+import { CommunityPlugins, PluginCard, pluginApplyWords } from '../src/plugins';
 
 export const plugin: PluginView = {
   id: 'vision',
@@ -66,17 +67,17 @@ describe('plugin choices and apply states', () => {
   it('marks installing/restarting busy and allows retries after either failure', () => {
     for (const state of ['installing', 'restarting'] as const) expect(applyBusy(view({ state }))).toBe(true);
     for (const state of ['idle', 'failed'] as const) expect(applyBusy(view({ state }))).toBe(false);
-    expect(applyMessage(view({ state: 'installing' }))).toBe('pluginsPreparing');
-    expect(applyMessage(view({ state: 'restarting' }))).toBe('pluginsRestarting');
-    expect(applyMessage(view({ state: 'failed', rolledBack: true }))).toBe('pluginsRestored');
-    expect(applyMessage(view({ state: 'failed' }))).toBeUndefined();
+    expect(applyProgress(view({ state: 'installing' }))).toBe('preparing');
+    expect(applyProgress(view({ state: 'restarting' }))).toBe('restarting');
+    expect(applyProgress(view({ state: 'failed', rolledBack: true }))).toBe('restored');
+    expect(applyProgress(view({ state: 'failed' }))).toBeUndefined();
   });
   it('shows the exact restored message or the server-localized failure and hint', () => {
     for (const locale of ['en', 'zh-CN'] as const) {
       const render = (apply: PluginsView['apply']) =>
         renderToStaticMarkup(
           <I18nProvider initialLocale={locale}>
-            <PluginApplyStatus view={view(apply)} />
+            <ApplyStatus view={view(apply)} words={pluginApplyWords} />
           </I18nProvider>,
         );
       expect(render({ state: 'failed', rolledBack: true })).toContain(

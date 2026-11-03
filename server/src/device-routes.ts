@@ -11,6 +11,7 @@ import type { ServerConfig } from './config.js';
 import type { DeviceRegistry } from './device-registry.js';
 import { sendJson } from './device-response.js';
 import { HttpError, openEventStream, readBody, readJsonObject } from './http.js';
+import type { ModelManager } from './model-manager.js';
 import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
@@ -20,6 +21,7 @@ import { nativeDevices } from './native-pairings.js';
 export const PREFIX = '/swiftnest/api/devices';
 export const CONTROL = '/swiftnest/control/devices';
 export const PLUGINS = '/swiftnest/api/plugins';
+export const MODELS = '/swiftnest/api/models';
 const KiB = 1024;
 
 export interface DeviceHub {
@@ -30,9 +32,13 @@ export interface DeviceHub {
   transfers: Transfers;
   preferences: Preferences;
   plugins: PluginManager;
+  models: ModelManager;
   streams: Set<ServerResponse>;
   lanPort: () => number;
-  publish: (type: 'devices-changed' | 'plugins-changed' | 'memory-changed', slugs?: string[]) => void;
+  publish: (
+    type: 'devices-changed' | 'plugins-changed' | 'models-changed' | 'memory-changed',
+    slugs?: string[],
+  ) => void;
 }
 
 interface Request {
@@ -183,6 +189,42 @@ const pluginRoutes: Route[] = [
   }),
 ];
 
+// ---------------------------------------------------------------- models (owner)
+
+/** Unknown providers are 404s, an apply already running is a 409, bad input a 400. */
+async function asModelFailure(run: () => Promise<void> | void): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    const failure = SwiftnestFailure.from(error);
+    const key = failure.text?.key;
+    throw new HttpError(key === 'modelsUnknownProvider' ? 404 : key === 'modelsApplyBusy' ? 409 : 400, failure);
+  }
+}
+
+const modelsView = (hub: DeviceHub) => hub.models.view(hub.config, hub.preferences.lang);
+
+const modelRoutes: Route[] = [
+  route('GET', MODELS, ({ hub }) => modelsView(hub)),
+  route('POST', `${MODELS}/settings`, async ({ hub, req }) => {
+    const body = await readJsonObject(req, 16 * KiB, text('modelsRequestTooLarge'));
+    await asModelFailure(() => hub.models.update(body));
+    return modelsView(hub);
+  }),
+  route('POST', `${MODELS}/keys/${ID}`, async ({ hub, req, params }) => {
+    const body = await readJsonObject(req, 16 * KiB, text('modelsRequestTooLarge'));
+    await asModelFailure(() => hub.models.setKey(decodeURIComponent(params[0]!), body.key));
+    return modelsView(hub);
+  }),
+  route('POST', `${MODELS}/apply`, async ({ hub }) => {
+    await asModelFailure(() => hub.models.apply());
+    return withStatus(202, modelsView(hub));
+  }),
+  route('*', `${MODELS}(?:/.*)?`, () => {
+    throw new HttpError(404, text('modelsUnknownRoute'));
+  }),
+];
+
 // ---------------------------------------------------------------- owner API
 
 function auditLimit(url: URL): number {
@@ -260,6 +302,7 @@ const routes: Route[] = [
 
   ...transferRoutes(PREFIX),
   ...pluginRoutes,
+  ...modelRoutes,
   route('GET', `${PREFIX}/?`, ({ hub }) => [...hub.registry.list(), ...nativeDevices(hub)]),
   route('GET', `${PREFIX}/approvals`, ({ hub }) => hub.nest.tasks.list({ state: 'pending_approval' })),
   route('GET', `${PREFIX}/pairing`, ({ hub }) =>

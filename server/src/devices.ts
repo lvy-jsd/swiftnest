@@ -22,6 +22,9 @@ import { sendJson } from './device-response.js';
 import { handleDeviceRequest, PREFIX, type DeviceHub } from './device-routes.js';
 import { hasBearer } from './http.js';
 import { installPlugins } from './plugin-install.js';
+import { KernelApply } from './kernel-apply.js';
+import { ModelManager } from './model-manager.js';
+import { ModelSettingsStore } from './model-settings.js';
 import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
 import { Preferences } from './preferences.js';
 import { Transfers } from './transfers.js';
@@ -82,7 +85,7 @@ function adminServer(hub: DeviceHub, adminToken: string) {
 }
 
 export interface StartDevicesOptions {
-  /** Restart the DSH kernel so plugin changes take effect; a hub without a kernel has nothing to restart. */
+  /** Restart the DSH kernel so plugin and model changes take effect; a hub without a kernel has nothing to restart. */
   restartKernel?: () => Promise<void>;
   /** The kernel could not start even with the previous plugins. */
   kernelFailed?: (error: unknown) => void;
@@ -124,12 +127,22 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
   const adminToken = secret();
   let lan: Awaited<ReturnType<typeof serveLan>> | undefined;
   let mcp: Awaited<ReturnType<typeof serveMcpHttp>> | undefined;
-  const plugins = new PluginManager(config, {
-    install: options.installPlugins ?? installPlugins,
+  const log = (line: string) => console.log(line);
+  const kernel = new KernelApply({
     restart: options.restartKernel ?? (async () => {}),
     fail: options.kernelFailed ?? (() => {}),
+    log,
+    lang: config.lang ?? 'zh-CN',
+  });
+  const plugins = new PluginManager(config, {
+    install: options.installPlugins ?? installPlugins,
+    kernel,
     changed: () => publish('plugins-changed'),
-    log: (line) => console.log(line),
+    log,
+  });
+  const models = new ModelManager(ModelSettingsStore.open(config.home), {
+    kernel,
+    changed: () => publish('models-changed'),
   });
   const hub: DeviceHub = {
     config,
@@ -139,6 +152,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     transfers,
     preferences,
     plugins,
+    models,
     streams,
     publish,
     lanPort: () => lan!.port,
@@ -170,6 +184,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
       await registry.flush();
       await preferences.flush();
       await plugins.flush();
+      await models.flush();
     })());
 
   try {
@@ -187,6 +202,9 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     return {
       nest,
       plugins,
+      models,
+      /** The config the kernel runs with: the owner's plugin switches and models applied. */
+      config: () => models.config(plugins.config()),
       mcpUrl: mcp.url,
       lanUrl: lan.url,
       env: { [MCP_TOKEN_ENV]: mcpToken, [ADMIN_TOKEN_ENV]: adminToken, [ADMIN_URL_ENV]: `http://127.0.0.1:${port}` },

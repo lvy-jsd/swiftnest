@@ -1,3 +1,4 @@
+import { ModelsPage } from './models';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
@@ -172,18 +173,21 @@ function ConnectionStatus({ quiet = false }: { quiet?: boolean }) {
     </div>
   );
 }
+/** After pairing again, a settings page that restarted the assistant gets its owner back. */
+export function pairingReturn(hash: string, restarting: boolean): string {
+  if (hash.includes('return=models')) return '/models';
+  return hash.includes('return=plugins') || restarting ? '/plugins' : '/';
+}
 function PairPage({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
   const { store, status, error, root } = useConnection();
   const [url, setUrl] = useState(pairingFromLocation);
   const opened = useRef(false);
-  const returnToPlugins = useRef(
-    window.location.hash.includes('return=plugins') || !!store.getSnapshot().pluginRestart,
-  );
+  const returnTo = useRef(pairingReturn(window.location.hash, !!store.getSnapshot().pluginRestart));
   async function pair(value: string) {
     setUrl('');
     clearPairingLocation();
-    if (await store.pair(value)) window.location.hash = returnToPlugins.current ? '/plugins' : '/';
+    if (await store.pair(value)) window.location.hash = returnTo.current;
   }
   // Pair once from a link that opened the App; later edits go through the form.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount
@@ -430,6 +434,7 @@ function AppContent() {
   const pairing = hash.startsWith('#/pair');
   const devicesPage = hash.startsWith('#/devices');
   const pluginsPage = hash.startsWith('#/plugins');
+  const modelsPage = hash.startsWith('#/models');
   const transfersPage = hash.startsWith('#/transfers');
   const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
@@ -553,9 +558,14 @@ function AppContent() {
           {t('transfers')}
         </a>
         {owner && (
-          <a className="devices-link" href="#/plugins">
-            {t('pluginsTitle')}
-          </a>
+          <>
+            <a className="devices-link" href="#/models">
+              {t('modelsTitle')}
+            </a>
+            <a className="devices-link" href="#/plugins">
+              {t('pluginsTitle')}
+            </a>
+          </>
         )}
         <a className="devices-link" href="#/memory">
           {t('memory')}
@@ -591,7 +601,9 @@ function AppContent() {
               : undefined
           }
         >
-          {pluginsPage ? (
+          {modelsPage ? (
+            <ModelsPage onBack={goHome} />
+          ) : pluginsPage ? (
             <PluginsPage onBack={goHome} />
           ) : memoryPage ? (
             <MemoryPage key={status} onBack={goHome} />
@@ -626,9 +638,14 @@ function AppContent() {
                 {t('transfers')}
               </a>
               {owner && (
-                <a className="devices-link" href="#/plugins">
-                  {t('pluginsTitle')}
-                </a>
+                <>
+                  <a className="devices-link" href="#/models">
+                    {t('modelsTitle')}
+                  </a>
+                  <a className="devices-link" href="#/plugins">
+                    {t('pluginsTitle')}
+                  </a>
+                </>
               )}
               <a className="devices-link" href="#/memory">
                 {t('memory')}

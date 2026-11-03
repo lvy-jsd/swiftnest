@@ -4,7 +4,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { loadConfig } from '../src/config.js';
-import { BUNDLES, PROVIDER_ID, presetPersonaPatch, profileDir, writeProfile } from '../src/profile.js';
+import {
+  BUNDLES,
+  EXPERT_TOOL,
+  modelPatch,
+  PROVIDER_ID,
+  presetPersonaPatch,
+  profileDir,
+  writeProfile,
+} from '../src/profile.js';
+import { modelKeyEnv } from '../src/model-settings.js';
 import { parseReadyLine, resolveAppDist } from '../src/kernel.js';
 import { pairingUrl, webAppUrl } from '../src/pairing.js';
 
@@ -117,6 +126,48 @@ describe('writeProfile', () => {
       provider: PROVIDER_ID,
       model: 'm1',
     });
+  });
+
+  it('routes chats to a cloud main model and hard tasks to the expert, keeping the local model', () => {
+    const { config } = setup();
+    const rows = modelPatch({
+      ...config,
+      cloud: {
+        main: { provider: 'deepseek', model: 'deepseek-v4-pro' },
+        expert: { provider: 'deepseek', model: 'deepseek-v4-flash' },
+        expertApproval: 'ask',
+      },
+    }) as { id?: string; config?: any; insert?: { id: string; name: string; config: any }[] }[];
+    const providers = rows.find((row) => row.id === 'llm-pi-ai')!.config.providers;
+    expect(providers[PROVIDER_ID].models).toEqual([expect.objectContaining({ id: 'm1' })]);
+    expect(providers.deepseek).toEqual({
+      apiKeyEnv: modelKeyEnv('deepseek'),
+      models: [{ id: 'deepseek-v4-pro' }, { id: 'deepseek-v4-flash' }],
+    });
+    expect(rows.find((row) => row.id === 'agent-default-model')!.config).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+    });
+    const [expert, routing] = rows.find((row) => row.insert)!.insert!;
+    expect(expert).toMatchObject({
+      name: '@deepseek-ai/dsh-tool-subagent',
+      config: {
+        provider: 'spawn',
+        toolName: EXPERT_TOOL,
+        agentOptions: { provider: 'deepseek', model: 'deepseek-v4-flash' },
+      },
+    });
+    expect(routing).toMatchObject({
+      name: '@swiftnest/server-bundle/routing',
+      config: { tool: EXPERT_TOOL, model: 'deepseek-v4-flash', approval: 'ask' },
+    });
+  });
+
+  it('adds no expert and keeps the local default without cloud models', () => {
+    const { config } = setup();
+    const rows = modelPatch({ ...config, cloud: { expertApproval: 'ask' } }) as { id?: string; insert?: unknown }[];
+    expect(rows.some((row) => row.insert)).toBe(false);
+    expect(rows.find((row) => row.id === 'agent-default-model')).toMatchObject({ config: { provider: PROVIDER_ID } });
   });
 
   it('keeps the generated system prompt and all installed preset personas in sync', () => {
