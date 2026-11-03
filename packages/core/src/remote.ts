@@ -191,7 +191,7 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
     }
     await o.devices.add({ device, publicKey: key, pairedAt: new Date().toISOString() });
     channel.send({ type: 'pair_status', status: 'paired' });
-    logger.info(`paired ${device} (${fingerprintOf(key)})`);
+    logger.info(text('pairLog', device, fingerprintOf(key)));
   }
 
   const h = await box.expect(['hello'], timeoutMs, 'hello');
@@ -268,11 +268,11 @@ function remoteConnection(
         for (const fn of capListeners) fn();
         return;
       case 'bye':
-        o.logger.info(`${o.device} disconnected: ${m.message}`);
+        o.logger.info(text('disconnectedLog', o.device, m.message));
         channel.close(m.code);
         return;
       default:
-        o.logger.warn(`${o.device} sent an unexpected ${m.type}; closing`);
+        o.logger.warn(text('unexpectedMessageClosingLog', o.device, m.type));
         channel.close('protocol error');
     }
   });

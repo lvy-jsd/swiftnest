@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy } from '@swiftnest/core';
+import { Nest, JsonDeviceStore, JsonlAuditLog, loadOrCreateIdentity, RulePolicy, text } from '@swiftnest/core';
 import { WebSocketServer } from 'ws';
 import { binaryPeer, serveLan } from '@swiftnest/link-lan';
 import { serveMcpHttp } from '@swiftnest/surface-mcp';
@@ -51,7 +51,7 @@ function adminServer(hub: DeviceHub, adminToken: string) {
     if (!hasBearer(req, adminToken)) return deny(401, 'Unauthorized');
     if (req.headers.origin) return deny(403, 'Forbidden');
     handleDeviceRequest(hub, req, res).catch((error) => {
-      nest.logger.error('device API failed', error);
+      nest.logger.error(text('deviceApiFailedLog'), error);
       if (res.headersSent) res.destroy();
       else deny(500, 'Device API failed');
     });

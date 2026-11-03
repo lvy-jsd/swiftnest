@@ -1,4 +1,4 @@
-import type { SwiftnestEvent } from '@swiftnest/api';
+import type { DisplayReason, SwiftnestEvent } from '@swiftnest/api';
 
 export type ChatRow =
   | {
@@ -18,7 +18,15 @@ export type ChatRow =
       calls: Record<string, { name?: string; arguments?: string; text?: string; isError?: boolean }>;
       finished: boolean;
     }
-  | { kind: 'approval'; id: string; requestId: string; toolName: string; reason?: string; settled: boolean }
+  | {
+      kind: 'approval';
+      id: string;
+      requestId: string;
+      toolName: string;
+      reason?: string;
+      displayReason?: DisplayReason;
+      settled: boolean;
+    }
   | { kind: 'error'; id: string; text: string; code?: string }
   | { kind: 'unknown'; id: string; event: unknown };
 export interface ChatState {
@@ -51,6 +59,7 @@ export function chatReducer(
           requestId: event.requestId,
           toolName: event.toolName,
           reason: event.reason,
+          ...(event.displayReason ? { displayReason: event.displayReason } : {}),
           settled: false,
         });
       }

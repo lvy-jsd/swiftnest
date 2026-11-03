@@ -224,7 +224,7 @@ export const zhCN: Record<StringKey, string> = {
   liveTlsRequired: '请通过 HTTPS 连接服务器，再打开实时画面。',
   liveView: '实时画面',
   takeOver: '接管控制',
-  handBack: '交还给小艾',
+  handBack: '交还控制',
   ivyControl: '小艾正在控制',
   youControl: '你正在控制',
   livePaused: '已暂停',

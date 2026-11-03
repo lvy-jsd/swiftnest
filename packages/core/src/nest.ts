@@ -100,7 +100,7 @@ export class Nest {
     for (const off of existing?.off ?? []) off();
     const off = [conn.onCapabilitiesChanged(() => this.changed()), conn.onClose(() => this.detach(conn.device, conn))];
     this.conns.set(conn.device, { conn, off });
-    this.logger.info(`device online: ${conn.device} via ${conn.via} (${fingerprintOf(conn.publicKey)})`);
+    this.logger.info(text('deviceOnlineLog', conn.device, conn.via, fingerprintOf(conn.publicKey)));
     this.changed();
   }
 
@@ -109,7 +109,7 @@ export class Nest {
     if (!entry || (conn && entry.conn !== conn)) return;
     for (const off of entry.off) off();
     this.conns.delete(device);
-    this.logger.info(`device offline: ${device}`);
+    this.logger.info(text('deviceOfflineLog', device));
     this.changed();
   }
 
@@ -123,7 +123,7 @@ export class Nest {
     entry?.conn.close('REVOKED', 'This device was revoked on the Nest.');
     this.detach(device);
     if (removed || entry) {
-      this.logger.info(`revoked ${device}`);
+      this.logger.info(text('revokedLog', device));
       this.changed();
     }
     return removed || Boolean(entry);

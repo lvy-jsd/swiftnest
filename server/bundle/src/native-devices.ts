@@ -1,4 +1,4 @@
-import { translateMessage, localizedError } from '@swiftnest/protocol';
+import { localizedError, render, text } from '@swiftnest/protocol';
 /** Native DSH device tools. The Nest and all policy decisions remain in the parent. */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -169,7 +169,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
       const body = (await response.json()) as { error?: string };
       const failure = body as { code?: string; message?: string; hint?: string };
       throw Object.assign(
-        new Error(failure.message ?? body.error ?? translateMessage(`Device control returned HTTP ${response.status}`)),
+        new Error(failure.message ?? body.error ?? `Device control returned HTTP ${response.status}`),
         { code: failure.code, hint: failure.hint },
       );
     }
@@ -226,7 +226,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
   ] as const) {
     const dispose = ctx.tools.register({
       name: toolName,
-      description: translateMessage(description),
+      description,
       parameters,
       output: {
         schema: { type: 'object', properties: { text: { type: 'string' }, data: {} }, required: ['text'] },
@@ -360,7 +360,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
             }
           }
         } catch (error) {
-          if (!lifetime.signal.aborted) ctx.logger.warn(`Device control reconnecting: ${String(error)}`);
+          if (!lifetime.signal.aborted) ctx.logger.warn(render(text('deviceControlReconnectingLog', String(error))));
         }
         if (!lifetime.signal.aborted) await delay(1000, undefined, { signal: lifetime.signal }).catch(() => {});
       }

@@ -133,7 +133,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
             (window as any).calls.some((c: any) => c.tool === 'input_type' && c.args.text === '你好'),
           ),
         ).toBe(true);
-        await dialog.getByRole('button', { name: zh ? '交还给小艾' : 'Hand back', exact: true }).click();
+        await dialog.getByRole('button', { name: zh ? '交还控制' : 'Hand back', exact: true }).click();
         await dialog.getByText(zh ? '小艾正在控制' : 'Ivy is in control', { exact: true }).waitFor();
         const box = (await dialog.boundingBox())!;
         expect(box.width).toBeLessThanOrEqual(width);

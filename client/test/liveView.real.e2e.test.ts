@@ -124,7 +124,7 @@ it
       const rect = (await image.boundingBox())!;
       await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);
       await expect.poll(() => host.clicks.length).toBe(1);
-      await panel.getByRole('button', { name: zh ? '交还给小艾' : 'Hand back', exact: true }).click();
+      await panel.getByRole('button', { name: zh ? '交还控制' : 'Hand back', exact: true }).click();
       await panel.getByText(zh ? '小艾正在控制' : 'Ivy is in control', { exact: true }).waitFor();
       await expect.poll(() => host.last()?.ownerControl).toBe(false);
       await panel.getByRole('button', { name: zh ? '关闭' : 'Close', exact: true }).click();

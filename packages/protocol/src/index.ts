@@ -1,4 +1,4 @@
-import { type MessageKey, type Text, text, translateMessage } from './language.js';
+import { type MessageKey, type Text, text } from './language.js';
 export * from './language.js';
 /**
  * @swiftnest/protocol — the data shapes every Swiftnest component agrees on.
@@ -19,7 +19,7 @@ export const LocalizedText = z.union([z.string(), z.object({ en: z.string(), zh:
 export type LocalizedText = z.infer<typeof LocalizedText>;
 
 export function localize(text: LocalizedText, lang: 'en' | 'zh' = 'zh'): string {
-  if (typeof text === 'string') return translateMessage(text, lang === 'en' ? 'en' : 'zh-CN');
+  if (typeof text === 'string') return text;
   return (lang === 'zh' ? text.zh : undefined) ?? text.en;
 }
 

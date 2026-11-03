@@ -1,5 +1,5 @@
 import { errorCodeFor, SwiftnestFailure, type Text } from '@swiftnest/core';
-export { message, localizedError, localizedReason, translateMessage } from '@swiftnest/core';
+export { message, localizedError, localizedReason } from '@swiftnest/core';
 
 /** A server failure: catalog text, with the code that belongs to it unless one is given. */
 export class ServerFailure extends SwiftnestFailure {

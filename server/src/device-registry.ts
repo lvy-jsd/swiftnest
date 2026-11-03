@@ -1,8 +1,7 @@
 /** Paired and online devices, their tools, and the metadata remembered while they are offline. */
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { fingerprintOf, type ExposedTool, type Nest } from '@swiftnest/core';
+import { fingerprintOf, text, type ExposedTool, type Nest } from '@swiftnest/core';
 import type { Device } from '@swiftnest/api';
-import { translateMessage } from './i18n.js';
 import type { Language } from './preferences.js';
 
 type CachedDevice = Device & { tools?: ExposedTool[] };
@@ -37,7 +36,7 @@ function offlinePlaceholders(device: CachedDevice): ExposedTool[] {
 
 function describe(tool: ExposedTool, lang: Language): string {
   const { description } = tool.tool;
-  if (typeof description === 'string') return translateMessage(description, lang);
+  if (typeof description === 'string') return description;
   return lang === 'en' ? description.en : (description.zh ?? description.en);
 }
 
@@ -166,6 +165,6 @@ export class DeviceRegistry {
         await writeFile(`${this.file}.tmp`, data, { mode: 0o600 });
         await rename(`${this.file}.tmp`, this.file);
       })
-      .catch((error) => this.nest.logger.error('device metadata write failed', error));
+      .catch((error) => this.nest.logger.error(text('deviceMetadataWriteFailedLog'), error));
   }
 }
