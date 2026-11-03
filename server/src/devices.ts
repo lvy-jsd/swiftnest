@@ -13,6 +13,8 @@ import { DeviceRegistry } from './device-registry.js';
 import { sendJson } from './device-response.js';
 import { handleDeviceRequest, PREFIX, type DeviceHub } from './device-routes.js';
 import { hasBearer } from './http.js';
+import { installPlugins } from './plugin-install.js';
+import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
 import { Preferences } from './preferences.js';
 import { Transfers } from './transfers.js';
 
@@ -68,7 +70,15 @@ function adminServer(hub: DeviceHub, adminToken: string) {
   return { admin, bulk };
 }
 
-export async function startDevices(config: ServerConfig) {
+export interface StartDevicesOptions {
+  /** Restart the DSH kernel so plugin changes take effect; a hub without a kernel has nothing to restart. */
+  restartKernel?: () => Promise<void>;
+  /** The kernel could not start even with the previous plugins. */
+  kernelFailed?: (error: unknown) => void;
+  installPlugins?: PluginManagerDeps['install'];
+}
+
+export async function startDevices(config: ServerConfig, options: StartDevicesOptions = {}) {
   const dir = join(config.home, 'devices');
   const nest = await openNest(dir);
   const preferences = await Preferences.open(join(config.home, 'preferences.json'), config.lang ?? 'zh-CN');
@@ -91,7 +101,24 @@ export async function startDevices(config: ServerConfig) {
   const adminToken = secret();
   let lan: Awaited<ReturnType<typeof serveLan>> | undefined;
   let mcp: Awaited<ReturnType<typeof serveMcpHttp>> | undefined;
-  const hub: DeviceHub = { config, nest, registry, transfers, preferences, streams, publish, lanPort: () => lan!.port };
+  const plugins = new PluginManager(config, {
+    install: options.installPlugins ?? installPlugins,
+    restart: options.restartKernel ?? (async () => {}),
+    fail: options.kernelFailed ?? (() => {}),
+    changed: () => publish('plugins-changed'),
+    log: (line) => console.log(line),
+  });
+  const hub: DeviceHub = {
+    config,
+    nest,
+    registry,
+    transfers,
+    preferences,
+    plugins,
+    streams,
+    publish,
+    lanPort: () => lan!.port,
+  };
 
   const { admin, bulk } = adminServer(hub, adminToken);
 
@@ -118,6 +145,7 @@ export async function startDevices(config: ServerConfig) {
       offTools();
       await registry.flush();
       await preferences.flush();
+      await plugins.flush();
     })());
 
   try {
@@ -134,6 +162,7 @@ export async function startDevices(config: ServerConfig) {
     const port = (admin.address() as { port: number }).port;
     return {
       nest,
+      plugins,
       mcpUrl: mcp.url,
       lanUrl: lan.url,
       env: { [MCP_TOKEN_ENV]: mcpToken, [ADMIN_TOKEN_ENV]: adminToken, [ADMIN_URL_ENV]: `http://127.0.0.1:${port}` },

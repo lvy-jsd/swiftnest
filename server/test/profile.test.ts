@@ -96,7 +96,7 @@ describe('presetPersonaPatch', () => {
 describe('writeProfile', () => {
   it('stacks DSH base, DSH web, then Swiftnest', () => {
     const { config, bundleDir } = setup();
-    const dir = writeProfile(config, { bundleDir });
+    const { dir } = writeProfile(config, { bundleDir });
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
     expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES]);
     expect(readlinkSync(join(dir, 'node_modules', '@swiftnest', 'server-bundle'))).toBe(bundleDir);
@@ -122,7 +122,7 @@ describe('writeProfile', () => {
   it('keeps the generated system prompt and all installed preset personas in sync', () => {
     const { config, bundleDir } = setup();
     config.persona = 'You are the configured Swiftnest assistant, powered by {{model}}.';
-    const dir = writeProfile(config, { bundleDir });
+    const { dir } = writeProfile(config, { bundleDir });
     const rows = parse(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8'), { customTags });
     expect(rows.filter((row: { id: string }) => row.id === 'system-prompt')).toEqual([
       { id: 'system-prompt', config: { personaPrefix: config.persona } },
@@ -194,7 +194,7 @@ describe('kernel output and pairing', () => {
 
 it('does not generate a device MCP bridge', () => {
   const { config, bundleDir } = setup();
-  const dir = writeProfile(config, { bundleDir });
+  const { dir } = writeProfile(config, { bundleDir });
   expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).not.toMatch(
     /devices-mcp|dsh-mcp-client|DEVICES_MCP_TOKEN/,
   );

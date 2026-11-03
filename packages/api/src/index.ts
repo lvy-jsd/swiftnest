@@ -25,6 +25,8 @@ import type {
   DeviceSubscription,
 } from './devices.js';
 export type * from './devices.js';
+import type { PluginsView } from './plugins.js';
+export type * from './plugins.js';
 import type {
   SessionFollowFrame,
   SessionListValue,
@@ -154,6 +156,21 @@ export class SwiftnestClient {
     action: 'pause' | 'resume' | 'cancel' | 'retry',
   ): Promise<import('./devices.js').Transfer> {
     return this.deviceRequest(`/transfers/${encodeURIComponent(id)}/${action}`, 'POST');
+  }
+  /** Audited plugins with their switches, community market installs, and the last apply. */
+  listPlugins(): Promise<PluginsView> {
+    return this.ownerRequest('plugins');
+  }
+  /** Save a switch; it takes effect at the next `applyPlugins`. */
+  setPluginEnabled(id: string, enabled: boolean): Promise<PluginsView> {
+    return this.ownerRequest(`plugins/${encodeURIComponent(id)}/${enabled ? 'enable' : 'disable'}`, 'POST');
+  }
+  /**
+   * Install what the switches need and restart the server's agent. The answer comes before the
+   * restart; the connection then drops briefly. Follow `apply.state` with `listPlugins`.
+   */
+  applyPlugins(): Promise<PluginsView> {
+    return this.ownerRequest('plugins/apply', 'POST');
   }
   listDevices(): Promise<Device[]> {
     return this.deviceRequest('');
@@ -288,9 +305,13 @@ export class SwiftnestClient {
       throw error;
     }
   }
-  private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
+  private deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
+    return this.ownerRequest(`devices${path}`, method, signal, body);
+  }
+  /** The owner-only server API under `/swiftnest/api/`. */
+  private async ownerRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
     this.assertConnected();
-    const response = await this.request(this.url(`swiftnest/api/devices${path}`), {
+    const response = await this.request(this.url(`swiftnest/api/${path}`), {
       method,
       signal,
       ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),

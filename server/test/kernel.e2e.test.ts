@@ -15,6 +15,15 @@ import { pairingUrl } from '../src/pairing.js';
 
 const enabled = process.env.SWIFTNEST_E2E === '1';
 
+/** A port that was free a moment ago: DSH binds a fixed port in real use, and sessions are bound to it. */
+async function freePort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise((r) => probe.close(r));
+  return port;
+}
+
 describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
   let model: Server;
   let kernel: RunningKernel;
@@ -41,7 +50,7 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
       SWIFTNEST_DEVICES_PORT: '0',
       SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_APP_DIST: dist,
-      SWIFTNEST_PORT: '0',
+      SWIFTNEST_PORT: String(await freePort()),
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
       SWIFTNEST_MODEL_ID: 'fake',
     });
@@ -84,4 +93,20 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
     expect(res.headers.get('location')).toBe('./api/remote.mux');
     expect(res.headers.get('set-cookie')).toBeTruthy();
   });
+
+  it('serves the plugin page to the owner and keeps browser sessions across a plugin restart', async () => {
+    // The web App signs in with the launch token at `/`; DSH keeps that cookie's signing key on disk.
+    const signIn = await fetch(`${kernel.url}?token=${kernel.token}`, { redirect: 'manual' });
+    const cookie = signIn.headers.get('set-cookie')!.split(';')[0]!;
+    const plugins = () => fetch(new URL('swiftnest/api/plugins', kernel.url), { headers: { cookie } });
+    expect((await fetch(new URL('swiftnest/api/plugins', kernel.url))).status).toBe(401);
+    const before = await plugins();
+    expect(before.status).toBe(200);
+    expect((await before.json()).apply).toEqual({ state: 'idle' });
+    const { token } = kernel;
+    await kernel.restart();
+    expect(kernel.token).not.toBe(token);
+    expect(kernel.child.exitCode).toBeNull();
+    expect((await plugins()).status).toBe(200);
+  }, 120_000);
 });

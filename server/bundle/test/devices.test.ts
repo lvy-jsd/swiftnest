@@ -54,6 +54,11 @@ it('uses owner admission and forwards only the parent credential and allowed rou
   expect((await fetch(`${proxy}/swiftnest/control/devices/call`, { method: 'POST' })).status).toBe(404);
   expect((await fetch(`${proxy}/swiftnest/api/devices/%2e%2e/%2e%2e/control/devices`)).status).toBe(404);
   expect(received).toHaveLength(1);
+  // The plugin switches are owner API too; their toggles carry no body.
+  expect((await fetch(`${proxy}/swiftnest/api/plugins/market/enable`, { method: 'POST', body: 'x' })).status).toBe(200);
+  expect(received.at(-1)).toMatchObject({ method: 'POST', url: '/swiftnest/api/plugins/market/enable', body: '' });
+  expect((await fetch(`${proxy}/swiftnest/api/pluginsx`)).status).toBe(404);
+  expect(received).toHaveLength(2);
 });
 it('refuses a non-loopback admin URL', () => {
   expect(() => deviceProxy({ admit: () => ({ rejection: 401 }) }, 'http://other.test', 'secret')).toThrow('loopback');

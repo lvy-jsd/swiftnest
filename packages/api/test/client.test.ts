@@ -79,6 +79,7 @@ function harness(
     }
     if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
+    if (url.includes('/swiftnest/api/plugins')) return Response.json({ plugins: [] });
     const value =
       body?.method === 'session/create'
         ? { sessionId: 'session-1' }
@@ -376,6 +377,25 @@ describe('device API client', () => {
       ]);
       for (const call of h.calls.slice(1))
         expect(call.init).toMatchObject({ credentials: 'include', headers: { cookie: 'dsh_api=secret' } });
+    } finally {
+      h.client.close();
+    }
+  });
+  it('drives the plugin page API with the session cookie', async () => {
+    const h = harness();
+    await h.client.connect(pairing);
+    try {
+      await h.client.listPlugins();
+      await h.client.setPluginEnabled('vision-router', true);
+      await h.client.setPluginEnabled('market', false);
+      await h.client.applyPlugins();
+      expect(h.calls.slice(1).map((c) => [c.url.replace('https://server.test/mount/', ''), c.init.method])).toEqual([
+        ['swiftnest/api/plugins', 'GET'],
+        ['swiftnest/api/plugins/vision-router/enable', 'POST'],
+        ['swiftnest/api/plugins/market/disable', 'POST'],
+        ['swiftnest/api/plugins/apply', 'POST'],
+      ]);
+      for (const call of h.calls.slice(1)) expect(call.init).toMatchObject({ headers: { cookie: 'dsh_api=secret' } });
     } finally {
       h.client.close();
     }
