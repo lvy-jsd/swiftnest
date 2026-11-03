@@ -44,6 +44,8 @@ import type {
   CreateSessionOptions,
   CreatedSession,
   Health,
+  ImageInput,
+  MessageImage,
   MessageReceipt,
   Question,
   QuestionAnswer,
@@ -531,6 +533,13 @@ export class SwiftnestClient {
     return (await response.json()) as T;
   }
 
+  /** The bytes of an image stored with a message, as a `data:` URL the App can show. */
+  async readImage(sessionId: string, image: MessageImage): Promise<string> {
+    const value = await this.rpc<{ attachment: { mediaType: string }; data: string }>('session/attachment', {
+      request: { sessionId, attachmentId: image.attachmentId },
+    });
+    return `data:${value.attachment.mediaType};base64,${value.data}`;
+  }
   async listSessions(): Promise<SessionSummary[]> {
     const result = await this.rpc<SessionListValue>('session/list', { _request: {} });
     return result.items.map((s) => {
@@ -549,15 +558,20 @@ export class SwiftnestClient {
     const result = await this.rpc<SessionCreateValue>('session/create', { request: options });
     return { sessionId: result.sessionId };
   }
-  async sendMessage(sessionId: string, message: string): Promise<MessageReceipt> {
-    if (!message.trim()) throw new ApiError('invalid-message', text('messageTextMustNotEmpty'));
+  /** Send a message, optionally with images; a message needs text or at least one image. */
+  async sendMessage(sessionId: string, message: string, images: readonly ImageInput[] = []): Promise<MessageReceipt> {
+    if (!message.trim() && !images.length) throw new ApiError('invalid-message', text('messageTextMustNotEmpty'));
     const requestId = randomId();
     this.assertConnected();
+    const content = [
+      ...images.map((image) => ({ type: 'image', ...image })),
+      ...(message.trim() ? [{ type: 'text', text: message }] : []),
+    ];
     const response = await this.request(this.url('swiftnest/api/chat'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        request: { sessionId, requestId, mode: 'queue', content: [{ type: 'text', text: message }] },
+        request: { sessionId, requestId, mode: 'queue', content },
         deviceSlug: this.options.deviceSlug,
       }),
     });

@@ -20,6 +20,20 @@ export interface CreatedSession {
 export interface CreateSessionOptions {
   cwd?: string;
 }
+/** An image the App sends with a message: canonical base64 bytes of a PNG, JPEG, WebP or GIF. */
+export interface ImageInput {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+  data: string;
+  name?: string;
+}
+/** An image the server stored with a message; read its bytes with `readImage`. */
+export interface MessageImage {
+  attachmentId: string;
+  mediaType: string;
+  width?: number;
+  height?: number;
+  name?: string;
+}
 export interface MessageReceipt {
   requestId: string;
   accepted: true;
@@ -44,7 +58,7 @@ interface EventBase {
 }
 export type SwiftnestEvent = EventBase &
   (
-    | { type: 'user-message'; messageId: string; text: string; requestId?: string }
+    | { type: 'user-message'; messageId: string; text: string; images?: MessageImage[]; requestId?: string }
     | { type: 'assistant-start'; attemptId: string }
     | { type: 'assistant-end'; attemptId: string; outcome: 'committed' | 'abandoned'; messageSeq?: number }
     | { type: 'assistant-delta'; attemptId: string; index: number; text: string }

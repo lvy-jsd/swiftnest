@@ -5,6 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { DeviceConnection } from './devices.js';
 
 export const name = 'swiftnest-devices';
+/** A prompt with the App's photos (downscaled on the device) stays under the encrypted channel's 8 MiB record. */
+export const MAX_PROMPT_BYTES = 7 * 1024 * 1024;
 export const inject = ['tools', 'connection', 'webServer', 'typertGateway'];
 export interface DeviceSummary {
   slug: string;
@@ -393,7 +395,7 @@ export async function apply(ctx: Context, config: { devicesAdminUrl: string; dev
             let raw = '';
             for await (const chunk of req) {
               raw += chunk;
-              if (Buffer.byteLength(raw) > 1024 * 1024) {
+              if (Buffer.byteLength(raw) > MAX_PROMPT_BYTES) {
                 res.writeHead(413).end();
                 return;
               }

@@ -339,6 +339,13 @@
     "/models",
     "model-label",
     "model-field",
-    "model-providers"
+    "model-providers",
+    "file",
+    "image/*",
+    "photo-drafts",
+    "photo-missing",
+    "message-photo",
+    "lazy",
+    "message-photos"
   ]
 }
