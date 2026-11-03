@@ -74,3 +74,30 @@ describe('chat transcript reducer', () => {
     expect(state.rows[0]).toMatchObject({ kind: 'unknown', event: { type: 'future-card' } });
   });
 });
+
+it('keeps risk-gate approvals actionable until answered or cancelled', () => {
+  const event = {
+    sessionId: 'chat',
+    type: 'approval-request',
+    requestId: 'risk',
+    toolName: 'tools_load',
+    reason: 'Load high-risk tool?',
+  } as const;
+  const pending = chatReducer(emptyChat(), event);
+  expect(pending.rows).toEqual([
+    {
+      kind: 'approval',
+      id: 'approval:risk',
+      requestId: 'risk',
+      toolName: 'tools_load',
+      reason: event.reason,
+      settled: false,
+    },
+  ]);
+  expect(chatReducer(pending, event).rows).toHaveLength(1);
+  const answered = chatReducer(pending, { type: 'approval-answered', requestId: 'risk' });
+  const cancelled = chatReducer(pending, { sessionId: 'chat', type: 'interaction-cancelled', requestId: 'risk' });
+  expect(answered.rows[0]).toMatchObject({ settled: true });
+  expect(cancelled.rows).toEqual(answered.rows);
+  expect(pending.rows[0]).toMatchObject({ settled: false });
+});

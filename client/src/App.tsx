@@ -1,3 +1,4 @@
+import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
@@ -233,7 +234,7 @@ function Thinking() {
     </p>
   );
 }
-function TranscriptRow({ row }: { row: ChatRow }) {
+function TranscriptRow({ row, onAnswered }: { row: ChatRow; onAnswered: (requestId: string) => void }) {
   const { t, locale } = useI18n();
   const { assistantName } = useConnection();
   if (row.kind === 'message') {
@@ -251,6 +252,7 @@ function TranscriptRow({ row }: { row: ChatRow }) {
       </article>
     );
   }
+  if (row.kind === 'approval') return <ApprovalCard request={row} onAnswered={onAnswered} />;
   if (row.kind === 'error') {
     const failure = localizedError({ code: row.code, message: row.text }, locale);
     return (
@@ -358,7 +360,9 @@ function ChatDetail({
         label={t('messages')}
         followEnd
         className="transcript"
-        renderItem={(row) => <TranscriptRow row={row} />}
+        renderItem={(row) => (
+          <TranscriptRow row={row} onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })} />
+        )}
       />
       <div className="composer-area glass">
         {state.waiting && <Thinking />}
@@ -422,6 +426,9 @@ function AppContent() {
   const visibleChats = sessions.filter((item) =>
     (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
+  const back = () => {
+    window.location.hash = '/';
+  };
   // Read current state without re-registering the async native listener on every
   // route/sheet change. StrictMode may clean up before registration resolves.
   const consumeBack = useRef<() => boolean>(() => false);

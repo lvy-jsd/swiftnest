@@ -17,3 +17,12 @@ export {
   type StartOptions,
 } from './kernel.js';
 export { pairingUrl, webAppUrl } from './pairing.js';
+
+export {
+  installToolUltra,
+  toolUltraDir,
+  toolUltraPatch,
+  isBuilt,
+  TOOL_ULTRA_SOURCE,
+  TOOL_ULTRA_PACKAGES,
+} from './tool-ultra.js';

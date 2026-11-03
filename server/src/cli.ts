@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { message, localizedError } from './i18n.js';
-import { parseArgs } from 'node:util';
+import { installToolUltra } from './tool-ultra.js';
+import { parseCliArgs } from './cli-args.js';
 import { loadConfig } from './config.js';
 import { startKernel } from './kernel.js';
 import { pairingUrl, webAppUrl } from './pairing.js';
@@ -8,22 +9,18 @@ import { pairingUrl, webAppUrl } from './pairing.js';
 let selectedLanguage: 'zh-CN' | 'en' = process.env.SWIFTNEST_LANG === 'en' ? 'en' : 'zh-CN';
 
 async function main(argv: string[]): Promise<number> {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: {
-      config: { type: 'string', short: 'c' },
-      verbose: { type: 'boolean', short: 'v' },
-      help: { type: 'boolean', short: 'h' },
-    },
-  });
-  if (values.help || positionals[0] !== 'start') {
+  const { values, command } = parseCliArgs(argv);
+  if (values.help || !command) {
     console.log(message('help', loadConfig(values.config).lang));
     return values.help ? 0 : 2;
   }
   const config = loadConfig(values.config);
   selectedLanguage = config.lang ?? 'zh-CN';
   process.env.SWIFTNEST_LANG = selectedLanguage;
+  if (command === 'tools-install') {
+    await installToolUltra(config, (line) => console.log(line));
+    return 0;
+  }
   console.log(message('starting', config.lang, [config.home]));
   const kernel = await startKernel(config, {
     onLine: values.verbose ? (line) => console.log(`  [dsh] ${line}`) : undefined,
