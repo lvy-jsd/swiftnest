@@ -1,5 +1,5 @@
 import { ModelsPage } from './models';
-import { MessagePhotos, PhotoButton, PhotoDrafts, usePhotoDrafts } from './photos';
+import { MessagePhotos, PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
 import { isPhoto } from './photoState';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
@@ -313,6 +313,7 @@ function ChatDetail({
   const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
   const [draft, setDraft] = useState('');
   const photos = usePhotoDrafts();
+  const consent = usePhotoConsent(photos.drafts.length > 0);
   const [hasKeyboard] = useState(hasPrecisePointer);
   const [ready, setReady] = useState(false);
   const { client } = store;
@@ -397,6 +398,7 @@ function ChatDetail({
         )}
         {photos.failed && <p role="alert">{t('photoFailed')}</p>}
         <PhotoDrafts drafts={photos.drafts} remove={photos.remove} />
+        <PhotoConsent consent={consent} />
         <form className="composer" onSubmit={send}>
           <PhotoButton disabled={photos.full || status !== 'connected'} add={(files) => void photos.add(files)} />
           <textarea

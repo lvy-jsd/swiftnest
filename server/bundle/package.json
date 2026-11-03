@@ -19,6 +19,10 @@
       "types": "./dist/memory.d.ts",
       "default": "./dist/memory.js"
     },
+    "./vision": {
+      "types": "./dist/vision.d.ts",
+      "default": "./dist/vision.js"
+    },
     "./routing": {
       "types": "./dist/routing.d.ts",
       "default": "./dist/routing.js"

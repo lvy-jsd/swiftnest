@@ -3,7 +3,7 @@
  * tasks go to, and the providers' API keys. Changes are saved first and take effect when
  * the owner applies them, which restarts the DSH kernel through the shared `KernelApply`.
  */
-import type { ModelProviderView, ModelsView } from '@swiftnest/api';
+import type { ModelProviderView, ModelRoute, ModelsView } from '@swiftnest/api';
 import type { ServerConfig } from './config.js';
 import { message } from './i18n.js';
 import type { KernelApply, KernelChange } from './kernel-apply.js';
@@ -38,7 +38,8 @@ export class ModelManager {
     this.booted = store.settings;
     this.bootedSnapshot = this.snapshot();
     this.change = {
-      rollback: () => this.store.save(this.booted),
+      // The free-vision answer took effect when given; a failed apply keeps it.
+      rollback: () => this.store.save({ ...this.booted, freeVision: this.store.settings.freeVision }),
       changed: () => this.deps.changed(),
       messages: { applied: 'modelsApplied', rolledBack: 'modelsRolledBack', busy: 'modelsApplyBusy' },
     };
@@ -53,6 +54,7 @@ export class ModelManager {
         ...(main && this.usable(main.provider) ? { main } : {}),
         ...(expert && this.usable(expert.provider) ? { expert } : {}),
         expertApproval,
+        vision: this.visionRoutes(),
       },
     };
   }
@@ -70,18 +72,24 @@ export class ModelManager {
   }
 
   view(config: ServerConfig, lang: Language): ModelsView {
-    const { main, expert, expertApproval } = this.store.settings;
+    const { main, expert, expertApproval, freeVision } = this.store.settings;
+    const localVision = this.local?.vision ?? config.model.vision;
     return {
       local: {
         name: config.model.name,
         model: config.model.id,
         contextWindow: this.local?.contextWindow ?? config.model.contextWindow,
-        vision: this.local?.vision ?? config.model.vision,
+        vision: localVision,
       },
       providers: MODEL_PROVIDERS.map((provider) => this.providerView(provider.id, lang)),
       ...(main ? { main } : {}),
       ...(expert ? { expert } : {}),
       expertApproval,
+      vision: {
+        needed: !localVision && (!main || main.provider === LOCAL_PROVIDER),
+        readers: this.visionRoutes().map((route) => route.provider),
+        free: freeVision,
+      },
       pending: this.snapshot() !== this.bootedSnapshot,
       apply: this.deps.kernel.view(this.change, lang),
     };
@@ -110,8 +118,17 @@ export class ModelManager {
     return this.store.flush();
   }
 
+  /** What the running kernel would differ in; the free-vision answer is read live, so it never is. */
   private snapshot(): string {
-    return JSON.stringify([this.store.settings, this.store.keyEnv()]);
+    const { freeVision: _live, ...settings } = this.store.settings;
+    return JSON.stringify([settings, this.store.keyEnv()]);
+  }
+
+  /** A vision model of every provider the owner has a key for. */
+  private visionRoutes(): ModelRoute[] {
+    return MODEL_PROVIDERS.filter((provider) => provider.visionModel && this.store.key(provider.id)).map(
+      (provider) => ({ provider: provider.id, model: provider.visionModel! }),
+    );
   }
 
   private usable(provider: string): boolean {

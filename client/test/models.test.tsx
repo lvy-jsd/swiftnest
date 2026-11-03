@@ -33,6 +33,7 @@ const view: ModelsView = {
   providers: [deepseek, google],
   expert: { provider: 'deepseek', model: 'deepseek-v4-flash' },
   expertApproval: 'ask',
+  vision: { needed: true, readers: ['deepseek'], free: 'ask' },
   pending: false,
   apply: { state: 'idle' },
 };

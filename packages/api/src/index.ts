@@ -330,7 +330,7 @@ export class SwiftnestClient {
   listModels(): Promise<ModelsView> {
     return this.ownerRequest('models');
   }
-  /** Save which models do what; it takes effect at the next `applyModels`. */
+  /** Save which models do what; it takes effect at the next `applyModels`, except `freeVision`, which takes effect at once. */
   updateModels(update: ModelSettingsUpdate): Promise<ModelsView> {
     return this.ownerRequest('models/settings', 'POST', undefined, update);
   }

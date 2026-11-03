@@ -36,7 +36,22 @@ export interface CloudConfig {
   /** The stronger model the assistant hands hard tasks to. */
   expert?: ModelRoute;
   expertApproval: ExpertApproval;
+  /** The owner's vision models that describe photos when the main model cannot see, best first. */
+  vision?: ModelRoute[];
 }
+
+/** An anonymous OpenAI-compatible vision service; photos go there only with the owner's consent. */
+export interface FreeVisionService {
+  baseUrl: string;
+  /** Tried in order. */
+  models: string[];
+}
+
+/** OVHcloud AI Endpoints answer without an account or key, with a rate limit. */
+export const FREE_VISION: FreeVisionService = {
+  baseUrl: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1',
+  models: ['Qwen3.5-397B-A17B', 'Qwen2.5-VL-72B-Instruct'],
+};
 
 export interface ServerConfig {
   lang?: 'zh-CN' | 'en';
@@ -58,6 +73,8 @@ export interface ServerConfig {
   model: ModelConfig;
   /** Cloud models chosen in the App (see model-settings.ts); unset routes use `model`. */
   cloud?: CloudConfig;
+  /** Where photos go when nothing else can read them and the owner agreed; defaults to {@link FREE_VISION}. */
+  freeVision?: FreeVisionService;
   files?: { quotaBytes: number };
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean };
@@ -149,6 +166,10 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
           ? (fromFile.devices?.mdns ?? true)
           : env.SWIFTNEST_DEVICES_MDNS !== 'false',
     },
+    freeVision: {
+      baseUrl: env.SWIFTNEST_FREE_VISION_BASE_URL || fromFile.freeVision?.baseUrl || FREE_VISION.baseUrl,
+      models: fromFile.freeVision?.models ?? FREE_VISION.models,
+    },
     files: { quotaBytes: num(env.SWIFTNEST_FILES_QUOTA_BYTES) ?? fromFile.files?.quotaBytes ?? 100 * 1024 ** 3 },
     model: {
       ...DEFAULT_MODEL,
@@ -191,6 +212,7 @@ export function validate(config: ServerConfig): void {
   } catch {
     throw new ServerFailure(text('modelBaseurlNotUrl', config.model.baseUrl));
   }
+  if (config.freeVision) validateFreeVision(config.freeVision);
   if (!/^[A-Z_][A-Z0-9_]*$/.test(config.model.apiKeyEnv)) {
     throw new ServerFailure(text('modelApikeyenvMustEnvironmentVariableName', config.model.apiKeyEnv));
   }
@@ -198,4 +220,14 @@ export function validate(config: ServerConfig): void {
   if (!Number.isInteger(config.model.contextWindow) || config.model.contextWindow < 1024) {
     throw new ServerFailure(text('modelContextWindowInvalid', String(config.model.contextWindow)));
   }
+}
+
+function validateFreeVision(service: FreeVisionService): void {
+  try {
+    new URL(service.baseUrl);
+  } catch {
+    throw new ServerFailure(text('freeVisionInvalid'));
+  }
+  if (!Array.isArray(service.models) || !service.models.length || service.models.some((m) => typeof m !== 'string'))
+    throw new ServerFailure(text('freeVisionInvalid'));
 }

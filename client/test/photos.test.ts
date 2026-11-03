@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { chatReducer, emptyChat } from '../src/chat';
-import { base64, fitWithin, MAX_PHOTOS, MAX_PHOTO_BYTES, needsShrinking, photoName, roomFor } from '../src/photoState';
+import {
+  base64,
+  fitWithin,
+  MAX_PHOTOS,
+  MAX_PHOTO_BYTES,
+  needsFreeVisionAnswer,
+  needsShrinking,
+  photoName,
+  roomFor,
+} from '../src/photoState';
 
 describe('photo rules', () => {
   it('scales the longest side down to the limit and never up', () => {
@@ -41,4 +50,11 @@ it('keeps the photos of a sent message in the transcript, also without text', ()
     images,
   });
   expect(state.rows[0]).toMatchObject({ kind: 'message', role: 'user', text: '', images });
+});
+
+it('asks about the free photo service only when nothing else can read photos and the owner has not answered', () => {
+  expect(needsFreeVisionAnswer({ needed: true, readers: [], free: 'ask' })).toBe(true);
+  expect(needsFreeVisionAnswer({ needed: true, readers: ['google'], free: 'ask' })).toBe(false);
+  expect(needsFreeVisionAnswer({ needed: true, readers: [], free: 'off' })).toBe(false);
+  expect(needsFreeVisionAnswer({ needed: false, readers: [], free: 'ask' })).toBe(false);
 });

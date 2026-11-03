@@ -54,12 +54,17 @@ describe('model settings', () => {
         expert: { provider: 'nowhere', model: 'x' },
         expertApproval: 'sometimes',
       }),
-    ).toEqual({ main: { provider: 'deepseek', model: 'deepseek-v4-pro' }, expertApproval: 'ask' });
+    ).toEqual({ main: { provider: 'deepseek', model: 'deepseek-v4-pro' }, expertApproval: 'ask', freeVision: 'ask' });
   });
 
   it('rejects a whole update when any field is invalid, and clears a route with null', () => {
     const current = parseModelSettings({ expert: { provider: 'google', model: 'gemini-pro-latest' } });
-    expect(updateModelSettings(current, { expert: null, expertApproval: 'auto' })).toEqual({ expertApproval: 'auto' });
+    expect(updateModelSettings(current, { expert: null, expertApproval: 'auto' })).toEqual({
+      expertApproval: 'auto',
+      freeVision: 'ask',
+    });
+    expect(updateModelSettings(current, { freeVision: 'on' })).toMatchObject({ freeVision: 'on' });
+    expect(() => updateModelSettings(current, { freeVision: 'yes' as never })).toThrow();
     expect(() => updateModelSettings(current, { expert: { provider: 'google', model: 'bad model' } })).toThrow();
     expect(() => updateModelSettings(current, { main: null, extra: true })).toThrow();
   });
@@ -94,9 +99,26 @@ describe('model manager', () => {
     const { home, config } = setup();
     const { models } = manager(home);
     await models.update({ main: { provider: 'deepseek', model: 'deepseek-v4-pro' } });
-    expect(models.config(config).cloud).toEqual({ expertApproval: 'ask' });
+    expect(models.config(config).cloud).toEqual({ expertApproval: 'ask', vision: [] });
     await models.setKey('deepseek', KEY);
     expect(models.config(config).cloud?.main).toEqual({ provider: 'deepseek', model: 'deepseek-v4-pro' });
+  });
+
+  it('lets each provider with a key read photos, and takes the free-service answer without a restart', async () => {
+    const { home, config } = setup();
+    const { models } = manager(home);
+    expect(models.view(config, 'en').vision).toEqual({ needed: true, readers: [], free: 'ask' });
+    await models.setKey('google', KEY);
+    expect(models.config(config).cloud?.vision).toEqual([{ provider: 'google', model: 'gemini-flash-latest' }]);
+    models.loaded(config.model);
+    await models.update({ freeVision: 'on' });
+    expect(models.view(config, 'en')).toMatchObject({
+      vision: { needed: true, readers: ['google'], free: 'on' },
+      pending: false,
+    });
+    const seeing = { ...config, model: { ...config.model, vision: true } };
+    models.loaded(seeing.model);
+    expect(models.view(seeing, 'en').vision.needed).toBe(false);
   });
 
   it('marks saved changes pending until the kernel restarts with them', async () => {
