@@ -440,6 +440,8 @@
   "pluginSourceNotPinned": "Plugin {0} must pin an exact version with integrity, or a full commit",
   "pluginIntegrityMismatch": "Plugin {0} did not install the audited tarball (integrity mismatch)",
   "pluginsMissing": "Enabled plugins are not installed: {0}. Run swiftnest-server plugins install with the same --config / SWIFTNEST_HOME, then restart.",
+  "pluginsOutsideManifest": "Removed {0} from the profile: the community market is off, so plugins load only from server/plugins.json.",
+  "pluginsUnaudited": "Loading plugins installed from the community market, which Swiftnest has not audited: {0}.",
   "pluginsInstalling": "Installing plugins: {0}…",
   "pluginsInstalled": "Plugins are installed. Restart Swiftnest Server to load them.",
   "pluginCommandFailed": "Plugin command {0} failed (exit {1}).",

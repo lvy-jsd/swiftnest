@@ -271,6 +271,9 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       await turn('tools-revoked');
       expect(toolNames('tools-revoked')).not.toContain('device__node__files_read');
       // Neither parent nor kernel persistence may contain the process credentials.
+      // Stop the kernel first: it writes atomically through temporary files, and
+      // one renamed between readdir and readFile would fail the scan.
+      await kernel.stop();
       for (const entry of await readdir(home, { recursive: true, withFileTypes: true })) {
         if (!entry.isFile()) continue;
         const data = await readFile(join(entry.parentPath, entry.name));

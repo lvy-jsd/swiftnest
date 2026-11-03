@@ -1,6 +1,6 @@
 import { text } from '@swiftnest/core';
 import { message, ServerFailure } from './i18n.js';
-import { profilePlugins } from './profile-plugins.js';
+import { type ProfilePlugins, profilePlugins } from './profile-plugins.js';
 /**
  * The `swiftnest` DSH profile: DSH's own base and web bundles, then ours, then
  * a patch layer generated from the Swiftnest config. The profile is rewritten
@@ -140,12 +140,19 @@ export interface WriteProfileOptions {
  */
 const PROFILE_WORKSPACE = 'packages:\n  - .\nnodeLinker: hoisted\nautoInstallPeers: false\nstrictDepBuilds: false\n';
 
+function reportPlugins(plugins: ProfilePlugins, config: ServerConfig, log: (line: string) => void): void {
+  const notes = [
+    ['pluginsMissing', plugins.missing],
+    ['pluginsUnaudited', plugins.unaudited],
+    ['pluginsOutsideManifest', plugins.dropped],
+  ] as const;
+  for (const [key, names] of notes) if (names.length) log(message(key, config.lang, [names.join(', ')]));
+}
+
 export function writeProfile(config: ServerConfig, opts: WriteProfileOptions): string {
   const dir = profileDir(config);
   const plugins = profilePlugins(config, dir);
-  if (plugins.missing.length) {
-    (opts.log ?? console.warn)(message('pluginsMissing', config.lang, [plugins.missing.join(', ')]));
-  }
+  reportPlugins(plugins, config, opts.log ?? console.warn);
   mkdirSync(dir, { recursive: true });
   const pkg = {
     name: 'dsh-profile-swiftnest',

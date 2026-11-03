@@ -11,7 +11,7 @@ import { expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { startKernel } from '../src/kernel.js';
 import { installPlugins } from '../src/plugin-install.js';
-import { enabledNpmPlugins } from '../src/plugins.js';
+import { enabledNpmPlugins, enabledPlugins, type DshSource } from '../src/plugins.js';
 import { BUNDLES, profileDir } from '../src/profile.js';
 
 const FAILURE = /\b(error|failed|skipping profile bundle)\b/i;
@@ -28,10 +28,12 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
       SWIFTNEST_DEVICES_PORT: '0',
       SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_MODEL_ID: 'fake',
-      // Tool Ultra has its own e2e test; this one covers the npm plugins.
-      SWIFTNEST_PLUGINS: 'tool-ultra=false',
+      // Tool Ultra has its own e2e test; this one covers the npm plugins and the
+      // kernel's own market bundle, which is off by default.
+      SWIFTNEST_PLUGINS: 'tool-ultra=false,market=true',
     });
     const plugins = enabledNpmPlugins(config.plugins);
+    const shipped = enabledPlugins<DshSource>(config.plugins, 'dsh').map((plugin) => plugin.source.package);
     try {
       await installPlugins(config, (line) => log.push(line));
       const kernel = await startKernel(config, { readyTimeoutMs: 90_000, onLine: (line) => log.push(line) });
@@ -40,7 +42,11 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
       const alive = kernel.child.exitCode === null;
       await kernel.stop();
       const pkg = JSON.parse(readFileSync(join(profileDir(config), 'package.json'), 'utf8'));
-      expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, ...plugins.map((plugin) => plugin.source.package)]);
+      expect(pkg.dsh.profile.bundles).toEqual([
+        ...BUNDLES,
+        ...shipped,
+        ...plugins.map((plugin) => plugin.source.package),
+      ]);
       expect(alive).toBe(true);
       const names = plugins.flatMap((plugin) => [plugin.id, plugin.source.package]);
       expect(log.filter((line) => FAILURE.test(line) && names.some((name) => line.includes(name)))).toEqual([]);

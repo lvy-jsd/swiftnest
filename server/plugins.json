@@ -1,5 +1,9 @@
 {
-  "allowedLicenses": ["MIT", "Apache-2.0", "BSD-3-Clause"],
+  "allowedLicenses": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause"
+  ],
   "plugins": [
     {
       "id": "tool-ultra",
@@ -9,8 +13,36 @@
         "type": "git",
         "repository": "https://github.com/lvy-jsd/dsh-tool-ultra",
         "commit": "8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9",
-        "packages": ["core", "classifier-rules", "risk-gate", "persist", "pack-essentials", "pack-web", "devices"]
+        "packages": [
+          "core",
+          "classifier-rules",
+          "risk-gate",
+          "persist",
+          "pack-essentials",
+          "pack-web",
+          "devices"
+        ]
       }
+    },
+    {
+      "id": "market",
+      "license": "MIT",
+      "enabled": false,
+      "reason": "community plugins are not audited; plugins installed from it stay and are marked unaudited",
+      "source": {
+        "type": "dsh",
+        "package": "@deepseek-ai/dsh-experimental-plugin-market-bundle"
+      },
+      "patch": [
+        {
+          "id": "plugin-market",
+          "config": {
+            "indexes": [
+              "https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json"
+            ]
+          }
+        }
+      ]
     },
     {
       "id": "safety-net",

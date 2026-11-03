@@ -1,6 +1,6 @@
 /**
- * The plugin manifest (`server/plugins.json`): every third-party DSH plugin the
- * Server can load, pinned to one exact source, with its license. Modeled on
+ * The plugin manifest (`server/plugins.json`): every optional or third-party DSH
+ * plugin the Server can load, pinned to one exact source, with its license. Modeled on
  * DeepSeek Harness Ultimate's audited profile: exact pins, a license allowlist,
  * and integrations that need credentials stay off until the operator enables them.
  */
@@ -25,7 +25,15 @@ export interface NpmSource {
   integrity: string;
 }
 
-export interface Plugin<S extends GitSource | NpmSource = GitSource | NpmSource> {
+/** An optional bundle shipped with the pinned DSH kernel; its version is the kernel's. */
+export interface DshSource {
+  type: 'dsh';
+  package: string;
+}
+
+export type Source = GitSource | NpmSource | DshSource;
+
+export interface Plugin<S extends Source = Source> {
   id: string;
   license: string;
   /** The default; the operator's `plugins` config overrides it per id. */
@@ -33,6 +41,8 @@ export interface Plugin<S extends GitSource | NpmSource = GitSource | NpmSource>
   /** Why the plugin is off by default. */
   reason?: string;
   source: S;
+  /** Profile patch rows applied while the plugin is enabled, e.g. its settings. */
+  patch?: unknown[];
 }
 
 export interface PluginManifest {
@@ -45,7 +55,13 @@ const COMMIT = /^[0-9a-f]{40}$/;
 const INTEGRITY = /^sha512-[A-Za-z0-9+/]{86}==$/;
 const ID = /^[a-z][a-z0-9-]*$/;
 
-function checkSource(id: string, source: GitSource | NpmSource): void {
+const DSH_PACKAGE = /^@deepseek-ai\/dsh-[a-z0-9-]+$/;
+
+function checkSource(id: string, source: Source): void {
+  if (source.type === 'dsh') {
+    if (!DSH_PACKAGE.test(source.package)) throw new ServerFailure(text('pluginSourceNotPinned', id));
+    return;
+  }
   if (source.type === 'git') {
     if (!COMMIT.test(source.commit) || source.packages.length === 0)
       throw new ServerFailure(text('pluginSourceNotPinned', id));
@@ -72,7 +88,7 @@ export const PLUGIN_MANIFEST: PluginManifest = checkManifest(
   JSON.parse(readFileSync(new URL('../plugins.json', import.meta.url), 'utf8')),
 );
 
-export function pluginById<S extends GitSource | NpmSource>(id: string, type: S['type']): Plugin<S> {
+export function pluginById<S extends Source>(id: string, type: S['type']): Plugin<S> {
   const plugin = PLUGIN_MANIFEST.plugins.find((candidate) => candidate.id === id);
   if (plugin?.source.type !== type) throw new ServerFailure(text('pluginIdInvalid', id));
   return plugin as Plugin<S>;
@@ -83,10 +99,14 @@ export function isEnabled(plugin: Plugin, overrides: Record<string, boolean>): b
   return overrides[plugin.id] ?? plugin.enabled;
 }
 
-export function enabledNpmPlugins(overrides: Record<string, boolean>): Plugin<NpmSource>[] {
+export function enabledPlugins<S extends Source>(overrides: Record<string, boolean>, type: S['type']): Plugin<S>[] {
   return PLUGIN_MANIFEST.plugins.filter(
-    (plugin): plugin is Plugin<NpmSource> => plugin.source.type === 'npm' && isEnabled(plugin, overrides),
+    (plugin): plugin is Plugin<S> => plugin.source.type === type && isEnabled(plugin, overrides),
   );
+}
+
+export function enabledNpmPlugins(overrides: Record<string, boolean>): Plugin<NpmSource>[] {
+  return enabledPlugins<NpmSource>(overrides, 'npm');
 }
 
 /** Check operator overrides against the manifest so a typo never silently does nothing. */

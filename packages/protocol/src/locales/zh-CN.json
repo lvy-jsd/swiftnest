@@ -440,6 +440,8 @@
   "pluginSourceNotPinned": "插件 {0} 必须固定精确版本和校验值，或完整提交",
   "pluginIntegrityMismatch": "插件 {0} 安装的不是审计过的包（校验值不符）",
   "pluginsMissing": "以下已启用的插件尚未安装：{0}。请使用相同的 --config / SWIFTNEST_HOME 运行 swiftnest-server plugins install，然后重启。",
+  "pluginsOutsideManifest": "已从配置中移除 {0}：社区市场已关闭，插件只从 server/plugins.json 加载。",
+  "pluginsUnaudited": "正在加载从社区市场安装、Swiftnest 未审核的插件：{0}。",
   "pluginsInstalling": "正在安装插件：{0}…",
   "pluginsInstalled": "插件已安装。重启 Swiftnest 服务器后生效。",
   "pluginCommandFailed": "插件命令 {0} 失败（退出码 {1}）。",
