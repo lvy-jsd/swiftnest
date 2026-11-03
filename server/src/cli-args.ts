@@ -13,8 +13,8 @@ export function parseCliArgs(argv: string[]) {
   const command =
     positionals.length === 1 && positionals[0] === 'start'
       ? 'start'
-      : positionals.length === 2 && positionals[0] === 'tools' && positionals[1] === 'install'
-        ? 'tools-install'
+      : positionals.length === 2 && positionals[0] === 'plugins' && positionals[1] === 'install'
+        ? 'plugins-install'
         : undefined;
   return { values, command };
 }

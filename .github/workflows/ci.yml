@@ -33,6 +33,7 @@ jobs:
         env:
           SWIFTNEST_E2E: "1"
           SWIFTNEST_WEB_E2E: "1"
+          SWIFTNEST_PLUGINS_E2E: "1"
 
   # The device core (Shell, files, screen, transfers). Tests run the real
   # bubblewrap sandbox, so the runner must allow unprivileged user namespaces.

@@ -7,21 +7,22 @@ Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github
 准备 Git、npm、Node 24 和网络，使用服务器的同一个配置与数据目录：
 
 ```sh
-swiftnest-server tools install --config swiftnest.yaml
+swiftnest-server plugins install --config swiftnest.yaml
 swiftnest-server start --config swiftnest.yaml
 ```
 
-源码安装可运行 `node server/dist/cli.js tools install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
+源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
 安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-8ccfefa1a922` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
 
-默认 `toolUltra: true`。启动时若未安装，会给出安装提示并继续运行；启动不会自动获取源码。关闭方法：
+Tool Ultra 默认启用，固定提交写在 [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json)。启动时若未安装，会给出安装提示并继续运行；启动不会自动获取源码。关闭方法：
 
 ```yaml
-toolUltra: false
+plugins:
+  tool-ultra: false
 ```
 
-或设置 `SWIFTNEST_TOOL_ULTRA=false`，环境变量优先。安装后重启 Server 生效。
+或设置 `SWIFTNEST_PLUGINS=tool-ultra=false`，环境变量优先。安装后重启 Server 生效。其他插件见[插件](./plugins.md)。
 
 构建依赖使用 `mathjs 15.2.0` 安全覆盖，修复固定源码原有依赖的[表达式执行漏洞](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)；源码提交和插件默认配置保持不变。
 
