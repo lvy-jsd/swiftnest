@@ -1,10 +1,7 @@
 export {
   message,
-  translateMessage,
-  translateReason,
   localizedReason,
   localizedError,
-  errorCode,
   language,
   defaultLanguage,
   messageEn,
@@ -46,6 +43,7 @@ import type {
   SessionSummary,
   Subscription,
   SwiftnestEvent,
+  DisplayReason,
 } from './types.js';
 export type * from './types.js';
 export { ApiError } from './transport.js';
@@ -463,6 +461,7 @@ export class SwiftnestClient {
               requestId: frame.eventId,
               toolName: String(frame.request.toolName),
               reason: frame.request.reason as string | undefined,
+              displayReason: displayReasonOf(frame.request.displayReason),
               callId: frame.request.callId as string | undefined,
             });
           else
@@ -613,4 +612,12 @@ export async function connect(pairingUrl: string, options: ClientOptions = {}): 
   const client = new SwiftnestClient(options);
   await client.connect(pairingUrl);
   return client;
+}
+
+/** The request's per-language reason, when it has the shape DSH defines ({ en, ...locales }). */
+function displayReasonOf(value: unknown): DisplayReason | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  const copy = Object.fromEntries(entries);
+  return typeof copy.en === 'string' ? (copy as DisplayReason) : undefined;
 }

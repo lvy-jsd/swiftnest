@@ -1,14 +1,6 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
-import {
-  defaultLanguage,
-  errorCode,
-  language,
-  localizedError,
-  messageEn,
-  messageZh,
-  translateMessage,
-} from '../src/language';
+import { defaultLanguage, language, localizedError, message, messageEn, messageZh } from '../src/language';
 import { STRINGS, detectLang } from '../../cli/src/i18n';
 import { lintUI, violations } from '../../../scripts/i18n-lint.mjs';
 const placeholders = (s: string) => (s.match(/\{\d+\}/g) ?? []).sort();
@@ -39,22 +31,16 @@ it('defaults to Chinese regardless of OS language and accepts an explicit Englis
     vi.unstubAllEnvs();
   }
 });
-it('preserves codes and technical parameters while localizing message and hint', () => {
-  const original = {
-    code: 'DEVICE_OFFLINE',
-    message: 'Device "laptop" is not connected.',
-    suggestion: 'Wait for it to reconnect, then retry.',
-  };
-  expect(localizedError(original, 'zh-CN')).toEqual({
-    code: 'DEVICE_OFFLINE',
-    message: '设备“laptop”未连接。',
-    hint: '请等待设备重连后重试。',
+it('shows prose without catalog text as is, or as a plain sentence naming its code for Chinese readers', () => {
+  const thirdParty = { code: 'EACCES', message: 'permission denied, open /etc/shadow', hint: 'Run it as root.' };
+  expect(localizedError(thirdParty, 'en')).toEqual(thirdParty);
+  expect(localizedError(thirdParty, 'zh-CN')).toEqual({
+    code: 'EACCES',
+    message: message('genericError', 'zh-CN', ['EACCES']),
+    hint: message('retryHint', 'zh-CN'),
   });
-  expect(localizedError(original, 'en').message).toBe(original.message);
-  expect(errorCode('Unknown transfer')).toBe('UNKNOWN_TRANSFER');
-  expect(translateMessage('来源文件已变化，请重新发起传输', 'en')).toBe('Source changed; start a new transfer');
-  expect(translateMessage('Source changed; start a new transfer', 'zh-CN')).toBe('来源文件已变化，请重新发起传输');
-  expect(translateMessage('my file.txt', 'zh-CN')).toBe('my file.txt');
+  expect(localizedError({ code: 'X', message: '磁盘已满' }, 'zh-CN').message).toBe('磁盘已满');
+  expect(localizedError(new Error('boom'), 'en')).toMatchObject({ code: 'SWIFTNEST_FAILED', message: 'boom' });
 });
 it('rejects new prose in JSX, attributes, expressions and template strings while allowing technical tokens', () => {
   const allowed = new Set(['MCP']);

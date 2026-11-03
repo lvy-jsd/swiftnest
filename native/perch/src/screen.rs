@@ -103,7 +103,7 @@ impl InputGate {
                 if owner {
                     text!("takeOverBeforeSendingInput")
                 } else {
-                    text!("ownerTakenOverHandBackIvy")
+                    text!("ownerHasControl")
                 },
             ));
         }

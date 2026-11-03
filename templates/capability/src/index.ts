@@ -2,7 +2,7 @@
  * A minimal Swiftnest capability plugin. Rename it, then replace the `greet` tool with your own.
  * Guide: docs/en/guide/write-a-plugin.md (中文：docs/zh/guide/write-a-plugin.md) in the Swiftnest repository.
  */
-import { definePlugin, defaultLanguage, translateMessage, type Capability } from '@swiftnest/sdk';
+import { definePlugin, defaultLanguage, type Capability } from '@swiftnest/sdk';
 
 export function helloCapability(greeting = defaultLanguage() === 'en' ? 'Hello' : '你好'): Capability {
   return {
@@ -16,7 +16,7 @@ export function helloCapability(greeting = defaultLanguage() === 'en' ? 'Hello' 
           description: { en: 'Greet someone by name.', zh: '按名字跟人打招呼。' },
           inputSchema: {
             type: 'object',
-            properties: { name: { type: 'string', description: translateMessage('Who to greet') } },
+            properties: { name: { type: 'string', description: 'Who to greet' } },
             required: ['name'],
           },
           // read: only observes, so the default policy runs it without asking.

@@ -1,10 +1,7 @@
 export {
   message,
-  translateMessage,
-  translateReason,
   localizedReason,
   localizedError,
-  errorCode,
   errorCodeFor,
   language,
   defaultLanguage,

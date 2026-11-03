@@ -256,7 +256,7 @@ export async function handleDeviceRequest(hub: DeviceHub, req: IncomingMessage, 
       if (res.headersSent || res.destroyed) return;
       return result instanceof WithStatus ? reply(request, result.status, result.body) : reply(request, 200, result);
     }
-    reply(request, 404, { error: 'Not found' });
+    throw new HttpError(404, text('notFound'));
   } catch (error) {
     if (!(error instanceof HttpError)) throw error;
     if (!res.headersSent) reply(request, error.status, { ...error.failure, error: error.failure.message });

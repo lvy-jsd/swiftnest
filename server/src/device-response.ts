@@ -1,6 +1,6 @@
 /** JSON responses of the device API, localized at the owner boundary. */
 import type { ServerResponse } from 'node:http';
-import { localizedError, localizedReason, translateMessage } from './i18n.js';
+import { localizedError, localizedReason } from './i18n.js';
 import type { Language } from './preferences.js';
 
 interface TaskView {
@@ -28,10 +28,6 @@ function localizeTask(task: TaskView, lang: Language): TaskView {
     ...task,
     ...(task.reason ? { reason: localizedReason(task, lang) } : {}),
     ...(task.error ? { error: { ...(task.error as object), ...localizedError(task.error, lang) } } : {}),
-    // Device output is data, never catalog text: only trusted results are translated.
-    ...(task.result && !task.result.untrusted
-      ? { result: { ...task.result, text: translateMessage(task.result.text, lang) } }
-      : {}),
   };
 }
 

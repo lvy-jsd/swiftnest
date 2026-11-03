@@ -89,7 +89,7 @@ export class PluginHost {
     const dispose = await plugin.setup(ctx);
     this.loaded.push(plugin);
     if (dispose) this.disposers.push({ name: plugin.name, dispose });
-    this.logger.debug(`loaded plugin ${plugin.name} (${plugin.kind})`);
+    this.logger.debug(text('pluginLoadedLog', plugin.name, plugin.kind));
   }
 
   async disposeAll(): Promise<void> {
@@ -97,7 +97,7 @@ export class PluginHost {
       try {
         await dispose();
       } catch (e) {
-        this.logger.warn(`plugin ${name} failed to dispose`, e);
+        this.logger.warn(text('pluginDisposeFailedLog', name), e);
       }
     }
     this.disposers = [];

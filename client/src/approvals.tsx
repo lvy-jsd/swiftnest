@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { translateMessage } from '@swiftnest/api';
 import type { ApprovalAnswer } from '@swiftnest/api';
 import type { ChatRow } from './chat';
 import { useConnection } from './connection';
@@ -18,6 +17,8 @@ export function ApprovalCard({
   const { store, status } = useConnection();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // People read the asker's copy in their language; the audit reason is the fallback.
+  const reason = request.displayReason?.[locale] ?? request.displayReason?.en ?? request.reason;
   async function answer(value: ApprovalAnswer) {
     if (!store.client || busy || request.settled) return;
     setBusy(true);
@@ -35,7 +36,7 @@ export function ApprovalCard({
     <article className="event-card" aria-label={t('toolApproval')}>
       <strong>{t('toolApproval')}</strong>
       <p>{request.toolName}</p>
-      {request.reason && <p>{translateMessage(request.reason, locale)}</p>}
+      {reason && <p>{reason}</p>}
       {request.settled ? (
         <p>{t('toolApprovalSettled')}</p>
       ) : (

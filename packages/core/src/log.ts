@@ -1,10 +1,13 @@
-import { translateMessage } from '@swiftnest/protocol';
+import { render, type Text } from '@swiftnest/protocol';
+
+/** Catalog text, shown in the owner's language, or a line that has no catalog entry (shown as is). */
+type Line = string | Text;
 /** Minimal leveled logger. SWIFTNEST_LOG=debug|info|warn|error (default info). Writes to stderr so stdio MCP stays clean. */
 export interface Logger {
-  debug(msg: string, extra?: unknown): void;
-  info(msg: string, extra?: unknown): void;
-  warn(msg: string, extra?: unknown): void;
-  error(msg: string, extra?: unknown): void;
+  debug(msg: Line, extra?: unknown): void;
+  info(msg: Line, extra?: unknown): void;
+  warn(msg: Line, extra?: unknown): void;
+  error(msg: Line, extra?: unknown): void;
   child(scope: string): Logger;
 }
 
@@ -16,12 +19,12 @@ export function createLogger(
   level: Level = (process.env.SWIFTNEST_LOG as Level) ?? 'info',
 ): Logger {
   const min = LEVELS[level] ?? LEVELS.info;
-  const emit = (lv: Level, msg: string, extra?: unknown) => {
+  const emit = (lv: Level, msg: Line, extra?: unknown) => {
     if (LEVELS[lv] < min) return;
     const tail =
       extra === undefined ? '' : ` ${extra instanceof Error ? (extra.stack ?? extra.message) : JSON.stringify(extra)}`;
     process.stderr.write(
-      `[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${translateMessage(msg)}${tail}\n`,
+      `[${new Date().toISOString()}] ${lv.toUpperCase()} ${scope}: ${typeof msg === 'string' ? msg : render(msg)}${tail}\n`,
     );
   };
   return {
