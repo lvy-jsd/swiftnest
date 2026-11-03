@@ -1,10 +1,7 @@
 export {
   message,
-  translateMessage,
-  translateReason,
   localizedReason,
   localizedError,
-  errorCode,
   language,
   defaultLanguage,
   messageEn,
@@ -26,6 +23,8 @@ import type {
 } from './devices.js';
 export type * from './devices.js';
 export type * from './memory.js';
+import type { PluginsView } from './plugins.js';
+export type * from './plugins.js';
 import type {
   SessionFollowFrame,
   SessionListValue,
@@ -47,6 +46,7 @@ import type {
   SessionSummary,
   Subscription,
   SwiftnestEvent,
+  DisplayReason,
 } from './types.js';
 export type * from './types.js';
 export { ApiError } from './transport.js';
@@ -155,6 +155,21 @@ export class SwiftnestClient {
     action: 'pause' | 'resume' | 'cancel' | 'retry',
   ): Promise<import('./devices.js').Transfer> {
     return this.deviceRequest(`/transfers/${encodeURIComponent(id)}/${action}`, 'POST');
+  }
+  /** Audited plugins with their switches, community market installs, and the last apply. */
+  listPlugins(): Promise<PluginsView> {
+    return this.ownerRequest('plugins');
+  }
+  /** Save a switch; it takes effect at the next `applyPlugins`. */
+  setPluginEnabled(id: string, enabled: boolean): Promise<PluginsView> {
+    return this.ownerRequest(`plugins/${encodeURIComponent(id)}/${enabled ? 'enable' : 'disable'}`, 'POST');
+  }
+  /**
+   * Install what the switches need and restart the server's agent. The answer comes before the
+   * restart; the connection then drops briefly. Follow `apply.state` with `listPlugins`.
+   */
+  applyPlugins(): Promise<PluginsView> {
+    return this.ownerRequest('plugins/apply', 'POST');
   }
   listDevices(): Promise<Device[]> {
     return this.deviceRequest('');
@@ -323,9 +338,13 @@ export class SwiftnestClient {
     }
     return (await response.json()) as T;
   }
-  private async deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
+  private deviceRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
+    return this.ownerRequest(`devices${path}`, method, signal, body);
+  }
+  /** The owner-only server API under `/swiftnest/api/`. */
+  private async ownerRequest<T>(path: string, method = 'GET', signal?: AbortSignal, body?: unknown): Promise<T> {
     this.assertConnected();
-    const response = await this.request(this.url(`swiftnest/api/devices${path}`), {
+    const response = await this.request(this.url(`swiftnest/api/${path}`), {
       method,
       signal,
       ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
@@ -498,6 +517,7 @@ export class SwiftnestClient {
               requestId: frame.eventId,
               toolName: String(frame.request.toolName),
               reason: frame.request.reason as string | undefined,
+              displayReason: displayReasonOf(frame.request.displayReason),
               callId: frame.request.callId as string | undefined,
             });
           else
@@ -648,4 +668,12 @@ export async function connect(pairingUrl: string, options: ClientOptions = {}): 
   const client = new SwiftnestClient(options);
   await client.connect(pairingUrl);
   return client;
+}
+
+/** The request's per-language reason, when it has the shape DSH defines ({ en, ...locales }). */
+function displayReasonOf(value: unknown): DisplayReason | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  const copy = Object.fromEntries(entries);
+  return typeof copy.en === 'string' ? (copy as DisplayReason) : undefined;
 }

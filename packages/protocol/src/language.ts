@@ -17,23 +17,6 @@ export function defaultLanguage(): Language {
     (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.SWIFTNEST_LANG,
   );
 }
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const makePatterns = (table: Record<string, string>) =>
-  Object.entries(table)
-    .filter(([key]) => key !== 'riskReason')
-    .map(([key, value]) => {
-      const parts = value.split(/(\{\d+\})/);
-      const slots = parts.filter((p) => /^\{\d+\}$/.test(p));
-      return {
-        key: key as keyof typeof messageEn,
-        value,
-        slots,
-        re: new RegExp(`^${parts.map((p) => (/^\{\d+\}$/.test(p) ? '([\\s\\S]*?)' : escapeRegExp(p))).join('')}$`),
-      };
-    })
-    .sort((a, b) => a.slots.length - b.slots.length || b.value.length - a.value.length);
-const patterns = makePatterns(messageEn);
-const chinesePatterns = makePatterns(messageZh);
 export function message(
   key: keyof typeof messageEn,
   lang: Language = defaultLanguage(),
@@ -69,23 +52,6 @@ export function render(value: Text, lang: Language = defaultLanguage()): string 
   return message(value.key, lang, args);
 }
 
-/**
- * Legacy: find the catalog entry a finished English or Chinese sentence came from. Only for
- * producers that still send prose; new code sends `Text`.
- */
-export function translateMessage(text: string, lang: Language = defaultLanguage()): string {
-  const source = lang === 'en' ? chinesePatterns : patterns;
-  for (const item of source) {
-    const match = item.re.exec(text);
-    if (!match) continue;
-    const args: string[] = [];
-    item.slots.forEach((slot, i) => {
-      args[Number(slot.slice(1, -1))] = match[i + 1]!;
-    });
-    return message(item.key, lang, args);
-  }
-  return text;
-}
 /** Stable error codes for catalog messages that have a well-known one. */
 const CODES: Partial<Record<keyof typeof messageEn, string>> = {
   unknownPairedDevice: 'UNKNOWN_DEVICE',
@@ -117,11 +83,6 @@ export function errorCodeFor(key: MessageKey): string {
   return CODES[key] ?? `SWIFTNEST_${key.toUpperCase()}`;
 }
 
-/** Legacy: the error code for a finished sentence, found by matching it to the catalog. */
-export function errorCode(text: string): string {
-  const item = patterns.find((item) => item.re.test(text));
-  return item ? errorCodeFor(item.key) : 'SWIFTNEST_FAILED';
-}
 interface ErrorLike {
   code?: string;
   message?: string;
@@ -131,49 +92,33 @@ interface ErrorLike {
   hintText?: unknown;
 }
 
-/** Localize a failure: catalog text when the producer sent it, else (legacy) the English sentence. */
+/**
+ * Localize a failure from its catalog text. A failure without one comes from a peer we don't
+ * control (an OS error, a third-party plugin): its prose is shown as is, except that a Chinese
+ * reader gets a plain sentence naming the code instead of unexplained English.
+ */
 export function localizedError(error: unknown, lang: Language = defaultLanguage()) {
   const source = error as ErrorLike | undefined;
-  const original = source?.message ?? String(error);
-  const code = source?.code ?? (isText(source?.text) ? errorCodeFor(source.text.key) : errorCode(original));
-  return { code, message: localizedMessage(source, original, code, lang), hint: localizedHint(source, lang) };
+  const code = source?.code ?? (isText(source?.text) ? errorCodeFor(source.text.key) : 'SWIFTNEST_FAILED');
+  return { code, message: localizedMessage(source, error, code, lang), hint: localizedHint(source, lang) };
 }
 
-function localizedMessage(source: ErrorLike | undefined, original: string, code: string, lang: Language): string {
+function localizedMessage(source: ErrorLike | undefined, error: unknown, code: string, lang: Language): string {
   if (isText(source?.text)) return render(source.text, lang);
-  const translated = translateMessage(original, lang);
-  // Third-party failures have an unbounded vocabulary. Keep their stable code and offer a localized action.
-  if (lang === 'zh-CN' && translated === original && /^\p{ASCII}*[a-z]{2} [a-z]/iu.test(original))
-    return message('genericError', lang, [code]);
-  return translated;
+  const prose = source?.message ?? String(error);
+  return lang === 'zh-CN' && isEnglishProse(prose) ? message('genericError', lang, [code]) : prose;
 }
 
 function localizedHint(source: ErrorLike | undefined, lang: Language): string {
   if (isText(source?.hintText)) return render(source.hintText, lang);
-  const raw = source?.hint ?? source?.suggestion ?? messageEn.retryHint;
-  const hint = translateMessage(raw, lang);
-  if (lang === 'zh-CN' && hint === raw && !/[\u4e00-\u9fff]/.test(hint)) return message('retryHint', lang);
-  return hint;
+  const prose = source?.hint ?? source?.suggestion;
+  return prose && !(lang === 'zh-CN' && isEnglishProse(prose)) ? prose : message('retryHint', lang);
 }
 
-/** Why the policy decided as it did, from its catalog text, or (legacy) from its English. */
+/** An English sentence, as opposed to Chinese text or a bare technical value. */
+const isEnglishProse = (text: string) => /^\p{ASCII}*[a-z]{2} [a-z]/iu.test(text);
+
+/** Why the policy decided as it did, from its catalog text; a reason without one is shown as is. */
 export function localizedReason(item: { reason?: string; reasonText?: unknown }, lang: Language = defaultLanguage()) {
-  return isText(item.reasonText) ? render(item.reasonText, lang) : translateReason(item.reason ?? '', lang);
-}
-
-/** Legacy: localize policy explanations without changing client names, paths, arguments or rule identifiers. */
-export function translateReason(text: string, lang: Language = defaultLanguage()): string {
-  const approval = /^(.*?)(?:; approved by |；批准人：)(.*)$/s.exec(text);
-  if (approval) return message('approvedBy', lang, [translateReason(approval[1]!, lang), approval[2]]);
-  const policy =
-    /^(?:default for |默认权限规则：)(read|write|exec|sensitive|读取|写入|执行|敏感操作)(?:[ (（]+(.*?)[)）])?$/s.exec(
-      text,
-    );
-  if (policy) {
-    const risk = translateMessage(policy[1]!, lang);
-    return message('policyDefault', lang, [
-      policy[2] ? message('riskReason', lang, [risk, translateMessage(policy[2], lang)]) : risk,
-    ]);
-  }
-  return translateMessage(text, lang);
+  return isText(item.reasonText) ? render(item.reasonText, lang) : (item.reason ?? '');
 }

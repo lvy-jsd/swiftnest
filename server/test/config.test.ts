@@ -128,9 +128,11 @@ it('keeps built-in memory independent of third-party plugin overrides, with envi
   const fromFile = loadConfig(file, {});
   expect(fromFile.memory).toEqual({ enabled: false });
   expect(fromFile.plugins).toEqual({ 'tool-ultra': false, im: true });
+  expect(fromFile.pluginLocks).toEqual({});
   const fromEnv = loadConfig(file, { SWIFTNEST_MEMORY: 'true', SWIFTNEST_PLUGINS: 'im=false' });
   expect(fromEnv.memory).toEqual({ enabled: true });
   expect(fromEnv.plugins).toEqual({ 'tool-ultra': false, im: false });
+  expect(fromEnv.pluginLocks).toEqual({ im: false });
   writeFileSync(file, 'memory: { enabled: true }\n');
   expect(loadConfig(file, { SWIFTNEST_MEMORY: 'false' }).memory).toEqual({ enabled: false });
   expect(loadConfig(undefined, { SWIFTNEST_PLUGINS: 'tool-ultra=false' }).memory).toEqual({ enabled: true });

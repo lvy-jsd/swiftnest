@@ -136,12 +136,12 @@ export async function serveLan(nest: Nest, o: LanNestOptions = {}): Promise<LanS
     acceptPerch(nest, wsTransport(ws), { via: 'lan', logger })
       .then((conn) => {
         release();
-        logger.info(`${conn.device} connected from ${req.socket.remoteAddress}`);
+        logger.info(text('connectedFromLog', conn.device, String(req.socket.remoteAddress)));
       })
       .catch((e: unknown) => {
         release();
         const err = SwiftnestFailure.from(e, 'HANDSHAKE_FAILED');
-        logger.warn(`connection from ${req.socket.remoteAddress} refused: ${err.code} ${err.message}`);
+        logger.warn(text('connectionRefusedLog', String(req.socket.remoteAddress), err.code, err.message));
         if (ws.readyState === WebSocket.OPEN) ws.close(4000, err.code);
       });
   });
@@ -321,7 +321,7 @@ export default definePlugin({
     if (ctx.role !== 'nest') return;
     const c = ctx.config as LanNestOptions;
     const server = await serveLan(ctx.nest, { ...c, logger: ctx.logger });
-    ctx.logger.info(`listening on port ${server.port}`);
+    ctx.logger.info(text('listeningOnPortLog', server.port));
     return () => server.close();
   },
 });

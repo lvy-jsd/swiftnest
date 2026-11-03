@@ -19,6 +19,11 @@ export function liveTransportAllowed(req: Pick<IncomingMessage, 'socket'>): bool
   );
 }
 
+export const DEVICES_PREFIX = '/swiftnest/api/devices';
+export const PLUGINS_PREFIX = '/swiftnest/api/plugins';
+/** The owner-only parts of the loopback admin API this proxy forwards. */
+export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX];
+
 export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string) {
   const target = new URL(endpoint);
   if (
@@ -43,8 +48,8 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
       return;
     }
     const path = new URL(req.url ?? '/', 'http://localhost');
-    const prefix = '/swiftnest/api/devices';
-    if (path.pathname !== prefix && !path.pathname.startsWith(`${prefix}/`)) {
+    const prefix = DEVICES_PREFIX;
+    if (!OWNER_PREFIXES.some((owned) => path.pathname === owned || path.pathname.startsWith(`${owned}/`))) {
       res.writeHead(404).end();
       return;
     }

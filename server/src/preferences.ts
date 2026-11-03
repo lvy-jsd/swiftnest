@@ -1,5 +1,5 @@
 /** The owner's saved preferences (today only the language), written atomically. */
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { JsonFileWriter, readJsonFile } from './json-store.js';
 
 export type Language = 'zh-CN' | 'en';
 
@@ -8,37 +8,29 @@ export function isLanguage(value: unknown): value is Language {
 }
 
 export class Preferences {
-  private writes = Promise.resolve();
+  private readonly writer: JsonFileWriter;
 
   private constructor(
-    private readonly file: string,
+    file: string,
     public lang: Language,
-  ) {}
+  ) {
+    this.writer = new JsonFileWriter(file);
+  }
 
   /** Load `file`, falling back to `fallback` when it does not exist yet. */
   static async open(file: string, fallback: Language): Promise<Preferences> {
-    try {
-      const saved: unknown = JSON.parse(await readFile(file, 'utf8'));
-      const lang = (saved as { lang?: unknown } | null)?.lang;
-      return new Preferences(file, isLanguage(lang) ? lang : fallback);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      return new Preferences(file, fallback);
-    }
+    const lang = (readJsonFile(file) as { lang?: unknown } | null | undefined)?.lang;
+    return new Preferences(file, isLanguage(lang) ? lang : fallback);
   }
 
   /** Persist a new language; writes are serialized and `lang` changes only once saved. */
   setLanguage(lang: Language): Promise<void> {
-    const write = this.writes.then(async () => {
-      await writeFile(`${this.file}.tmp`, JSON.stringify({ lang }), { mode: 0o600 });
-      await rename(`${this.file}.tmp`, this.file);
+    return this.writer.write({ lang }, () => {
       this.lang = lang;
     });
-    this.writes = write.catch(() => {});
-    return write;
   }
 
   flush(): Promise<void> {
-    return this.writes;
+    return this.writer.flush();
   }
 }

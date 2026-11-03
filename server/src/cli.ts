@@ -2,11 +2,20 @@
 import { message, localizedError } from './i18n.js';
 import { installPlugins } from './plugin-install.js';
 import { parseCliArgs } from './cli-args.js';
-import { loadConfig } from './config.js';
-import { startKernel } from './kernel.js';
+import { loadConfig, type ServerConfig } from './config.js';
+import { type RunningKernel, startKernel } from './kernel.js';
+import { readPluginSettings, withPluginSettings } from './plugin-settings.js';
 import { pairingUrl, webAppUrl } from './pairing.js';
 
 let selectedLanguage: 'zh-CN' | 'en' = process.env.SWIFTNEST_LANG === 'en' ? 'en' : 'zh-CN';
+
+function printLinks(kernel: RunningKernel, config: ServerConfig): void {
+  console.log(message('ready', config.lang, [kernel.url]));
+  console.log(message('links', config.lang));
+  console.log(`  ${message('browser', config.lang)}: ${kernel.url}?token=${kernel.token}`);
+  console.log(`  Swiftnest App:        ${pairingUrl(kernel.url, kernel.token)}`);
+  console.log(`  ${message('webApp', config.lang)}: ${webAppUrl(kernel.url, kernel.token)}`);
+}
 
 async function main(argv: string[]): Promise<number> {
   const { values, command } = parseCliArgs(argv);
@@ -18,18 +27,15 @@ async function main(argv: string[]): Promise<number> {
   selectedLanguage = config.lang ?? 'zh-CN';
   process.env.SWIFTNEST_LANG = selectedLanguage;
   if (command === 'plugins-install') {
-    await installPlugins(config, (line) => console.log(line));
+    await installPlugins(withPluginSettings(config, readPluginSettings(config.home)), (line) => console.log(line));
     return 0;
   }
   console.log(message('starting', config.lang, [config.home]));
   const kernel = await startKernel(config, {
     onLine: values.verbose ? (line) => console.log(`  [dsh] ${line}`) : undefined,
+    // The launch token changes when DSH restarts for new plugins, so print fresh links each time.
+    onReady: (ready) => printLinks(ready, config),
   });
-  console.log(message('ready', config.lang, [kernel.url]));
-  console.log(message('links', config.lang));
-  console.log(`  ${message('browser', config.lang)}: ${kernel.url}?token=${kernel.token}`);
-  console.log(`  Swiftnest App:        ${pairingUrl(kernel.url, kernel.token)}`);
-  console.log(`  ${message('webApp', config.lang)}: ${webAppUrl(kernel.url, kernel.token)}`);
 
   const shutdown = async () => {
     await kernel.stop();
@@ -37,9 +43,7 @@ async function main(argv: string[]): Promise<number> {
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
-  kernel.child.once('exit', (code) => {
-    void kernel.stop().then(() => process.exit(code ?? 1));
-  });
+  kernel.onExit((code) => process.exit(code ?? 1));
   return new Promise(() => {});
 }
 

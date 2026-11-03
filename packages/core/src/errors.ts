@@ -1,6 +1,6 @@
-import { isText, localizedError, render, type SwiftnestError, type Text } from '@swiftnest/protocol';
+import { isText, render, type SwiftnestError, type Text } from '@swiftnest/protocol';
 
-/** What a failure says: catalog text, or (legacy) a finished English sentence. */
+/** What a failure says: catalog text, or English prose that has no catalog entry. */
 type Words = string | Text;
 
 const english = (words: Words) => (typeof words === 'string' ? words : render(words, 'en'));
@@ -25,12 +25,8 @@ export class SwiftnestFailure extends Error {
     if (suggestion !== undefined && typeof suggestion !== 'string') this.hintText = suggestion;
   }
 
-  /** English prose plus the catalog text; legacy prose-only failures are localized here instead. */
+  /** English prose plus the catalog text, so each reader can show it in their language. */
   toJSON(): SwiftnestError {
-    if (!this.text && !this.hintText) {
-      const localized = localizedError(this);
-      return { ...localized, suggestion: localized.hint, retryable: this.retryable };
-    }
     return {
       code: this.code,
       message: this.message,
@@ -52,10 +48,8 @@ export class SwiftnestFailure extends Error {
     if (e instanceof SwiftnestFailure) return e.toJSON();
     const err = e as { code?: unknown; message?: unknown };
     return {
-      ...localizedError({
-        code: typeof err?.code === 'string' ? err.code : fallbackCode,
-        message: typeof err?.message === 'string' ? err.message : String(e),
-      }),
+      code: typeof err?.code === 'string' ? err.code : fallbackCode,
+      message: typeof err?.message === 'string' ? err.message : String(e),
       retryable: false,
     };
   }

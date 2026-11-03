@@ -1,21 +1,39 @@
 /**
  * What the enabled plugins contribute to the `swiftnest` profile: npm packages
  * become profile dependencies and, once installed at their pinned version,
- * bundle layers; the Tool Ultra build contributes patch rows.
+ * bundle layers, as do enabled bundles shipped with the kernel; the Tool Ultra
+ * build and each loaded plugin's `patch` contribute patch rows.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ServerConfig } from './config.js';
-import { enabledNpmPlugins, isEnabled, type NpmSource, type Plugin, pluginById } from './plugins.js';
+import {
+  type DshSource,
+  enabledNpmPlugins,
+  enabledPlugins,
+  isEnabled,
+  type NpmSource,
+  type Plugin,
+  PLUGIN_MANIFEST,
+  pluginById,
+} from './plugins.js';
 import { isBuilt, TOOL_ULTRA_ID, toolUltraDir, toolUltraPatch } from './tool-ultra.js';
 
 export interface ProfilePlugins {
   dependencies: Record<string, string>;
   bundles: string[];
   rows: unknown[];
+  /** Ids of the manifest plugins this profile loads. */
+  loaded: string[];
   /** Ids of enabled plugins that are not installed yet. */
   missing: string[];
+  /** Community market installs kept while the market is on. */
+  unaudited: string[];
+  /** Community market installs removed because the market is off. */
+  dropped: string[];
 }
+
+export const MARKET_ID = 'market';
 
 /** Installed means present in the profile at exactly the pinned version. */
 export function isInstalled(profile: string, plugin: Plugin<NpmSource>): boolean {
@@ -27,23 +45,74 @@ export function isInstalled(profile: string, plugin: Plugin<NpmSource>): boolean
   }
 }
 
-function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] {
-  if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return [];
+interface ProfileManifest {
+  dependencies?: Record<string, string>;
+  dsh?: { profile?: { bundles?: string[] } };
+}
+
+function readProfileManifest(profile: string): ProfileManifest {
+  try {
+    return JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as ProfileManifest;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Packages someone installed outside the manifest, from the community plugin
+ * market. They stay while the market is on (unaudited) and go once it is off.
+ */
+function keepMarketInstalls(config: ServerConfig, profile: string, plugins: ProfilePlugins): void {
+  const previous = readProfileManifest(profile);
+  const extra = Object.entries(previous.dependencies ?? {}).filter(([name]) => !(name in plugins.dependencies));
+  if (!extra.length) return;
+  const names = extra.map(([name]) => name);
+  if (!isEnabled(pluginById(MARKET_ID, 'dsh'), config.plugins)) {
+    plugins.dropped = names;
+    return;
+  }
+  plugins.unaudited = names;
+  Object.assign(plugins.dependencies, Object.fromEntries(extra));
+  plugins.bundles.push(...(previous.dsh?.profile?.bundles ?? []).filter((name) => names.includes(name)));
+}
+
+/** Tool Ultra's patch rows once its pinned build exists; undefined while it is off or not built. */
+function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] | undefined {
+  if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return undefined;
   const dir = toolUltraDir(config);
   if (isBuilt(dir)) return toolUltraPatch(dir);
   missing.push(TOOL_ULTRA_ID);
-  return [];
+  return undefined;
 }
 
 export function profilePlugins(config: ServerConfig, profile: string): ProfilePlugins {
   const missing: string[] = [];
-  const rows = toolUltraRows(config, missing);
+  const toolUltra = toolUltraRows(config, missing);
   const dependencies: Record<string, string> = {};
-  const bundles: string[] = [];
+  // Bundles shipped with the kernel are always present.
+  const loaded: Plugin[] = enabledPlugins<DshSource>(config.plugins, 'dsh');
   for (const plugin of enabledNpmPlugins(config.plugins)) {
     dependencies[plugin.source.package] = plugin.source.version;
-    if (isInstalled(profile, plugin)) bundles.push(plugin.source.package);
+    if (isInstalled(profile, plugin)) loaded.push(plugin);
     else missing.push(plugin.id);
   }
-  return { dependencies, bundles, rows, missing };
+  const plugins: ProfilePlugins = {
+    dependencies,
+    bundles: loaded.map((plugin) => (plugin.source as DshSource | NpmSource).package),
+    rows: [...(toolUltra ?? []), ...loaded.flatMap((plugin) => plugin.patch ?? [])],
+    loaded: [...(toolUltra ? [TOOL_ULTRA_ID] : []), ...loaded.map((plugin) => plugin.id)],
+    missing,
+    unaudited: [],
+    dropped: [],
+  };
+  keepMarketInstalls(config, profile, plugins);
+  return plugins;
+}
+
+/** Profile dependencies that did not come from the manifest: community market installs. */
+export function marketInstalls(profile: string): string[] {
+  const audited = new Set(
+    PLUGIN_MANIFEST.plugins.flatMap((plugin) => (plugin.source.type === 'npm' ? [plugin.source.package] : [])),
+  );
+  return Object.keys(readProfileManifest(profile).dependencies ?? {}).filter((name) => !audited.has(name));
 }

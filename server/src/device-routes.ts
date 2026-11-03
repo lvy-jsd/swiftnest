@@ -11,11 +11,13 @@ import type { ServerConfig } from './config.js';
 import type { DeviceRegistry } from './device-registry.js';
 import { sendJson } from './device-response.js';
 import { HttpError, openEventStream, readBody, readJsonObject } from './http.js';
+import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
 
 export const PREFIX = '/swiftnest/api/devices';
 export const CONTROL = '/swiftnest/control/devices';
+export const PLUGINS = '/swiftnest/api/plugins';
 const KiB = 1024;
 
 export interface DeviceHub {
@@ -24,9 +26,10 @@ export interface DeviceHub {
   registry: DeviceRegistry;
   transfers: Transfers;
   preferences: Preferences;
+  plugins: PluginManager;
   streams: Set<ServerResponse>;
   lanPort: () => number;
-  publish: (type: 'devices-changed', slugs?: string[]) => void;
+  publish: (type: 'devices-changed' | 'plugins-changed', slugs?: string[]) => void;
 }
 
 interface Request {
@@ -148,6 +151,35 @@ function transferRoutes(base: string): Route[] {
   ];
 }
 
+// ---------------------------------------------------------------- plugins (owner)
+
+/** Unknown plugins are 404s; a locked switch or an apply already running is a 409 the owner can read. */
+async function asPluginFailure(run: () => Promise<void> | void): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    const failure = SwiftnestFailure.from(error);
+    throw new HttpError(failure.text?.key === 'pluginUnknown' ? 404 : 409, failure);
+  }
+}
+
+const pluginsView = (hub: DeviceHub) => hub.plugins.view(hub.preferences.lang);
+
+const pluginRoutes: Route[] = [
+  route('GET', PLUGINS, ({ hub }) => pluginsView(hub)),
+  route('POST', `${PLUGINS}/apply`, async ({ hub }) => {
+    await asPluginFailure(() => hub.plugins.apply());
+    return withStatus(202, pluginsView(hub));
+  }),
+  route('POST', `${PLUGINS}/${ID}/(enable|disable)`, async ({ hub, params }) => {
+    await asPluginFailure(() => hub.plugins.set(decodeURIComponent(params[0]!), params[1] === 'enable'));
+    return pluginsView(hub);
+  }),
+  route('*', `${PLUGINS}(?:/.*)?`, () => {
+    throw new HttpError(404, text('unknownPluginRoute'));
+  }),
+];
+
 // ---------------------------------------------------------------- owner API
 
 function auditLimit(url: URL): number {
@@ -220,6 +252,7 @@ const routes: Route[] = [
   ...transferRoutes(CONTROL),
 
   ...transferRoutes(PREFIX),
+  ...pluginRoutes,
   route('GET', `${PREFIX}/?`, ({ hub }) => hub.registry.list()),
   route('GET', `${PREFIX}/approvals`, ({ hub }) => hub.nest.tasks.list({ state: 'pending_approval' })),
   route('GET', `${PREFIX}/pairing`, ({ hub }) =>
@@ -256,7 +289,7 @@ export async function handleDeviceRequest(hub: DeviceHub, req: IncomingMessage, 
       if (res.headersSent || res.destroyed) return;
       return result instanceof WithStatus ? reply(request, result.status, result.body) : reply(request, 200, result);
     }
-    reply(request, 404, { error: 'Not found' });
+    throw new HttpError(404, text('notFound'));
   } catch (error) {
     if (!(error instanceof HttpError)) throw error;
     if (!res.headersSent) reply(request, error.status, { ...error.failure, error: error.failure.message });

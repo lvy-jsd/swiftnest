@@ -82,6 +82,7 @@ function harness(
     if (url.includes('/swiftnest/api/memory'))
       return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
+    if (url.includes('/swiftnest/api/plugins')) return Response.json({ plugins: [] });
     const value =
       body?.method === 'session/create'
         ? { sessionId: 'session-1' }
@@ -383,6 +384,25 @@ describe('device API client', () => {
       h.client.close();
     }
   });
+  it('drives the plugin page API with the session cookie', async () => {
+    const h = harness();
+    await h.client.connect(pairing);
+    try {
+      await h.client.listPlugins();
+      await h.client.setPluginEnabled('vision-router', true);
+      await h.client.setPluginEnabled('market', false);
+      await h.client.applyPlugins();
+      expect(h.calls.slice(1).map((c) => [c.url.replace('https://server.test/mount/', ''), c.init.method])).toEqual([
+        ['swiftnest/api/plugins', 'GET'],
+        ['swiftnest/api/plugins/vision-router/enable', 'POST'],
+        ['swiftnest/api/plugins/market/disable', 'POST'],
+        ['swiftnest/api/plugins/apply', 'POST'],
+      ]);
+      for (const call of h.calls.slice(1)) expect(call.init).toMatchObject({ headers: { cookie: 'dsh_api=secret' } });
+    } finally {
+      h.client.close();
+    }
+  });
   it('keeps browser cookies in the jar and reports stale decisions as conflicts', async () => {
     const h = harness({ browser: true, devices: () => new Response('{}', { status: 409 }) });
     await h.client.connect(pairing);
@@ -458,8 +478,9 @@ it('uses authenticated central memory endpoints and preserves catalog errors', a
       return Response.json({ entries: [], topics: [] });
     },
   });
-  await client.connect('http://localhost:3077/connect?token=test');
+  await client.connect(pairing);
   try {
+    await client.listPlugins();
     await client.listMemory();
     await client.addMemory('fact', 'Work');
     await client.editMemory('id-one', 'updated');
@@ -468,12 +489,12 @@ it('uses authenticated central memory endpoints and preserves catalog errors', a
     await client.writeMemoryTopic('Work', '- next');
     const memory = calls.filter((call) => call.url.includes('/swiftnest/api/memory'));
     expect(memory.map((call) => new URL(call.url).pathname)).toEqual([
-      '/swiftnest/api/memory',
-      '/swiftnest/api/memory/add',
-      '/swiftnest/api/memory/edit',
-      '/swiftnest/api/memory/delete',
-      '/swiftnest/api/memory/topic',
-      '/swiftnest/api/memory/topic',
+      '/mount/swiftnest/api/memory',
+      '/mount/swiftnest/api/memory/add',
+      '/mount/swiftnest/api/memory/edit',
+      '/mount/swiftnest/api/memory/delete',
+      '/mount/swiftnest/api/memory/topic',
+      '/mount/swiftnest/api/memory/topic',
     ]);
     expect(new URL(memory[4]!.url).searchParams.get('topic')).toBe('中文 space');
     expect(memory.every((call) => (call.init.headers as Record<string, string>).cookie === 'dsh_api=secret')).toBe(

@@ -1,4 +1,4 @@
-import { translateMessage } from '@swiftnest/protocol';
+import { render, text, type Text } from '@swiftnest/protocol';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -32,8 +32,8 @@ function inside(root: string, file: string): boolean {
 /** Public shell only. The App pairs separately against the existing authenticated API. */
 export function appHandler(dist?: string) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const reply = (status: number, body: string) => {
-      body = translateMessage(body);
+    const reply = (status: number, message: Text) => {
+      const body = render(message);
       res
         .writeHead(status, {
           'content-type': 'text/plain; charset=utf-8',
@@ -43,11 +43,11 @@ export function appHandler(dist?: string) {
         .end(body);
     };
     if (req.method !== 'GET') {
-      reply(405, 'Use GET for the Swiftnest App.');
+      reply(405, text('appGet'));
       return;
     }
     if (!dist) {
-      reply(404, 'Swiftnest App is not installed. Build the App and set SWIFTNEST_APP_DIST.');
+      reply(404, text('appMissing'));
       return;
     }
     const raw = (req.url ?? '').split('?', 1)[0]!;
@@ -59,7 +59,7 @@ export function appHandler(dist?: string) {
     try {
       path = decodeURIComponent(raw.slice('/app/'.length));
     } catch {
-      reply(400, 'Invalid App path.');
+      reply(400, text('appPath'));
       return;
     }
     if (
@@ -68,7 +68,7 @@ export function appHandler(dist?: string) {
       path.includes('\0') ||
       path.split('/').some((p) => p === '..' || p === '.')
     ) {
-      reply(400, 'Invalid App path.');
+      reply(400, text('appPath'));
       return;
     }
     try {
@@ -77,7 +77,7 @@ export function appHandler(dist?: string) {
       if (!(await stat(index)).isFile()) throw new Error('Missing index');
       let file = resolve(root, path || 'index.html');
       if (!inside(root, file)) {
-        reply(403, 'Invalid App path.');
+        reply(403, text('appPath'));
         return;
       }
       try {
@@ -85,14 +85,14 @@ export function appHandler(dist?: string) {
       } catch {
         // Missing assets must never receive HTML (or an immutable cache entry).
         if (path.startsWith('assets/') || extname(path)) {
-          reply(404, 'App asset not found.');
+          reply(404, text('appAsset'));
           return;
         }
         file = index;
       }
       file = await realpath(file);
       if (!inside(root, file)) {
-        reply(403, 'Invalid App path.');
+        reply(403, text('appPath'));
         return;
       }
       let body = await readFile(file);
@@ -112,7 +112,7 @@ export function appHandler(dist?: string) {
         })
         .end(body);
     } catch {
-      reply(404, 'Swiftnest App build is unavailable. Build the App and set SWIFTNEST_APP_DIST.');
+      reply(404, text('appBuild'));
     }
   };
 }

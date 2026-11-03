@@ -277,7 +277,7 @@ export class TaskManager {
         error: s.error,
       });
     } catch (e) {
-      this.o.logger.error('audit write failed', e);
+      this.o.logger.error(text('auditWriteFailedLog'), e);
     }
   }
 

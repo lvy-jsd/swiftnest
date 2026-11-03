@@ -6,7 +6,7 @@
  * private: versions and whether the configured model endpoint answers.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { deviceProxy, liveUpgrade, type DeviceConnection } from './devices.js';
+import { deviceProxy, liveUpgrade, OWNER_PREFIXES, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
 
 export const name = 'swiftnest-core';
@@ -85,10 +85,8 @@ export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
         live.close();
       };
     }, 'swiftnest-core: live');
-    ctx.effect(
-      () => ctx.webServer.register({ kind: 'prefix', path: '/swiftnest/api/devices', handler }),
-      'swiftnest-core: devices',
-    );
+    for (const path of OWNER_PREFIXES)
+      ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path, handler }), `swiftnest-core: ${path}`);
   }
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.

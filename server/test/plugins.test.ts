@@ -53,6 +53,7 @@ function lockFor(plugins: Plugin<NpmSource>[], integrity?: string) {
   return stringify({ lockfileVersion: '9.0', packages });
 }
 
+const MARKET = '@deepseek-ai/dsh-experimental-plugin-market-bundle';
 const npmPlugin = (manifest: PluginManifest) => manifest.plugins.find((plugin) => plugin.source.type === 'npm')!;
 const copy = (): PluginManifest => structuredClone(PLUGIN_MANIFEST);
 
@@ -76,6 +77,7 @@ describe('plugin manifest', () => {
     ['a short commit', (m) => Object.assign(m.plugins[0]!.source, { commit: '8ccfefa' })],
     ['no packages to build', (m) => Object.assign(m.plugins[0]!.source, { packages: [] })],
     ['a disallowed license', (m) => Object.assign(npmPlugin(m), { license: 'AGPL-3.0' })],
+    ['a kernel bundle outside DSH', (m) => Object.assign(m.plugins[1]!.source, { package: 'evil-bundle' })],
     ['a duplicate id', (m) => m.plugins.push(structuredClone(m.plugins[0]!))],
   ])('rejects %s', (_, mutate) => {
     const manifest = copy();
@@ -96,6 +98,46 @@ describe('profile plugins', () => {
     expect(plugins.missing).toContain(second!.id);
     expect(plugins.missing).not.toContain('vision-router');
     expect(plugins.rows).toEqual([]);
+  });
+
+  it("keeps the community market off by default and loads the kernel's own bundle when enabled", () => {
+    const off = setup();
+    expect(profilePlugins(off.config, off.profile)).toMatchObject({ bundles: [], rows: [] });
+    const on = setup('tool-ultra=false,market=true');
+    expect(profilePlugins(on.config, on.profile)).toMatchObject({
+      bundles: [MARKET],
+      rows: [
+        { id: 'plugin-market', config: { indexes: ['https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json'] } },
+      ],
+    });
+  });
+
+  function marketInstall(profile: string) {
+    mkdirSync(profile, { recursive: true });
+    const pkg = { dependencies: { 'from-market': '1.0.0' }, dsh: { profile: { bundles: [MARKET, 'from-market'] } } };
+    writeFileSync(join(profile, 'package.json'), JSON.stringify(pkg));
+  }
+
+  it('keeps market installs while the market is on, marked unaudited', () => {
+    const { config, home, profile } = setup('tool-ultra=false,market=true');
+    marketInstall(profile);
+    const log = vi.fn();
+    writeProfile(config, { bundleDir: home, log });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('not audited: from-market'));
+    const pkg = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'));
+    expect(pkg.dependencies['from-market']).toBe('1.0.0');
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, MARKET, 'from-market']);
+  });
+
+  it('removes market installs once the market is off', () => {
+    const { config, home, profile } = setup();
+    marketInstall(profile);
+    const log = vi.fn();
+    writeProfile(config, { bundleDir: home, log });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('Removed from-market'));
+    const pkg = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'));
+    expect(pkg.dependencies).not.toHaveProperty('from-market');
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES]);
   });
 
   it('leaves out disabled plugins and enables opt-in ones on request', () => {

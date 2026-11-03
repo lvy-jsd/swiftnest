@@ -53,7 +53,16 @@ export type SwiftnestEvent = EventBase &
     | { type: 'tool-result'; callId: string; text: string; isError: boolean }
     | { type: 'turn-end'; turn: number; reason: string }
     | { type: 'error'; code: string; message: string }
-    | { type: 'approval-request'; requestId: string; toolName: string; callId?: string; reason?: string }
+    | {
+        type: 'approval-request';
+        requestId: string;
+        toolName: string;
+        callId?: string;
+        /** The asker's reason, for the audit log. */
+        reason?: string;
+        /** The same reason written for people, per language (`en`, `zh-CN`), when the asker supplies it. */
+        displayReason?: DisplayReason;
+      }
     | { type: 'question-request'; requestId: string; questions: Question[]; callId?: string }
     | { type: 'interaction-cancelled'; requestId: string }
   );
@@ -93,3 +102,6 @@ export interface ClientOptions {
   /** Pairing, socket readiness and each unary call; default 15 seconds. */
   timeoutMs?: number;
 }
+
+/** Approval reason copy per language, as DSH approval requests carry it. */
+export type DisplayReason = { en: string } & Partial<Record<string, string>>;

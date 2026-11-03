@@ -428,9 +428,6 @@ function AppContent() {
   const visibleChats = sessions.filter((item) =>
     (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
-  const _back = () => {
-    window.location.hash = '/';
-  };
   // Read current state without re-registering the async native listener on every
   // route/sheet change. StrictMode may clean up before registration resolves.
   const consumeBack = useRef<() => boolean>(() => false);
