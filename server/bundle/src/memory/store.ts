@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { message, text } from '@swiftnest/protocol';
 import { ServerFailure } from './failure.js';
 import { entryLine, indexDocument, parseMemory, type MemoryEntry } from './format.js';
 import { characters, memoryRules } from './rules.js';
 import {
   applyPending,
+  cleanMemoryTemps,
+  memoryFiles,
+  removeMemoryFile,
   atomicMemoryFile,
   memoryPath,
   readMemoryFile,
@@ -41,36 +44,55 @@ function rejectSecrets(content: string): void {
 export class MemoryStore {
   readonly root: string;
   private queue: Promise<unknown> = Promise.resolve();
+  private notification = Promise.resolve();
   constructor(
     home: string,
     private step?: (name: string) => void,
+    private changed?: () => Promise<void> | void,
   ) {
     this.root = join(home, 'memory');
     memoryPath(this.root, 'MEMORY.md');
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
     this.recover();
+    this.pruneSnapshots();
   }
   private run<T>(action: () => T): Promise<T> {
-    const result = this.queue.then(() => {
+    const result = this.queue.then(async () => {
       this.recover();
-      return action();
+      const value = action();
+      await this.flushNotification();
+      return value;
     });
     this.queue = result.catch(() => {});
     return result;
   }
   private recover(): void {
+    cleanMemoryTemps(this.root);
     repairJournal(this.root);
     const pending = readPending(this.root);
-    if (pending) applyPending(this.root, pending);
+    if (pending) {
+      applyPending(this.root, pending);
+      this.notify();
+    }
+  }
+  private notify(): void {
+    this.notification = this.notification
+      .then(() => this.changed?.())
+      .catch(() => {
+        // Notifications cannot change the outcome of an already durable transaction.
+        console.warn(message('memoryNotificationFailedLog'));
+      });
+  }
+  private async flushNotification(): Promise<void> {
+    const notification = this.notification;
+    await notification;
+    if (this.notification === notification) this.notification = Promise.resolve();
   }
   private documents(): Map<string, string> {
     const files = new Map([['MEMORY.md', readMemoryFile(this.root, 'MEMORY.md') || indexDocument([], [])]]);
-    const topics = memoryPath(this.root, 'topics/check.md');
-    mkdirSync(dirname(topics), { recursive: true, mode: 0o700 });
-    for (const file of readdirSync(join(this.root, 'topics')).sort()) {
-      if (!file.endsWith('.md')) continue;
-      validTopic(file.slice(0, -3));
-      files.set(`topics/${file}`, readMemoryFile(this.root, `topics/${file}`));
+    for (const file of memoryFiles(this.root, 'topics')) {
+      validTopic(file.slice(7, -3));
+      files.set(file, readMemoryFile(this.root, file));
     }
     return files;
   }
@@ -195,39 +217,59 @@ export class MemoryStore {
   }
   private commit(files: Map<string, string>): void {
     this.prepare(files);
-    const pending: PendingMemory = { id: randomUUID(), time: new Date().toISOString(), files: {}, changes: [] };
+    const pending: PendingMemory = { id: randomUUID(), time: new Date().toISOString(), files: {} };
     for (const [file, content] of files) {
       const before = readMemoryFile(this.root, file);
       if (before === content && existsSync(memoryPath(this.root, file))) continue;
       pending.files[file] = content;
-      pending.changes.push(...lineChanges(file, before, content));
     }
     if (!Object.keys(pending.files).length) return;
+    this.redactSnapshots(files, pending);
     atomicMemoryFile(this.root, 'pending.json', JSON.stringify(pending));
     this.step?.('pending.json');
     applyPending(this.root, pending, this.step);
+    this.notify();
+  }
+  private redactSnapshots(files: Map<string, string>, pending: PendingMemory): void {
+    const removed = new Set<string>();
+    for (const [file, content] of files) {
+      const next = new Set(content.split('\n'));
+      for (const entry of parseMemory(readMemoryFile(this.root, file)).entries) {
+        if (!next.has(entry.line)) removed.add(entry.line);
+      }
+    }
+    if (!removed.size) return;
+    for (const file of memoryFiles(this.root, 'snapshots')) {
+      const before = readMemoryFile(this.root, file);
+      const after = before
+        .split('\n')
+        .filter((line) => !removed.has(line))
+        .join('\n');
+      if (before !== after) pending.files[file] = after;
+    }
+  }
+  deleteSnapshot(sessionId: string): void {
+    this.recover();
+    removeMemoryFile(this.root, this.snapshotFile(sessionId));
+  }
+  private pruneSnapshots(): void {
+    const cutoff = Date.now() - memoryRules.snapshotDays * 24 * 60 * 60 * 1000;
+    for (const file of memoryFiles(this.root, 'snapshots')) {
+      if (statSync(memoryPath(this.root, file)).mtimeMs < cutoff) removeMemoryFile(this.root, file);
+    }
+  }
+  private snapshotFile(sessionId: string): string {
+    if (!/^[a-zA-Z0-9_-]{1,200}$/.test(sessionId)) throw new ServerFailure(text('memoryInvalidData'));
+    return `snapshots/${sessionId}.md`;
   }
   /** DSH's section providers are synchronous. This freezes the complete block, including instructions. */
   snapshot(sessionId: string): string {
-    if (!/^[a-zA-Z0-9_-]{1,200}$/.test(sessionId)) throw new ServerFailure(text('memoryInvalidData'));
     this.recover();
-    const file = `snapshots/${sessionId}.md`;
+    const file = this.snapshotFile(sessionId);
     const saved = readMemoryFile(this.root, file);
     if (saved) return saved;
     const content = `# ${message('memoryHeading')}\n${message('memoryPromptRules')}\n\n${readMemoryFile(this.root, 'MEMORY.md') || indexDocument([], [])}`;
     atomicMemoryFile(this.root, file, content);
     return content;
   }
-}
-
-function lineChanges(file: string, before: string, after: string) {
-  const old = before.split('\n');
-  const next = after.split('\n');
-  const removed = old.filter((line) => line && !next.includes(line));
-  const added = next.filter((line) => line && !old.includes(line));
-  return Array.from({ length: Math.max(removed.length, added.length) }, (_, i) => ({
-    file,
-    before: removed[i] ?? null,
-    after: added[i] ?? null,
-  }));
 }

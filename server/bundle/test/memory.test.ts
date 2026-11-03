@@ -1,10 +1,21 @@
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  symlinkSync,
+  readdirSync,
+  utimesSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStore } from '../src/memory/store.js';
 import { parseMemory, serializeMemory } from '../src/memory/format.js';
 import { memoryRules } from '../src/memory/rules.js';
+import { message } from '@swiftnest/protocol';
 
 const homes: string[] = [];
 function home() {
@@ -13,6 +24,7 @@ function home() {
   return value;
 }
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const directory of homes.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 const read = (directory: string, file: string) => readFileSync(join(directory, 'memory', file), 'utf8');
@@ -46,10 +58,9 @@ describe('central memory', () => {
       .split('\n')
       .map((line) => JSON.parse(line));
     expect(rows).toHaveLength(3);
-    expect(rows[1].changes[0]).toMatchObject({
-      before: expect.stringContaining('Prefers tea'),
-      after: expect.stringContaining('Prefers coffee'),
-    });
+    expect(Object.keys(rows[1]).sort()).toEqual(['id', 'time']);
+    expect(memoryContents(directory)).not.toContain('Prefers tea');
+    expect(memoryContents(directory)).not.toContain('Prefers coffee');
   });
   it('checks Unicode entry, index, topic, and topic count limits without mutating on failure', async () => {
     const store = new MemoryStore(home());
@@ -116,7 +127,7 @@ describe('central memory', () => {
   });
 });
 
-it.each(['pending.json', 'MEMORY.md', 'topics/Work.md', 'journal.jsonl'])(
+it.each(['pending.json', 'MEMORY.md', 'topics/Work.md', 'journal.jsonl', 'committed'])(
   'replays a crash after %s before the next read, exactly once',
   async (stop) => {
     const directory = home();
@@ -148,7 +159,7 @@ it('repairs a torn journal before replay and does not overwrite newer files for 
   await store.remember('second');
   writeFileSync(join(directory, 'memory', 'journal.jsonl'), `${read(directory, 'journal.jsonl')}{"id":"torn`);
   const recovered = new MemoryStore(directory);
-  expect(read(directory, 'journal.torn')).toBe('{"id":"torn\n');
+  expect(existsSync(join(directory, 'memory', 'journal.torn'))).toBe(false);
   await recovered.remember('third');
   writeFileSync(join(directory, 'memory', 'pending.json'), pending);
   expect((await recovered.list()).entries.map((entry) => entry.text)).toEqual(['first', 'second', 'third']);
@@ -180,7 +191,192 @@ it('repairs a partial journal append and replays pending before the next read in
   writeFileSync(join(directory, 'memory', 'journal.jsonl'), torn);
   const view = await store.list();
   expect(view.entries.map((entry) => entry.text)).toEqual(['recover after torn append']);
-  expect(read(directory, 'journal.torn')).toBe(`${torn}\n`);
+  expect(existsSync(join(directory, 'memory', 'journal.torn'))).toBe(false);
   expect(JSON.parse(read(directory, 'journal.jsonl')).id).toBe(pending.id);
   expect(existsSync(join(directory, 'memory', 'pending.json'))).toBe(false);
 });
+
+function memoryContents(directory: string): string {
+  const root = join(directory, 'memory');
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((file) => file.isFile())
+    .map((file) => readFileSync(join(file.parentPath, file.name), 'utf8'))
+    .join('\n');
+}
+
+it.each(['forget', 'edit', 'topic'] as const)(
+  'erases old text from the entire memory directory after %s',
+  async (operation) => {
+    const directory = home();
+    const store = new MemoryStore(directory);
+    const saved = await store.remember('旧事实 only once');
+    await store.remember('Keep this line');
+    const frozen = store.snapshot('existing');
+    store.snapshot('another');
+    await store.remember('Later save');
+    // Upgrade an old journal, torn tail and abandoned temporary file containing original text.
+    const journal = read(directory, 'journal.jsonl');
+    const row = JSON.parse(journal.split('\n')[0]!);
+    writeFileSync(
+      join(directory, 'memory', 'journal.jsonl'),
+      `${JSON.stringify({ ...row, changes: [{ before: saved.entry.line }] })}\n${journal}`,
+    );
+    writeFileSync(join(directory, 'memory', 'journal.torn'), saved.entry.line);
+    writeFileSync(join(directory, 'memory', 'snapshots', 'abandoned.md.tmp'), saved.entry.line);
+    if (operation === 'forget') await store.forget(saved.entry.id);
+    else if (operation === 'edit') await store.edit(saved.entry.id, 'Replacement fact');
+    else {
+      const topic = await store.remember('Old topic fact', 'Work');
+      await store.writeTopic('Work', '- New topic fact');
+      expect(memoryContents(directory)).not.toContain(topic.entry.text);
+      await store.forget(saved.entry.id);
+    }
+    expect(memoryContents(directory)).not.toContain(saved.entry.text);
+    const redacted = frozen
+      .split('\n')
+      .filter((line) => line !== saved.entry.line)
+      .join('\n');
+    expect(store.snapshot('existing')).toBe(redacted);
+    expect(store.snapshot('another')).toBe(redacted);
+    expect(new MemoryStore(directory).snapshot('existing')).toBe(redacted);
+    expect(redacted).not.toContain('Later save');
+    expect(redacted).not.toContain('Replacement fact');
+  },
+);
+
+it.each(['forget', 'edit'] as const)(
+  'recovers %s at every transaction boundary with redacted snapshots exactly once',
+  async (operation) => {
+    for (const stop of [
+      'pending.json',
+      'MEMORY.md',
+      'snapshots/one.md',
+      'snapshots/two.md',
+      'journal.jsonl',
+      'committed',
+    ]) {
+      const directory = home();
+      const initial = new MemoryStore(directory);
+      const saved = await initial.remember('Never retain this old text');
+      await initial.remember('Kept fact');
+      const frozen = initial.snapshot('one');
+      initial.snapshot('two');
+      const store = new MemoryStore(directory, (step) => {
+        if (step === stop) throw new Error('crash');
+      });
+      await expect(
+        operation === 'forget' ? store.forget(saved.entry.id) : store.edit(saved.entry.id, 'New text'),
+      ).rejects.toThrow('crash');
+      const recovered = new MemoryStore(directory);
+      const view = await recovered.list();
+      expect(view.entries.map((entry) => entry.text)).toEqual(
+        operation === 'forget' ? ['Kept fact'] : ['New text', 'Kept fact'],
+      );
+      expect(memoryContents(directory)).not.toContain(saved.entry.text);
+      expect(recovered.snapshot('one')).toBe(frozen.replace(`${saved.entry.line}\n`, ''));
+      await recovered.list();
+      expect(read(directory, 'journal.jsonl').trim().split('\n')).toHaveLength(3);
+      expect(existsSync(join(directory, 'memory', 'pending.json'))).toBe(false);
+    }
+  },
+);
+
+it('prunes only snapshots older than the policy at startup and removes a deleted session snapshot', () => {
+  const directory = home();
+  const store = new MemoryStore(directory);
+  store.snapshot('old');
+  const recent = store.snapshot('recent');
+  const expired = new Date(Date.now() - (memoryRules.snapshotDays + 1) * 24 * 60 * 60 * 1000);
+  utimesSync(join(directory, 'memory', 'snapshots', 'old.md'), expired, expired);
+  const restarted = new MemoryStore(directory);
+  expect(existsSync(join(directory, 'memory', 'snapshots', 'old.md'))).toBe(false);
+  expect(restarted.snapshot('recent')).toBe(recent);
+  restarted.deleteSnapshot('recent');
+  restarted.deleteSnapshot('recent');
+  expect(existsSync(join(directory, 'memory', 'snapshots', 'recent.md'))).toBe(false);
+});
+
+it.each(['sync', 'async'] as const)('committed changes succeed and log a failed %s notification', async (mode) => {
+  const directory = home();
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const failure = () => {
+    throw new Error('transport unavailable');
+  };
+  const store = new MemoryStore(directory, undefined, mode === 'sync' ? failure : async () => failure());
+  const saved = await store.remember('Saved despite transport');
+  expect(saved.saved).toBe(true);
+  expect(read(directory, 'MEMORY.md')).toContain(saved.entry.text);
+  await expect(store.edit(saved.entry.id, 'Edited despite transport')).resolves.toMatchObject({
+    entries: [{ text: 'Edited despite transport' }],
+  });
+  expect(read(directory, 'MEMORY.md')).toContain('Edited despite transport');
+  await expect(store.forget(saved.entry.id)).resolves.toEqual({ entries: [], topics: [] });
+  expect(memoryContents(directory)).not.toContain('Edited despite transport');
+  expect((await new MemoryStore(directory).list()).entries).toEqual([]);
+  expect(warning).toHaveBeenCalledTimes(3);
+  expect(warning).toHaveBeenCalledWith(message('memoryNotificationFailedLog'));
+  expect(existsSync(join(directory, 'memory', 'pending.json'))).toBe(false);
+});
+
+function seedJournal(directory: string, count: number): string[] {
+  const rows = Array.from({ length: count }, (_, index) => JSON.stringify({ id: `old-${index}`, time: '2026-11-03' }));
+  writeFileSync(join(directory, 'memory', 'journal.jsonl'), `${rows.join('\n')}\n`);
+  return rows;
+}
+
+it('keeps only recent commit markers on recovery and after each new commit', async () => {
+  const directory = home();
+  new MemoryStore(directory);
+  const rows = seedJournal(directory, memoryRules.journalRows + 5);
+  const store = new MemoryStore(directory);
+  expect(read(directory, 'journal.jsonl').trim().split('\n')).toEqual(rows.slice(-memoryRules.journalRows));
+  await store.remember('Bounded journal');
+  const committed = read(directory, 'journal.jsonl').trim().split('\n');
+  expect(committed).toHaveLength(memoryRules.journalRows);
+  expect(committed.slice(0, -1)).toEqual(rows.slice(-(memoryRules.journalRows - 1)));
+  expect(Object.keys(JSON.parse(committed.at(-1)!)).sort()).toEqual(['id', 'time']);
+});
+
+it('does not rewrite a clean bounded journal on reads, prompt renders or restart', async () => {
+  const directory = home();
+  const store = new MemoryStore(directory);
+  await store.remember('Keep journal bytes');
+  seedJournal(directory, memoryRules.journalRows);
+  const journal = join(directory, 'memory', 'journal.jsonl');
+  const past = new Date('2020-01-01');
+  utimesSync(journal, past, past);
+  const before = statSync(journal);
+  const content = read(directory, 'journal.jsonl');
+  await store.list();
+  await store.recall();
+  store.snapshot('one');
+  new MemoryStore(directory).snapshot('one');
+  const after = statSync(journal);
+  expect(read(directory, 'journal.jsonl')).toBe(content);
+  expect(after.ino).toBe(before.ino);
+  expect(after.mtimeMs).toBe(before.mtimeMs);
+  expect(after.ctimeMs).toBe(before.ctimeMs);
+});
+
+it.each(['journal.appended', 'journal.jsonl'])(
+  'keeps replay deduplication across pruning with a crash at %s',
+  async (stop) => {
+    const directory = home();
+    const store = new MemoryStore(directory, (step) => {
+      if (step === stop) throw new Error('crash while pruning journal');
+    });
+    seedJournal(directory, memoryRules.journalRows);
+    await expect(store.remember('Committed once')).rejects.toThrow('crash while pruning journal');
+    const pending = JSON.parse(read(directory, 'pending.json'));
+    const rows = read(directory, 'journal.jsonl').trim().split('\n').slice(-memoryRules.journalRows);
+    expect(JSON.parse(rows.at(-1)!).id).toBe(pending.id);
+    // A committed replay must skip file replacement as well as skip appending its marker.
+    const document = join(directory, 'memory', 'MEMORY.md');
+    const before = statSync(document);
+    const recovered = new MemoryStore(directory);
+    expect((await recovered.list()).entries.map((entry) => entry.text)).toEqual(['Committed once']);
+    expect(statSync(document).ino).toBe(before.ino);
+    expect(read(directory, 'journal.jsonl').trim().split('\n')).toEqual(rows);
+    expect(existsSync(join(directory, 'memory', 'pending.json'))).toBe(false);
+  },
+);

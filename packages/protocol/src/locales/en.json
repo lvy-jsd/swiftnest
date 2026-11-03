@@ -630,6 +630,7 @@
   "memoryForgetTool": "Remove a saved memory entry by its text or id.",
   "memoryRecallTool": "Read current central memory: no arguments lists entries and topics; query searches entries; topic reads a whole topic.",
   "memoryRequestTooLarge": "Memory request is too large.",
+  "memoryNotificationFailedLog": "Memory was saved, but notifying other Apps failed.",
   "memoryApiReturnedHttp": "Memory API returned HTTP {0}",
   "pluginsTitle": "Recommended plugins",
   "pluginsHelp": "Add useful features to your assistant. The recommended choices work without setup.",

@@ -29,7 +29,7 @@ export interface DeviceHub {
   plugins: PluginManager;
   streams: Set<ServerResponse>;
   lanPort: () => number;
-  publish: (type: 'devices-changed' | 'plugins-changed', slugs?: string[]) => void;
+  publish: (type: 'devices-changed' | 'plugins-changed' | 'memory-changed', slugs?: string[]) => void;
 }
 
 interface Request {
@@ -245,6 +245,10 @@ const routes: Route[] = [
   route('GET', `${CONTROL}/events`, ({ hub, res }) => {
     const slugs = hub.registry.snapshot().devices.map((d) => d.slug);
     openEventStream(res, hub.streams, { type: 'devices-changed', slugs });
+  }),
+  route('POST', `${CONTROL}/memory-changed`, ({ hub }) => {
+    hub.publish('memory-changed');
+    return { ok: true };
   }),
   route('POST', `${CONTROL}/call`, callTool),
   route('GET', `${CONTROL}/tasks/${TASK_ID}`, (r) => r.hub.nest.tasks.wait(existingTask(r), 25_000)),

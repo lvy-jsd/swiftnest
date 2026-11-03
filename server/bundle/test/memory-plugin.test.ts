@@ -8,8 +8,13 @@ function context() {
   const tools = new Map<string, any>();
   const sections: any[] = [];
   const routes: any[] = [];
+  const listeners = new Map<string, (session: { id: string }) => void>();
   const disposals: (() => void)[] = [];
   const ctx: Parameters<typeof apply>[0] = {
+    on: (event, listener) => {
+      listeners.set(event, listener);
+      return () => listeners.delete(event);
+    },
     connection: { admit: () => ({ peer: { principal: { kind: 'owner' } } }) },
     tools: {
       register: (tool) => {
@@ -33,7 +38,7 @@ function context() {
       disposals.push(effect());
     },
   };
-  return { ctx, tools, sections, routes, disposals };
+  return { ctx, tools, sections, routes, disposals, listeners };
 }
 
 it('registers generic memory tools, reports catalog failures and freezes a literal prompt block', async () => {
@@ -60,7 +65,14 @@ it('registers generic memory tools, reports catalog failures and freezes a liter
     await expect(test.tools.get('forget').execute({ id: 'missing' }, exec)).rejects.toMatchObject({
       text: { key: 'memoryNotFound' },
     });
-    expect(section.text(exec)).toBe(frozen);
+    expect(section.text(exec)).toBe(
+      frozen
+        .split('\n')
+        .filter((line: string) => !line.includes('Literal {{unknown}}'))
+        .join('\n'),
+    );
+    test.listeners.get('session/disposed')!({ id: 'session-one' });
+    expect(existsSync(join(home, 'memory', 'snapshots', 'session-one.md'))).toBe(false);
     expect(section.text({ agent: { id: 'session-two' } })).not.toContain('Literal {{unknown}}');
   } finally {
     for (const dispose of test.disposals) dispose();

@@ -10,7 +10,11 @@ Storage is under `<home>/memory/`: `MEMORY.md` holds short facts and an `## Inde
 
 Limits count Unicode characters: 300 per fact, 4,000 for `MEMORY.md`, 16,000 per topic, and 40 topics. Suspected API keys, tokens, private keys and passwords are rejected. Keep credentials in the appropriate secret store.
 
-Each change first records `pending.json`, then replaces the affected files and appends one transaction to `journal.jsonl` with before/after lines. Recovery completes interrupted changes before the next read or write and on startup, without applying a committed transaction twice. A partial final journal row is preserved in `journal.torn`. Back up the whole memory directory while the server is stopped; do not edit files concurrently with the server.
+Deleting a memory removes it everywhere on the server.
+
+Editing or forgetting removes the old line from every frozen block; session snapshots are removed when DSH removes the session and after 30 days at startup.
+
+Each change first records `pending.json`, then replaces the affected files and appends one transaction to `journal.jsonl` with only its ID and time, never the memory text. Only the most recent 200 transactions are kept. Recovery completes interrupted changes before the next read or write and on startup, without applying a committed transaction twice. Incomplete journal rows and any old `journal.torn` are discarded; recovery uses the pending file. The pending file is removed after commit. Back up the whole memory directory while the server is stopped; do not edit files concurrently with the server.
 
 Memory is built in and enabled by default, with no installation or setup. Its setting is separate from the third-party `plugins` map. To disable the tools and prompt block (the Memory page reports that it is disabled), set:
 

@@ -450,6 +450,8 @@ describe('device API client', () => {
       expect((await stream.next()).value).toEqual({ type: 'approval-pending' });
       output.enqueue(enc.encode('data: {"type":"plugins-changed"}\n\n'));
       expect((await stream.next()).value).toEqual({ type: 'plugins-changed' });
+      output.enqueue(enc.encode('data: {"type":"memory-changed"}\n\n'));
+      expect((await stream.next()).value).toEqual({ type: 'memory-changed' });
       const next = stream.next();
       abort.abort();
       expect(await next).toMatchObject({ done: true });

@@ -24,6 +24,12 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
           .getByRole('link', { name: translate(locale, 'memory'), exact: true })
           .click();
         await exerciseMemory(page, locale);
+        const external = await harness.client.addMemory(`External fact ${locale}`);
+        await page.getByText(external.entry.text, { exact: true }).waitFor();
+        await harness.client.editMemory(external.entry.id, `External update ${locale}`);
+        await page.getByText(`External update ${locale}`, { exact: true }).waitFor();
+        await harness.client.deleteMemory(external.entry.id);
+        await expect.poll(() => page.getByText(`External update ${locale}`, { exact: true }).count()).toBe(0);
         // The App requires pairing again after a reload; memory still comes from the server.
         await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
         await page

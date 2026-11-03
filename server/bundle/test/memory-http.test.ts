@@ -9,7 +9,10 @@ import { MemoryStore } from '../src/memory/store.js';
 
 it('requires owner admission and routes all owner edits through validated, journaled memory', async () => {
   const home = mkdtempSync(join(tmpdir(), 'swiftnest-memory-http-'));
-  const store = new MemoryStore(home);
+  const events: string[] = [];
+  const store = new MemoryStore(home, undefined, () => {
+    events.push('memory-changed');
+  });
   const server = createServer(
     memoryHandler(
       {
@@ -36,6 +39,9 @@ it('requires owner admission and routes all owner edits through validated, journ
     expect((await fetch(root, { headers: { authorization: 'guest' } })).status).toBe(403);
     const saved = await (await request('/add', { text: 'Owner fact' })).json();
     expect(saved.saved).toBe(true);
+    expect(events).toEqual(['memory-changed']);
+    expect((await (await request('/add', { text: 'Owner fact' })).json()).saved).toBe(false);
+    expect(events).toHaveLength(1);
     expect((await (await request()).json()).entries).toHaveLength(1);
     expect((await request('/edit', { id: saved.entry.id, text: 'Edited fact' })).status).toBe(200);
     expect((await request('/topic', { topic: 'Details', content: '- Topic fact' })).status).toBe(200);
@@ -52,6 +58,7 @@ it('requires owner admission and routes all owner edits through validated, journ
     expect((await request('/delete', { id: saved.entry.id })).status).toBe(404);
     expect((await request('/topic?topic=..%2Fescape')).status).toBe(400);
     expect((await request('/add', { text: 'x'.repeat(140000) })).status).toBe(400);
+    expect(events).toEqual(Array(4).fill('memory-changed'));
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     rmSync(home, { recursive: true, force: true });
