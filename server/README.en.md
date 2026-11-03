@@ -42,12 +42,26 @@ preventing the kernel or DSH UI from starting. The public shell needs no DSH aut
 still requires pairing. Static routes reject traversal and escaping symlinks, set MIME types, use SPA
 fallback for page routes, and cache hashed assets immutably (index responses are revalidated).
 
+## Tool Ultra
+
+[Tool Ultra](https://github.com/lvy-jsd/dsh-tool-ultra) (Apache-2.0) is enabled by default and provides on-demand tool loading, a tool catalog, a risk gate, native packs and device namespaces. Until the finished product is released, it is built from pinned commit `8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9` instead of being published to npm.
+
+```sh
+swiftnest-server tools install --config swiftnest.yaml
+swiftnest-server start --config swiftnest.yaml
+```
+
+In a source checkout, substitute `node server/dist/cli.js` for `swiftnest-server`. Installation needs Git, npm, Node 24 and network access. Use the same config or `SWIFTNEST_HOME` for installation and startup. The checkout lives at `<home>/vendor/dsh-tool-ultra-8ccfefa1a922`; a successful build is reused and a failed install is cleaned up. Startup never downloads it: a missing build produces a hint and the server starts normally.
+
+Disable it with YAML `toolUltra: false` or `SWIFTNEST_TOOL_ULTRA=false`. Defaults come from each package's `cordis.patch.yml`; the operator's `user.patch.yml` applies last. Risk-gate prompts for `tools_load` appear in App chat; device execution still passes the Nest's permission checks. See the [guide](../docs/en/guide/tool-ultra.md).
+
 ## Configure
 
 Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environment variables override it.
 
 | Field | Env | Default |
 |---|---|---|
+| `toolUltra` | `SWIFTNEST_TOOL_ULTRA` | `true` (`false` disables) |
 | `home` | `SWIFTNEST_HOME` | `$XDG_DATA_HOME/swiftnest` |
 | `host` (one concrete IP, never `0.0.0.0`) | `SWIFTNEST_HOST` | `127.0.0.1` |
 | `port` | `SWIFTNEST_PORT` | `3077` |

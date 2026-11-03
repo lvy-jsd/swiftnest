@@ -1,3 +1,4 @@
+import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
@@ -100,7 +101,7 @@ function Thinking() {
   useEffect(() => { const start = Date.now(); const timer = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); return () => clearInterval(timer); }, []);
   return <p className="thinking-pill" role="status">{t('thinking')} · {seconds} {t('seconds')}</p>;
 }
-function TranscriptRow({ row }: { row: ChatRow }) {
+function TranscriptRow({ row, onAnswered }: { row: ChatRow; onAnswered: (requestId: string) => void }) {
   const { t, locale } = useI18n();
   const { assistantName } = useConnection();
   if (row.kind === 'message') {
@@ -110,6 +111,7 @@ function TranscriptRow({ row }: { row: ChatRow }) {
       <div className="message__body"><strong>{author}</strong><p>{row.text}</p></div>
     </article>;
   }
+  if (row.kind === 'approval') return <ApprovalCard request={row} onAnswered={onAnswered} />;
   if (row.kind === 'error') {
     const failure = localizedError({ code: row.code, message: row.text }, locale);
     return <p className="inline-error" role="alert">{failure.message}<br />{failure.hint} ({failure.code})</p>;
@@ -158,7 +160,7 @@ function ChatDetail({ sessionId, onBack, onOptions }: { sessionId: string; onBac
     <DeviceApprovals compact />
     <TransferCards compact />
     <LiveDeviceButton />
-    <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} />} />
+    <VirtualList items={state.rows} itemKey={row => row.id} label={t('messages')} followEnd className="transcript" renderItem={row => <TranscriptRow row={row} onAnswered={requestId => dispatch({ type: 'approval-answered', requestId })} />} />
     <div className="composer-area glass">{state.waiting && <Thinking />}{(state.waiting || hasKeyboard) && <p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p>}<form className="composer" onSubmit={send}>
       <textarea aria-label={t('composer')} placeholder={t('composer')} rows={2} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
       <Button type="submit" variant="primary" iconOnly disabled={!draft.trim() || !ready || status !== 'connected'} aria-label={t('send')}><Send size={24} /></Button>

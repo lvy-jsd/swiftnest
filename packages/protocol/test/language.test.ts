@@ -34,6 +34,7 @@ it('preserves codes and technical parameters while localizing message and hint',
   expect(translateMessage('来源文件已变化，请重新发起传输', 'en')).toBe('Source changed; start a new transfer');
   expect(translateMessage('Source changed; start a new transfer', 'zh-CN')).toBe('来源文件已变化，请重新发起传输');
   expect(translateMessage('my file.txt', 'zh-CN')).toBe('my file.txt');
+  expect(translateMessage('Loading high-risk tool(s): delete_file', 'zh-CN')).toBe('正在加载高风险工具：delete_file');
 });
 it('rejects new prose in JSX, attributes, expressions and template strings while allowing technical tokens', () => {
   const allowed = new Set(['MCP']);

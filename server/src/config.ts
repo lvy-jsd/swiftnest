@@ -35,6 +35,8 @@ export interface ServerConfig {
   persona: string;
   /** Name the Apps show on the assistant's messages (e.g. "小艾"); Apps fall back to a generic label. */
   assistantName?: string;
+  /** Enable the pinned, separately installed Tool Ultra bundle. */
+  toolUltra: boolean;
   model: ModelConfig;
   files?: { quotaBytes: number };
   devices: { host: string; port: number; mdns: boolean };
@@ -76,6 +78,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     appDist: appDist ? resolve(appDist) : undefined,
     persona: env.SWIFTNEST_PERSONA ?? fromFile.persona ?? ((env.SWIFTNEST_LANG ?? fromFile.lang) === "en" ? "You are a helpful assistant in Swiftnest, powered by the {{model}} model." : DEFAULT_PERSONA),
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName || undefined,
+    toolUltra: env.SWIFTNEST_TOOL_ULTRA === undefined ? fromFile.toolUltra ?? true : env.SWIFTNEST_TOOL_ULTRA !== "false",
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? "127.0.0.1",
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
@@ -95,6 +98,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if (config.assistantName !== undefined && typeof config.assistantName !== "string") throw new ServerFailure("assistantName must be a string");
+  if (typeof config.toolUltra !== "boolean") throw new ServerFailure("toolUltra must be a boolean");
   if(config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0)) throw new ServerFailure("files.quotaBytes must be a nonnegative safe integer");
   if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535) throw new ServerFailure("devices.port must be an integer 0-65535");
   if (typeof config.devices.host !== "string" || !config.devices.host) throw new ServerFailure("devices.host must be an address");

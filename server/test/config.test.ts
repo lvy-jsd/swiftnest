@@ -72,3 +72,20 @@ describe("loadConfig", () => {
     expect(loadConfig(file, { SWIFTNEST_APP_DIST: join(dir, 'env-dist') }).appDist).toBe(join(dir, 'env-dist'));
   });
 });
+
+it("defaults Tool Ultra on and supports YAML and environment overrides", () => {
+  const file = join(tmp(), "ultra.yaml");
+  expect(loadConfig(undefined, {}).toolUltra).toBe(true);
+  writeFileSync(file, "toolUltra: false\n");
+  expect(loadConfig(file, {}).toolUltra).toBe(false);
+  expect(loadConfig(file, { SWIFTNEST_TOOL_ULTRA: "true" }).toolUltra).toBe(true);
+  expect(loadConfig(undefined, { SWIFTNEST_TOOL_ULTRA: "false" }).toolUltra).toBe(false);
+  writeFileSync(file, 'toolUltra: "false"\n');
+  expect(() => loadConfig(file, {})).toThrow("toolUltra must be a boolean");
+});
+
+it.each(["42", "false", "[]", "{}", "null"])("rejects non-string assistantName: %s", value => {
+  const file = join(tmp(), "assistant.yaml");
+  writeFileSync(file, `assistantName: ${value}\n`);
+  expect(() => loadConfig(file, {})).toThrow("assistantName must be a string");
+});
