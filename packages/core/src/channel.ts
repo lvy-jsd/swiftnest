@@ -12,6 +12,7 @@
  * tampered with closes the channel. Who may connect (a paired key, a pinned Nest key, a pairing attempt) is decided by
  * the caller through `authorize`, after the identities are proven.
  */
+import { text, type Text } from '@swiftnest/protocol';
 import {
   createCipheriv,
   createDecipheriv,
@@ -22,12 +23,12 @@ import {
   hkdfSync,
   randomBytes,
   type KeyObject,
-} from "node:crypto";
-import { SwiftnestFailure } from "./errors.js";
-import { verifySignature, type Identity } from "./identity.js";
+} from 'node:crypto';
+import { SwiftnestFailure } from './errors.js';
+import { verifySignature, type Identity } from './identity.js';
 
 export const CHANNEL_VERSION = 1;
-const X25519_SPKI_PREFIX = Buffer.from("302a300506032b656e032100", "hex");
+const X25519_SPKI_PREFIX = Buffer.from('302a300506032b656e032100', 'hex');
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 
 /** What a link plugin gives the channel: an ordered, reliable string pipe (a WebSocket, a stream…). */
@@ -52,9 +53,9 @@ export interface SecureChannel {
 }
 
 export interface Hello1 {
-  t: "hs1";
+  t: 'hs1';
   v: number;
-  role: "perch";
+  role: 'perch';
   device: string;
   id: string;
   eph: string;
@@ -62,7 +63,7 @@ export interface Hello1 {
   pairing: boolean;
 }
 interface Hello2 {
-  t: "hs2";
+  t: 'hs2';
   v: number;
   id: string;
   eph: string;
@@ -70,34 +71,38 @@ interface Hello2 {
 }
 
 function ephemeral() {
-  const { publicKey, privateKey } = generateKeyPairSync("x25519");
-  const raw = publicKey.export({ format: "der", type: "spki" }).subarray(X25519_SPKI_PREFIX.length);
-  return { privateKey, raw: Buffer.from(raw).toString("base64url") };
+  const { publicKey, privateKey } = generateKeyPairSync('x25519');
+  const raw = publicKey.export({ format: 'der', type: 'spki' }).subarray(X25519_SPKI_PREFIX.length);
+  return { privateKey, raw: Buffer.from(raw).toString('base64url') };
 }
 
 function x25519Key(raw: string): KeyObject {
-  const bytes = Buffer.from(raw, "base64url");
-  if (bytes.length !== 32) throw new SwiftnestFailure("HANDSHAKE_FAILED", "Malformed ephemeral key.");
-  return createPublicKey({ key: Buffer.concat([X25519_SPKI_PREFIX, bytes]), format: "der", type: "spki" });
+  const bytes = Buffer.from(raw, 'base64url');
+  if (bytes.length !== 32) throw new SwiftnestFailure('HANDSHAKE_FAILED', text('malformedEphemeralKey'));
+  return createPublicKey({ key: Buffer.concat([X25519_SPKI_PREFIX, bytes]), format: 'der', type: 'spki' });
 }
 
 function transcript(hs1: string, hs2: string): Buffer {
-  return createHash("sha256").update("swiftnest/handshake/v1\0").update(hs1).update("\0").update(hs2).digest();
+  return createHash('sha256').update('swiftnest/handshake/v1\0').update(hs1).update('\0').update(hs2).digest();
 }
 
 function deriveKeys(privateKey: KeyObject, peerEph: string, th: Buffer) {
   const shared = diffieHellman({ privateKey, publicKey: x25519Key(peerEph) });
-  const okm = Buffer.from(hkdfSync("sha256", shared, th, "swiftnest/keys/v1", 64));
-  return { i2r: okm.subarray(0, 32), r2i: okm.subarray(32, 64), streamRoot: Buffer.from(hkdfSync("sha256", shared, th, "swiftnest/streams/v1", 32)) };
+  const okm = Buffer.from(hkdfSync('sha256', shared, th, 'swiftnest/keys/v1', 64));
+  return {
+    i2r: okm.subarray(0, 32),
+    r2i: okm.subarray(32, 64),
+    streamRoot: Buffer.from(hkdfSync('sha256', shared, th, 'swiftnest/streams/v1', 32)),
+  };
 }
 
-function authPayload(role: "perch" | "nest", th: Buffer) {
+function authPayload(role: 'perch' | 'nest', th: Buffer) {
   return Buffer.concat([Buffer.from(`swiftnest/auth/v1/${role}\0`), th]);
 }
 
-function refusalHint(code: string): string | undefined {
-  if (code === "NOT_PAIRED") return "Pair this device first: `swiftnest pair` on the Nest, then `swiftnest perch --pair <code>` here.";
-  if (code === "PAIRING_CLOSED") return "Run `swiftnest pair` on the Nest first, then use the code it shows within 5 minutes.";
+function refusalHint(code: string): Text | undefined {
+  if (code === 'NOT_PAIRED') return text('hintPairThisDeviceFirst');
+  if (code === 'PAIRING_CLOSED') return text('hintRunPairOnNestFirst');
   return undefined;
 }
 
@@ -106,7 +111,7 @@ function refusalHint(code: string): string | undefined {
  * auth right behind its hello) waits in the queue instead of being dropped.
  */
 interface Inbox {
-  next(timeoutMs: number, what: string): Promise<string>;
+  next(timeoutMs: number, what: Text): Promise<string>;
   /** Hand every later frame (and the queued ones) to `fn`. */
   drain(fn: (data: string) => void): void;
 }
@@ -139,14 +144,30 @@ function inboxOf(t: FrameTransport): Inbox {
           clearTimeout(timer);
           failWaiting.delete(fail);
           waiting = undefined;
-          const code = reason && /^[A-Z][A-Z0-9_]{2,40}$/.test(reason) ? reason : "HANDSHAKE_FAILED";
-          reject(new SwiftnestFailure(code, `Connection closed during the ${what}${reason ? `: ${reason}` : ""}.`, refusalHint(code), code === "HANDSHAKE_FAILED"));
+          const code = reason && /^[A-Z][A-Z0-9_]{2,40}$/.test(reason) ? reason : 'HANDSHAKE_FAILED';
+          reject(
+            new SwiftnestFailure(
+              code,
+              reason
+                ? text('connectionClosedDuringStepBecause', what, reason)
+                : text('connectionClosedDuringStep', what),
+              refusalHint(code),
+              code === 'HANDSHAKE_FAILED',
+            ),
+          );
         };
         if (closed) return fail(closedReason);
         const timer = setTimeout(() => {
           failWaiting.delete(fail);
           waiting = undefined;
-          reject(new SwiftnestFailure("HANDSHAKE_TIMEOUT", `The other side did not complete the ${what} in time.`, "Check that both sides run a compatible Swiftnest version.", true));
+          reject(
+            new SwiftnestFailure(
+              'HANDSHAKE_TIMEOUT',
+              text('otherSideDidNotCompleteTime', what),
+              text('hintCompatibleVersions'),
+              true,
+            ),
+          );
         }, timeoutMs);
         failWaiting.add(fail);
         waiting = (data) => {
@@ -168,18 +189,27 @@ function parseJson<T>(data: string, type: string): T {
   try {
     v = JSON.parse(data);
   } catch {
-    throw new SwiftnestFailure("HANDSHAKE_FAILED", "Malformed handshake message.");
+    throw new SwiftnestFailure('HANDSHAKE_FAILED', text('malformedHandshakeMessage'));
   }
-  if (typeof v !== "object" || v === null || (v as { t?: unknown }).t !== type) throw new SwiftnestFailure("HANDSHAKE_FAILED", `Expected handshake message "${type}".`);
+  if (typeof v !== 'object' || v === null || (v as { t?: unknown }).t !== type)
+    throw new SwiftnestFailure('HANDSHAKE_FAILED', text('expectedHandshakeMessage', type));
   return v as T;
 }
 
-const isKey = (s: unknown) => typeof s === "string" && Buffer.from(s, "base64url").length === 32;
+const isKey = (s: unknown) => typeof s === 'string' && Buffer.from(s, 'base64url').length === 32;
 
 /**
  * The encrypted session once keys exist. Messages are JSON; the first one each way must be `auth`.
  */
-function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recvKey: Buffer, peerPublicKey: string, th: Buffer, streamRoot: Buffer): SecureChannel & { firstMessage(timeoutMs: number): Promise<unknown> } {
+function encryptedSession(
+  t: FrameTransport,
+  inbox: Inbox,
+  sendKey: Buffer,
+  recvKey: Buffer,
+  peerPublicKey: string,
+  th: Buffer,
+  streamRoot: Buffer,
+): SecureChannel & { firstMessage(timeoutMs: number): Promise<unknown> } {
   let sendCounter = 0n;
   let recvCounter = 0n;
   let closed = false;
@@ -202,15 +232,15 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
   inbox.drain((data) => {
     if (closed) return;
     try {
-      const frame = Buffer.from(data, "base64url");
-      if (frame.length < 24 || frame.length > MAX_FRAME_BYTES) throw new Error("bad frame size");
+      const frame = Buffer.from(data, 'base64url');
+      if (frame.length < 24 || frame.length > MAX_FRAME_BYTES) throw new Error('bad frame size');
       const counter = frame.readBigUInt64BE(0);
-      if (counter !== recvCounter) throw new Error("frame out of order or replayed");
-      const decipher = createDecipheriv("aes-256-gcm", recvKey, nonceOf(counter));
+      if (counter !== recvCounter) throw new Error('frame out of order or replayed');
+      const decipher = createDecipheriv('aes-256-gcm', recvKey, nonceOf(counter));
       decipher.setAuthTag(frame.subarray(frame.length - 16));
       const plain = Buffer.concat([decipher.update(frame.subarray(8, frame.length - 16)), decipher.final()]);
       recvCounter++;
-      const message: unknown = JSON.parse(plain.toString("utf8"));
+      const message: unknown = JSON.parse(plain.toString('utf8'));
       if (waiter) {
         const w = waiter;
         waiter = undefined;
@@ -218,7 +248,7 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
       } else if (listeners.size) for (const fn of listeners) fn(message);
       else backlog.push(message);
     } catch {
-      close("integrity check failed");
+      close('integrity check failed');
     }
   });
   t.onClose(() => {
@@ -230,13 +260,13 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
     transcriptHash: th,
     streamRoot,
     send(message) {
-      if (closed) throw new SwiftnestFailure("CHANNEL_CLOSED", "The connection is closed.", undefined, true);
-      const cipher = createCipheriv("aes-256-gcm", sendKey, nonceOf(sendCounter));
-      const body = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(message), "utf8")), cipher.final()]);
+      if (closed) throw new SwiftnestFailure('CHANNEL_CLOSED', text('connectionClosed'), undefined, true);
+      const cipher = createCipheriv('aes-256-gcm', sendKey, nonceOf(sendCounter));
+      const body = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(message), 'utf8')), cipher.final()]);
       const head = Buffer.alloc(8);
       head.writeBigUInt64BE(sendCounter, 0);
       sendCounter++;
-      t.send(Buffer.concat([head, body, cipher.getAuthTag()]).toString("base64url"));
+      t.send(Buffer.concat([head, body, cipher.getAuthTag()]).toString('base64url'));
     },
     onMessage(fn) {
       listeners.add(fn);
@@ -248,10 +278,16 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
     firstMessage(timeoutMs) {
       return new Promise((resolve, reject) => {
         if (backlog.length) return resolve(backlog.shift());
-        const timer = setTimeout(() => reject(new SwiftnestFailure("HANDSHAKE_TIMEOUT", "The other side did not authenticate in time.", undefined, true)), timeoutMs);
+        const timer = setTimeout(
+          () =>
+            reject(new SwiftnestFailure('HANDSHAKE_TIMEOUT', text('otherSideDidNotAuthenticateTime'), undefined, true)),
+          timeoutMs,
+        );
         const off = t.onClose(() => {
           clearTimeout(timer);
-          reject(new SwiftnestFailure("HANDSHAKE_FAILED", "Connection closed during authentication.", undefined, true));
+          reject(
+            new SwiftnestFailure('HANDSHAKE_FAILED', text('connectionClosedDuringAuthentication'), undefined, true),
+          );
         });
         waiter = (m) => {
           clearTimeout(timer);
@@ -263,12 +299,24 @@ function encryptedSession(t: FrameTransport, inbox: Inbox, sendKey: Buffer, recv
   };
 }
 
-async function exchangeAuth(session: ReturnType<typeof encryptedSession>, identity: Identity, myRole: "perch" | "nest", peerRole: "perch" | "nest", peerKey: string, th: Buffer, timeoutMs: number) {
-  session.send({ type: "auth", sig: identity.sign(authPayload(myRole, th)) });
+async function exchangeAuth(
+  session: ReturnType<typeof encryptedSession>,
+  identity: Identity,
+  myRole: 'perch' | 'nest',
+  peerRole: 'perch' | 'nest',
+  peerKey: string,
+  th: Buffer,
+  timeoutMs: number,
+) {
+  session.send({ type: 'auth', sig: identity.sign(authPayload(myRole, th)) });
   const auth = (await session.firstMessage(timeoutMs)) as { type?: unknown; sig?: unknown };
-  if (auth?.type !== "auth" || typeof auth.sig !== "string" || !verifySignature(peerKey, authPayload(peerRole, th), auth.sig)) {
-    session.close("authentication failed");
-    throw new SwiftnestFailure("AUTH_FAILED", "The other side could not prove its identity key.", "If this keeps happening, someone may be intercepting the connection; pair the device again.");
+  if (
+    auth?.type !== 'auth' ||
+    typeof auth.sig !== 'string' ||
+    !verifySignature(peerKey, authPayload(peerRole, th), auth.sig)
+  ) {
+    session.close('authentication failed');
+    throw new SwiftnestFailure('AUTH_FAILED', text('otherSideCouldNotProveIdentity'), text('hintPossibleInterception'));
   }
 }
 
@@ -286,28 +334,45 @@ export interface InitiateOptions {
 export async function initiateChannel(t: FrameTransport, o: InitiateOptions): Promise<SecureChannel> {
   const timeoutMs = o.timeoutMs ?? 10_000;
   const eph = ephemeral();
-  const hs1: Hello1 = { t: "hs1", v: CHANNEL_VERSION, role: "perch", device: o.device, id: o.identity.publicKey, eph: eph.raw, nonce: randomBytes(16).toString("base64url"), pairing: Boolean(o.pairing) };
+  const hs1: Hello1 = {
+    t: 'hs1',
+    v: CHANNEL_VERSION,
+    role: 'perch',
+    device: o.device,
+    id: o.identity.publicKey,
+    eph: eph.raw,
+    nonce: randomBytes(16).toString('base64url'),
+    pairing: Boolean(o.pairing),
+  };
   const hs1Raw = JSON.stringify(hs1);
   const inbox = inboxOf(t);
   t.send(hs1Raw);
-  const hs2Raw = await inbox.next(timeoutMs, "handshake");
-  const hs2 = parseJson<Hello2>(hs2Raw, "hs2");
+  const hs2Raw = await inbox.next(timeoutMs, text('handshakeStep'));
+  const hs2 = parseJson<Hello2>(hs2Raw, 'hs2');
   if (hs2.v !== CHANNEL_VERSION) {
-    t.close("version mismatch");
-    throw new SwiftnestFailure("PROTOCOL_MISMATCH", `The Nest speaks channel v${hs2.v}, this device v${CHANNEL_VERSION}.`, "Upgrade Swiftnest on both machines to the same version.");
+    t.close('version mismatch');
+    throw new SwiftnestFailure(
+      'PROTOCOL_MISMATCH',
+      text('nestSpeaksChannelVDeviceV', hs2.v, CHANNEL_VERSION),
+      text('hintUpgradeBothSides'),
+    );
   }
   if (!isKey(hs2.id) || !isKey(hs2.eph)) {
-    t.close("bad handshake");
-    throw new SwiftnestFailure("HANDSHAKE_FAILED", "Malformed handshake from the Nest.");
+    t.close('bad handshake');
+    throw new SwiftnestFailure('HANDSHAKE_FAILED', text('malformedHandshakeNest'));
   }
   if (!o.pairing && hs2.id !== o.expectedPeer) {
-    t.close("unexpected nest key");
-    throw new SwiftnestFailure("NEST_KEY_CHANGED", "The Nest at this address is not the one this device was paired with.", "If you reinstalled the Nest, pair this device again; otherwise someone may be impersonating it.");
+    t.close('unexpected nest key');
+    throw new SwiftnestFailure(
+      'NEST_KEY_CHANGED',
+      text('nestAddressNotOneDevicePaired'),
+      text('hintPairAgainAfterReinstall'),
+    );
   }
   const th = transcript(hs1Raw, hs2Raw);
   const keys = deriveKeys(eph.privateKey, hs2.eph, th);
   const session = encryptedSession(t, inbox, keys.i2r, keys.r2i, hs2.id, th, keys.streamRoot);
-  await exchangeAuth(session, o.identity, "perch", "nest", hs2.id, th, timeoutMs);
+  await exchangeAuth(session, o.identity, 'perch', 'nest', hs2.id, th, timeoutMs);
   return session;
 }
 
@@ -319,34 +384,47 @@ export interface AcceptOptions {
 }
 
 /** Nest side. Resolves with the proven channel and the Perch's hello; the caller decides what the Perch may do. */
-export async function acceptChannel(t: FrameTransport, o: AcceptOptions): Promise<{ channel: SecureChannel; hello: Hello1 }> {
+export async function acceptChannel(
+  t: FrameTransport,
+  o: AcceptOptions,
+): Promise<{ channel: SecureChannel; hello: Hello1 }> {
   const timeoutMs = o.timeoutMs ?? 10_000;
   const inbox = inboxOf(t);
-  const hs1Raw = await inbox.next(timeoutMs, "handshake");
-  const hello = parseJson<Hello1>(hs1Raw, "hs1");
+  const hs1Raw = await inbox.next(timeoutMs, text('handshakeStep'));
+  const hello = parseJson<Hello1>(hs1Raw, 'hs1');
   if (hello.v !== CHANNEL_VERSION) {
-    t.close("version mismatch");
-    throw new SwiftnestFailure("PROTOCOL_MISMATCH", `A device speaks channel v${hello.v}, this Nest v${CHANNEL_VERSION}.`, "Upgrade Swiftnest on both machines to the same version.");
+    t.close('version mismatch');
+    throw new SwiftnestFailure(
+      'PROTOCOL_MISMATCH',
+      text('deviceSpeaksChannelVNestV', hello.v, CHANNEL_VERSION),
+      text('hintUpgradeBothSides'),
+    );
   }
-  if (!isKey(hello.id) || !isKey(hello.eph) || typeof hello.device !== "string") {
-    t.close("bad handshake");
-    throw new SwiftnestFailure("HANDSHAKE_FAILED", "Malformed handshake from a device.");
+  if (!isKey(hello.id) || !isKey(hello.eph) || typeof hello.device !== 'string') {
+    t.close('bad handshake');
+    throw new SwiftnestFailure('HANDSHAKE_FAILED', text('malformedHandshakeDevice'));
   }
   try {
     o.screen?.(hello);
   } catch (e) {
     // The reason is a bare error code, so the device can tell "pair first" from a network failure.
-    t.close(e instanceof SwiftnestFailure ? e.code : "REFUSED");
+    t.close(e instanceof SwiftnestFailure ? e.code : 'REFUSED');
     throw e;
   }
   const eph = ephemeral();
-  const hs2: Hello2 = { t: "hs2", v: CHANNEL_VERSION, id: o.identity.publicKey, eph: eph.raw, nonce: randomBytes(16).toString("base64url") };
+  const hs2: Hello2 = {
+    t: 'hs2',
+    v: CHANNEL_VERSION,
+    id: o.identity.publicKey,
+    eph: eph.raw,
+    nonce: randomBytes(16).toString('base64url'),
+  };
   const hs2Raw = JSON.stringify(hs2);
   const th = transcript(hs1Raw, hs2Raw);
   const keys = deriveKeys(eph.privateKey, hello.eph, th);
   const session = encryptedSession(t, inbox, keys.r2i, keys.i2r, hello.id, th, keys.streamRoot);
   t.send(hs2Raw);
-  await exchangeAuth(session, o.identity, "nest", "perch", hello.id, th, timeoutMs);
+  await exchangeAuth(session, o.identity, 'nest', 'perch', hello.id, th, timeoutMs);
   return { channel: session, hello };
 }
 

@@ -6,7 +6,7 @@ export * from './language.js';
  * Kept dependency-light (zod only) so plugins, the Nest, Perches and clients can all share it.
  * Bump PROTOCOL_VERSION on any breaking change; peers negotiate it on connect.
  */
-import { z } from "zod";
+import { z } from 'zod';
 
 export const PROTOCOL_VERSION = 1;
 /** Plugin API version a plugin declares in its manifest (`swiftnest.apiVersion`). */
@@ -18,9 +18,9 @@ export const PLUGIN_API_VERSION = 1;
 export const LocalizedText = z.union([z.string(), z.object({ en: z.string(), zh: z.string().optional() })]);
 export type LocalizedText = z.infer<typeof LocalizedText>;
 
-export function localize(text: LocalizedText, lang: "en" | "zh" = "zh"): string {
-  if (typeof text === "string") return translateMessage(text, lang === "en" ? "en" : "zh-CN");
-  return (lang === "zh" ? text.zh : undefined) ?? text.en;
+export function localize(text: LocalizedText, lang: 'en' | 'zh' = 'zh'): string {
+  if (typeof text === 'string') return translateMessage(text, lang === 'en' ? 'en' : 'zh-CN');
+  return (lang === 'zh' ? text.zh : undefined) ?? text.en;
 }
 
 // ---------------------------------------------------------------- names
@@ -28,7 +28,7 @@ export function localize(text: LocalizedText, lang: "en" | "zh" = "zh"): string 
 /** Device, capability and tool names: lowercase letters, digits, single dashes. */
 export const Name = z
   .string()
-  .regex(/^[a-z][a-z0-9-]{0,31}$/, "use 1–32 lowercase letters, digits or dashes, starting with a letter");
+  .regex(/^[a-z][a-z0-9-]{0,31}$/, 'use 1–32 lowercase letters, digits or dashes, starting with a letter');
 
 /** Tool components may include single underscores; double underscores delimit qualified names. */
 export const ToolName = z.string().regex(/^[a-z](?!.*__)[a-z0-9_-]{0,31}$/);
@@ -37,7 +37,7 @@ export const ToolName = z.string().regex(/^[a-z](?!.*__)[a-z0-9_-]{0,31}$/);
  * Tool names exposed to agents are `<device>__<capability>__<tool>`.
  * Double underscores, not dots: OpenAI / Anthropic function names only allow [A-Za-z0-9_-].
  */
-export const TOOL_SEPARATOR = "__";
+export const TOOL_SEPARATOR = '__';
 
 export function qualifiedToolName(device: string, capability: string, tool: string): string {
   return [device, capability, tool].join(TOOL_SEPARATOR);
@@ -45,7 +45,11 @@ export function qualifiedToolName(device: string, capability: string, tool: stri
 
 export function parseQualifiedToolName(name: string): { device: string; capability: string; tool: string } | null {
   const parts = name.split(TOOL_SEPARATOR);
-  if (parts.length !== 3 || parts.some((p, i) => !(i === 2 ? ToolName.safeParse(p).success : Name.safeParse(p).success))) return null;
+  if (
+    parts.length !== 3 ||
+    parts.some((p, i) => !(i === 2 ? ToolName.safeParse(p).success : Name.safeParse(p).success))
+  )
+    return null;
   const [device, capability, tool] = parts as [string, string, string];
   return { device, capability, tool };
 }
@@ -56,7 +60,7 @@ export function parseQualifiedToolName(name: string): { device: string; capabili
  * How dangerous a tool call is, before argument-level policy refines it.
  * read: observes only · write: changes local state · exec: runs code · sensitive: money, deletion, outbound messages.
  */
-export const Risk = z.enum(["read", "write", "exec", "sensitive"]);
+export const Risk = z.enum(['read', 'write', 'exec', 'sensitive']);
 export type Risk = z.infer<typeof Risk>;
 
 export const ToolDescriptor = z.object({
@@ -64,7 +68,7 @@ export const ToolDescriptor = z.object({
   title: LocalizedText.optional(),
   description: LocalizedText,
   /** JSON Schema of the arguments object. */
-  inputSchema: z.record(z.string(), z.unknown()).default({ type: "object", properties: {} }),
+  inputSchema: z.record(z.string(), z.unknown()).default({ type: 'object', properties: {} }),
   /** Default risk; a capability may raise or lower it per call via `classify`. */
   risk: Risk,
   /** Soft timeout applied when the caller gives none. */
@@ -76,7 +80,7 @@ export type ToolDescriptorInput = z.input<typeof ToolDescriptor>;
 export const CapabilityManifest = z.object({
   /** Stable id, unique on its device, e.g. "shell". */
   id: Name,
-  version: z.string().default("0.0.0"),
+  version: z.string().default('0.0.0'),
   title: LocalizedText,
   description: LocalizedText.optional(),
   /** Capability-level permissions this capability needs, e.g. ["process.spawn"]. */
@@ -89,36 +93,55 @@ export type CapabilityManifestInput = z.input<typeof CapabilityManifest>;
 // ---------------------------------------------------------------- tasks
 
 export const TaskState = z.enum([
-  "queued",
-  "pending_approval",
-  "running",
-  "succeeded",
-  "failed",
-  "denied",
-  "timed_out",
-  "cancelled",
+  'queued',
+  'pending_approval',
+  'running',
+  'succeeded',
+  'failed',
+  'denied',
+  'timed_out',
+  'cancelled',
 ]);
 export type TaskState = z.infer<typeof TaskState>;
 
-export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set(["succeeded", "failed", "denied", "timed_out", "cancelled"]);
+export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set([
+  'succeeded',
+  'failed',
+  'denied',
+  'timed_out',
+  'cancelled',
+]);
 
 /** Who asked: the agent / client that issued the call (Claude Desktop, DSH, a test…). */
 export const ClientRef = z.object({ id: z.string(), name: z.string().optional() });
 export type ClientRef = z.infer<typeof ClientRef>;
 
-/** Uniform error: what went wrong, how to fix it, and whether retrying can help. */
+/**
+ * Catalog text on the wire. Keys are not checked here: a newer peer may send keys this build
+ * lacks, and readers then fall back to the English `message` beside it.
+ */
+export const WireText: z.ZodType<{ key: string; args?: unknown[] }> = z.lazy(() =>
+  z.object({ key: z.string(), args: z.array(z.union([z.string(), z.number(), WireText])).optional() }),
+);
+
+/**
+ * Uniform error: what went wrong, how to fix it, and whether retrying can help. `message` and
+ * `hint` are English for logs and models; `text` and `hintText` let each reader localize.
+ */
 export const SwiftnestError = z.object({
   code: z.string(),
   message: z.string(),
   hint: z.string().optional(),
   suggestion: z.string().optional(),
+  text: WireText.optional(),
+  hintText: WireText.optional(),
   retryable: z.boolean().default(false),
 });
 export type SwiftnestError = z.infer<typeof SwiftnestError>;
 
 /** What a tool returns. `untrusted` marks content that came from the outside world (web, mail, files). */
 export const ToolResult = z.object({
-  text: z.string().default(""),
+  text: z.string().default(''),
   data: z.unknown().optional(),
   untrusted: z.boolean().default(false),
 });
@@ -162,7 +185,7 @@ export type AuditEntry = z.infer<typeof AuditEntry>;
 // ---------------------------------------------------------------- Nest ⇄ Perch messages (carried by link plugins)
 
 export const PerchHello = z.object({
-  type: z.literal("hello"),
+  type: z.literal('hello'),
   protocol: z.number().int(),
   device: Name,
   publicKey: z.string(),
@@ -173,7 +196,7 @@ export const PerchHello = z.object({
   capabilities: z.array(CapabilityManifest),
 });
 export const InvokeRequest = z.object({
-  type: z.literal("invoke"),
+  type: z.literal('invoke'),
   taskId: z.string(),
   capability: Name,
   tool: ToolName,
@@ -181,52 +204,94 @@ export const InvokeRequest = z.object({
   timeoutMs: z.number().int().positive(),
 });
 export const InvokeResult = z.object({
-  type: z.literal("result"),
+  type: z.literal('result'),
   taskId: z.string(),
   ok: z.boolean(),
   result: ToolResult.optional(),
   error: SwiftnestError.optional(),
 });
-export const CancelRequest = z.object({ type: z.literal("cancel"), taskId: z.string() });
+export const CancelRequest = z.object({ type: z.literal('cancel'), taskId: z.string() });
 /** Ask the Perch's capability how risky this particular call is (argument-level classification). */
 export const ClassifyRequest = z.object({
-  type: z.literal("classify"),
+  type: z.literal('classify'),
   requestId: z.string(),
   capability: Name,
   tool: ToolName,
   args: z.record(z.string(), z.unknown()),
 });
 export const ClassifyResult = z.object({
-  type: z.literal("classified"),
+  type: z.literal('classified'),
   requestId: z.string(),
   risk: Risk,
   reason: z.string().optional(),
 });
 /** The Perch's capabilities changed (a plugin was added or removed). */
-export const CapabilitiesUpdate = z.object({ type: z.literal("capabilities"), capabilities: z.array(CapabilityManifest) });
+export const CapabilitiesUpdate = z.object({
+  type: z.literal('capabilities'),
+  capabilities: z.array(CapabilityManifest),
+});
 /** The Nest accepted the hello: the device is online. */
-export const Welcome = z.object({ type: z.literal("welcome") });
+export const Welcome = z.object({ type: z.literal('welcome') });
 /** Either side ends the session on purpose (revoked, shutting down, refused); `code` says why. */
-export const Bye = z.object({ type: z.literal("bye"), code: z.string(), message: z.string() });
+export const Bye = z.object({ type: z.literal('bye'), code: z.string(), message: z.string() });
 
 // Pairing runs inside the encrypted channel (design §7.2): the code proves the owner allowed it, the fingerprints both
 // people compare prove nobody sits in between.
 /** Perch → Nest: HMAC-SHA-256(code, "swiftnest/pair/v1" ‖ transcript hash), never the code itself. */
-export const PairRequest = z.object({ type: z.literal("pair"), proof: z.string() });
+export const PairRequest = z.object({ type: z.literal('pair'), proof: z.string() });
 /** Nest → Perch: the code was right (now compare fingerprints), pairing finished, or refused. */
 export const PairStatus = z.object({
-  type: z.literal("pair_status"),
-  status: z.enum(["code_ok", "paired", "rejected"]),
+  type: z.literal('pair_status'),
+  status: z.enum(['code_ok', 'paired', 'rejected']),
   message: z.string().optional(),
 });
 /** Perch → Nest: the person at the device says the Nest fingerprint matches (or not). */
-export const PairConfirm = z.object({ type: z.literal("pair_confirm"), accept: z.boolean() });
+export const PairConfirm = z.object({ type: z.literal('pair_confirm'), accept: z.boolean() });
 
-export const StreamOpen = z.object({ type: z.literal('stream_open'), id: z.string().regex(/^[a-f0-9]{32}$/), purpose: z.enum(['screen', 'file']), direction: z.literal('duplex'), transportCandidates: z.tuple([z.literal('websocket-relay-v1')]), ticket: z.string().max(128), expires: z.number(), maxFrame: z.number().int().min(1024).max(4194304), maxDimension: z.number().int().min(320).max(2560), displayId: z.string().max(128), file: z.object({ binding: z.object({ source:z.string(), destination:z.string(), sourcePath:z.string(), destinationPath:z.string(), meta:z.object({size:z.number().int().nonnegative().safe(),mtime:z.number().int().nonnegative().safe(),prefix:z.string().regex(/^[a-f0-9]{64}$/)}) }), sender:z.boolean(),key:z.string(),cipherId:z.string().regex(/^[a-f0-9]{32}$/),candidates:z.array(z.string()).max(3),directTicket:z.string(),listen:z.boolean() }).optional() });
-export const StreamAccept = z.object({ type: z.literal('stream_accept'), id: z.string(), candidates: z.array(z.string().max(256)).max(3).optional() });
+export const StreamOpen = z.object({
+  type: z.literal('stream_open'),
+  id: z.string().regex(/^[a-f0-9]{32}$/),
+  purpose: z.enum(['screen', 'file']),
+  direction: z.literal('duplex'),
+  transportCandidates: z.tuple([z.literal('websocket-relay-v1')]),
+  ticket: z.string().max(128),
+  expires: z.number(),
+  maxFrame: z.number().int().min(1024).max(4194304),
+  maxDimension: z.number().int().min(320).max(2560),
+  displayId: z.string().max(128),
+  file: z
+    .object({
+      binding: z.object({
+        source: z.string(),
+        destination: z.string(),
+        sourcePath: z.string(),
+        destinationPath: z.string(),
+        meta: z.object({
+          size: z.number().int().nonnegative().safe(),
+          mtime: z.number().int().nonnegative().safe(),
+          prefix: z.string().regex(/^[a-f0-9]{64}$/),
+        }),
+      }),
+      sender: z.boolean(),
+      key: z.string(),
+      cipherId: z.string().regex(/^[a-f0-9]{32}$/),
+      candidates: z.array(z.string()).max(3),
+      directTicket: z.string(),
+      listen: z.boolean(),
+    })
+    .optional(),
+});
+export const StreamAccept = z.object({
+  type: z.literal('stream_accept'),
+  id: z.string(),
+  candidates: z.array(z.string().max(256)).max(3).optional(),
+});
 export const StreamClose = z.object({ type: z.literal('stream_close'), id: z.string(), reason: z.string().max(256) });
-export const LinkMessage = z.discriminatedUnion("type", [
-  PerchHello, StreamOpen, StreamAccept, StreamClose,
+export const LinkMessage = z.discriminatedUnion('type', [
+  PerchHello,
+  StreamOpen,
+  StreamAccept,
+  StreamClose,
   InvokeRequest,
   InvokeResult,
   CancelRequest,

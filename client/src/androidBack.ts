@@ -5,5 +5,7 @@ export async function registerAndroidBack(consumeBack: () => boolean): Promise<(
   const listener = await onBackButtonPress(() => {
     if (!consumeBack()) void exit(0);
   });
-  return () => { void listener.unregister(); };
+  return () => {
+    void listener.unregister();
+  };
 }

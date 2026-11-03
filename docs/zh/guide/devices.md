@@ -20,9 +20,9 @@ Swiftnest Server 是 **Nest（巢）**，集中运行智能体、插件、记忆
 ```yaml
 host: 192.168.1.20
 devices:
-  host: 192.168.1.20  # 可省略，默认跟随 host
+  host: 192.168.1.20 # 可省略，默认跟随 host
   port: 7711
-  mdns: true         # false 关闭发现，仍可使用显示的地址连接
+  mdns: true # false 关闭发现，仍可使用显示的地址连接
 ```
 
 桌面 App 已集成 Rust Perch，入口为 **此设备**，默认关闭。参阅[控制这台电脑](./control-this-computer)。Android 暂时隐藏设备端控制，CLI Node Perch 仍可用于开发。
@@ -50,17 +50,17 @@ DSH 原生工具调用会一直等待审批决定，随后返回执行结果或 
 
 以下路径均以 `/swiftnest/api/devices` 为前缀，复用已有 App API 的签名主人会话及 Host/Origin 检查，拒绝未认证和跨站请求。
 
-| 方法 | 路径 | 返回 |
-|---|---|---|
-| GET | `/` | 在线和已配对设备 |
-| POST | `/pairing` | 配对码、有效期、连接 URL、地址/端口和服务器指纹 |
-| GET | `/pairing` | 等待核对指纹的候选设备 |
-| POST | `/pairing/:id/approve` 或 `/deny` | 确认或拒绝候选设备 |
-| POST | `/revoke/:device` | 断开设备并移除配对 |
-| GET | `/approvals` | 带原始参数的待审批任务 |
-| POST | `/approvals/:id/approve` 或 `/deny` | 作出一次决策，过期返回 409 |
-| GET | `/audit?limit=100` | 最近审计记录 |
-| GET | `/events` | SSE：devices-changed、approval-pending、approvals-changed、pairing-changed |
+| 方法 | 路径                                | 返回                                                                       |
+| ---- | ----------------------------------- | -------------------------------------------------------------------------- |
+| GET  | `/`                                 | 在线和已配对设备                                                           |
+| POST | `/pairing`                          | 配对码、有效期、连接 URL、地址/端口和服务器指纹                            |
+| GET  | `/pairing`                          | 等待核对指纹的候选设备                                                     |
+| POST | `/pairing/:id/approve` 或 `/deny`   | 确认或拒绝候选设备                                                         |
+| POST | `/revoke/:device`                   | 断开设备并移除配对                                                         |
+| GET  | `/approvals`                        | 带原始参数的待审批任务                                                     |
+| POST | `/approvals/:id/approve` 或 `/deny` | 作出一次决策，过期返回 409                                                 |
+| GET  | `/audit?limit=100`                  | 最近审计记录                                                               |
+| GET  | `/events`                           | SSE：devices-changed、approval-pending、approvals-changed、pairing-changed |
 
 `POST /swiftnest/api/chat` 在相同主人身份检查下接受 `{ request, deviceSlug? }`，
 其中 `request` 为原有 DSH 聊天请求；推荐使用 `SwiftnestClient.sendMessage()`。
@@ -86,8 +86,8 @@ Perch 可在已认证的 hello 中声明 `kind: 'android'`。
 
 ```ts
 interface SwiftnestDevices {
-  list(): { slug: string; name: string; kind: 'desktop' | 'android'; online: boolean; lastSeen?: string }[]
-  currentFor(sessionId: string): string | undefined
+  list(): { slug: string; name: string; kind: 'desktop' | 'android'; online: boolean; lastSeen?: string }[];
+  currentFor(sessionId: string): string | undefined;
 }
 // Swiftnest 通过 ctx.provide('swiftnestDevices', service) 提供服务。
 ```
@@ -103,7 +103,7 @@ interface SwiftnestDevices {
 设备配对、撤销、上线、离线时，bundle 发出：
 
 ```ts
-ctx.emit('swiftnest/devices-changed', { slugs: ['laptop'] })
+ctx.emit('swiftnest/devices-changed', { slugs: ['laptop'] });
 ```
 
 `slugs` 包含受影响的命名空间，撤销时也包含被撤销的 slug。订阅事件后重新读取 `list()`。
@@ -117,7 +117,7 @@ ctx.emit('swiftnest/devices-changed', { slugs: ['laptop'] })
 存在 `toolCatalog` 服务时，每个工具都会调用：
 
 ```ts
-toolCatalog.annotate(name, { category: 'device', group: slug, risk, summary })
+toolCatalog.annotate(name, { category: 'device', group: slug, risk, summary });
 ```
 
 `risk` 来自能力的工具元数据，为 `read | write | exec | sensitive`，`summary` 为英文工具说明。

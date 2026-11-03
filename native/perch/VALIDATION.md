@@ -40,22 +40,22 @@ and quota reservations for explicit owner cleanup. Paused state survives server 
 
 ## Commands and results
 
-| Command | Result |
-| --- | --- |
-| `cargo check --workspace` | Passed, Linux App + Perch |
-| `cargo test --workspace` | Passed, 15 Rust tests |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Passed |
-| `cargo fmt --all --check` | Passed |
-| `cargo build -p swiftnest-perch --examples` | Passed |
-| `pnpm build` | Passed |
-| `pnpm --filter @swiftnest/app build:web` | Passed |
-| `pnpm docs:build` | Passed |
-| `pnpm vitest run server/test/file-storage.test.ts server/test/transfers.test.ts` | Passed, 4 tests: quota/guards, real binary endpoints, short I/O, pause + server restart |
-| `SWIFTNEST_TRANSFER_E2E=1 pnpm vitest run server/test/transfers.e2e.test.ts` | Passed, two 200 MiB cases including pause/resume and both native endpoints killed/restarted near 50%; server upload/download included |
-| `SWIFTNEST_TRANSFER_E2E=1 pnpm vitest run server/test/transfers.e2e.test.ts -t fallback` | Passed, unreachable candidate automatically falls back to encrypted relay |
-| `SWIFTNEST_WEB_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/transfers.e2e.test.ts` | Passed, English/Chinese at 390 px: progress, pause, resume, retry, cancel, send form, no horizontal overflow |
-| Full opt-in suite below | Passed: 38 files, 197 tests passed, 1 unavailable-mDNS skip; 273.80 s |
-| `git diff --check` | Passed |
+| Command                                                                                                                             | Result                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `cargo check --workspace`                                                                                                           | Passed, Linux App + Perch                                                                                                             |
+| `cargo test --workspace`                                                                                                            | Passed, 15 Rust tests                                                                                                                 |
+| `cargo clippy --workspace --all-targets -- -D warnings`                                                                             | Passed                                                                                                                                |
+| `cargo fmt --all --check`                                                                                                           | Passed                                                                                                                                |
+| `cargo build -p swiftnest-perch --examples`                                                                                         | Passed                                                                                                                                |
+| `pnpm build`                                                                                                                        | Passed                                                                                                                                |
+| `pnpm --filter @swiftnest/app build:web`                                                                                            | Passed                                                                                                                                |
+| `pnpm docs:build`                                                                                                                   | Passed                                                                                                                                |
+| `pnpm vitest run server/test/file-storage.test.ts server/test/transfers.test.ts`                                                    | Passed, 4 tests: quota/guards, real binary endpoints, short I/O, pause + server restart                                               |
+| `SWIFTNEST_TRANSFER_E2E=1 pnpm vitest run server/test/transfers.e2e.test.ts`                                                        | Passed, two 200 MiB cases including pause/resume and both native endpoints killed/restarted near 50%; server upload/download included |
+| `SWIFTNEST_TRANSFER_E2E=1 pnpm vitest run server/test/transfers.e2e.test.ts -t fallback`                                            | Passed, unreachable candidate automatically falls back to encrypted relay                                                             |
+| `SWIFTNEST_WEB_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/transfers.e2e.test.ts` | Passed, English/Chinese at 390 px: progress, pause, resume, retry, cancel, send form, no horizontal overflow                          |
+| Full opt-in suite below                                                                                                             | Passed: 38 files, 197 tests passed, 1 unavailable-mDNS skip; 273.80 s                                                                 |
+| `git diff --check`                                                                                                                  | Passed                                                                                                                                |
 
 Final combined acceptance command (existing App/chat/approval/screen/kernel/interop e2es plus file e2es):
 
@@ -177,23 +177,23 @@ were not tested. See [DESIGN.md](./DESIGN.md#https-outside-loopback).
 Final checks below were rerun in the existing default devShell after the review and screenshot test.
 Earlier dependency setup and unavailable cross-target checks are explicitly marked.
 
-| Command | Result |
-| --- | --- |
-| `cargo check --workspace` | Passed, App + Perch on Linux |
-| `cargo test --workspace` | Passed, 12 Rust tests |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Passed |
-| `cargo fmt --all --check` | Passed |
-| `cargo build -p swiftnest-perch --examples` | Passed, interop + Wayland fixture |
-| `pnpm build` | Passed |
-| `pnpm test` | Passed: 175 passed, 14 opt-in/environment skips |
-| `pnpm --filter @swiftnest/app build:web` | Passed |
-| `pnpm docs:build` | Passed |
-| `SWIFTNEST_WEB_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/liveView.real.e2e.test.ts client/test/connection.test.ts server/test/live.test.ts` | Passed: 10 tests, real headless labwc/pixman and browser screenshots |
-| `SWIFTNEST_E2E=1 SWIFTNEST_WEB_E2E=1 SWIFTNEST_PERCH_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run` | Passed: 34 files, 188 passed, 1 unavailable-mDNS skip |
-| Earlier: `pnpm install --no-frozen-lockfile --config.manage-package-manager-versions=false` | Passed; existing dependencies/lock linked correctly |
-| Earlier: `pnpm install --offline` / attempted root `pnpm add ... --offline` | Initially unavailable: missing cached registry metadata; no root dependency added. WS tests live under the server package, which already depended on WS |
-| Earlier: `cargo check --target x86_64-pc-windows-gnu -p swiftnest-perch` | Unavailable: target core/std absent (`E0463`); Windows code is not cross-compile-verified |
-| `git diff --check` | Passed |
+| Command                                                                                                                                                                                                                | Result                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cargo check --workspace`                                                                                                                                                                                              | Passed, App + Perch on Linux                                                                                                                            |
+| `cargo test --workspace`                                                                                                                                                                                               | Passed, 12 Rust tests                                                                                                                                   |
+| `cargo clippy --workspace --all-targets -- -D warnings`                                                                                                                                                                | Passed                                                                                                                                                  |
+| `cargo fmt --all --check`                                                                                                                                                                                              | Passed                                                                                                                                                  |
+| `cargo build -p swiftnest-perch --examples`                                                                                                                                                                            | Passed, interop + Wayland fixture                                                                                                                       |
+| `pnpm build`                                                                                                                                                                                                           | Passed                                                                                                                                                  |
+| `pnpm test`                                                                                                                                                                                                            | Passed: 175 passed, 14 opt-in/environment skips                                                                                                         |
+| `pnpm --filter @swiftnest/app build:web`                                                                                                                                                                               | Passed                                                                                                                                                  |
+| `pnpm docs:build`                                                                                                                                                                                                      | Passed                                                                                                                                                  |
+| `SWIFTNEST_WEB_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run client/test/liveView.real.e2e.test.ts client/test/connection.test.ts server/test/live.test.ts` | Passed: 10 tests, real headless labwc/pixman and browser screenshots                                                                                    |
+| `SWIFTNEST_E2E=1 SWIFTNEST_WEB_E2E=1 SWIFTNEST_PERCH_E2E=1 SWIFTNEST_SCREEN_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run`                                                         | Passed: 34 files, 188 passed, 1 unavailable-mDNS skip                                                                                                   |
+| Earlier: `pnpm install --no-frozen-lockfile --config.manage-package-manager-versions=false`                                                                                                                            | Passed; existing dependencies/lock linked correctly                                                                                                     |
+| Earlier: `pnpm install --offline` / attempted root `pnpm add ... --offline`                                                                                                                                            | Initially unavailable: missing cached registry metadata; no root dependency added. WS tests live under the server package, which already depended on WS |
+| Earlier: `cargo check --target x86_64-pc-windows-gnu -p swiftnest-perch`                                                                                                                                               | Unavailable: target core/std absent (`E0463`); Windows code is not cross-compile-verified                                                               |
+| `git diff --check`                                                                                                                                                                                                     | Passed                                                                                                                                                  |
 
 ## Evidence and limits
 
@@ -254,22 +254,22 @@ Validated on the Linux development host with Rust 1.99 and the existing reposito
 No commit, push, system-wide installation, system configuration change or real device pairing was made.
 The previous Tauri-local Cargo.lock was moved to the new repository-root Cargo workspace/lockfile.
 
-| Command | Result |
-| --- | --- |
-| `cargo check --workspace` | Passed, App and Perch |
-| `cargo test --workspace` | Passed: 2 channel tests + 6 capability/controller tests |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Passed |
-| `cargo fmt --all --check` | Passed |
-| `cargo build -p swiftnest-perch --example interop` | Passed |
-| `pnpm build` | Passed |
-| `pnpm test` | Passed: 169 tests; optional integration tests disabled in this invocation |
-| `pnpm --filter @swiftnest/app build:web` | Passed |
-| `pnpm docs:build` | Passed |
+| Command                                                                                                           | Result                                                                             |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `cargo check --workspace`                                                                                         | Passed, App and Perch                                                              |
+| `cargo test --workspace`                                                                                          | Passed: 2 channel tests + 6 capability/controller tests                            |
+| `cargo clippy --workspace --all-targets -- -D warnings`                                                           | Passed                                                                             |
+| `cargo fmt --all --check`                                                                                         | Passed                                                                             |
+| `cargo build -p swiftnest-perch --example interop`                                                                | Passed                                                                             |
+| `pnpm build`                                                                                                      | Passed                                                                             |
+| `pnpm test`                                                                                                       | Passed: 169 tests; optional integration tests disabled in this invocation          |
+| `pnpm --filter @swiftnest/app build:web`                                                                          | Passed                                                                             |
+| `pnpm docs:build`                                                                                                 | Passed                                                                             |
 | `SWIFTNEST_E2E=1 SWIFTNEST_WEB_E2E=1 SWIFTNEST_CHROMIUM=/run/current-system/sw/bin/google-chrome pnpm vitest run` | Passed: 178 tests; Rust interop opt-in and unavailable multicast discovery skipped |
-| `SWIFTNEST_PERCH_E2E=1 pnpm vitest run native/perch/test` | Passed: manifest parity and real TS Nest ↔ Rust Perch interop |
-| `git diff --check` | Passed |
-| `nix develop .#android --command cargo check --target aarch64-linux-android -p swiftnest-perch` | Unavailable: repository has no `android` devShell |
-| `cargo check --target aarch64-linux-android -p swiftnest-perch` | Unavailable: Rust target standard library is not installed (`E0463`) |
+| `SWIFTNEST_PERCH_E2E=1 pnpm vitest run native/perch/test`                                                         | Passed: manifest parity and real TS Nest ↔ Rust Perch interop                      |
+| `git diff --check`                                                                                                | Passed                                                                             |
+| `nix develop .#android --command cargo check --target aarch64-linux-android -p swiftnest-perch`                   | Unavailable: repository has no `android` devShell                                  |
+| `cargo check --target aarch64-linux-android -p swiftnest-perch`                                                   | Unavailable: Rust target standard library is not installed (`E0463`)               |
 
 Interop covers code + both fingerprint confirmations, eight advertised tools, reads, pending approval →
 approval → completed writes, shell cancellation/timeouts, disabling during execution, pin preservation,

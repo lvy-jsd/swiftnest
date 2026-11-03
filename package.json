@@ -15,13 +15,17 @@
     "playground": "node packages/cli/dist/bin.js playground",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "lint:i18n": "node scripts/i18n-lint.mjs"
+    "lint:i18n": "node scripts/i18n-lint.mjs",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome ci ."
   },
   "devDependencies": {
+    "@babel/parser": "7.29.9",
+    "@biomejs/biome": "2.6.4",
     "@types/node": "^24.0.0",
     "typescript": "^7.0.2",
     "vitepress": "^1.6.4",
-    "vitest": "^5.0.5",
-    "@babel/parser": "7.29.9"
+    "vitest": "^5.0.5"
   }
 }

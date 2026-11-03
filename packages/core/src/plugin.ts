@@ -2,13 +2,13 @@
  * Plugin contract. Everything beyond the core — capabilities, links, surfaces, policies — is a plugin with this shape.
  * Built-in trusted plugins run in-process (cheap on phones and small boards); third-party isolation comes later (design §5.4).
  */
-import { PLUGIN_API_VERSION, type CapabilityManifestInput, type Risk } from "@swiftnest/protocol";
-import { SwiftnestFailure } from "./errors.js";
-import type { Logger } from "./log.js";
-import type { Nest } from "./nest.js";
+import { PLUGIN_API_VERSION, text, type CapabilityManifestInput, type Risk } from '@swiftnest/protocol';
+import { SwiftnestFailure } from './errors.js';
+import type { Logger } from './log.js';
+import type { Nest } from './nest.js';
 
-export type PluginKind = "capability" | "link" | "surface" | "policy" | "router" | "store" | "panel";
-export type PluginRole = "nest" | "perch";
+export type PluginKind = 'capability' | 'link' | 'surface' | 'policy' | 'router' | 'store' | 'panel';
+export type PluginRole = 'nest' | 'perch';
 
 export interface InvokeContext {
   taskId: string;
@@ -30,7 +30,7 @@ export interface Capability {
 }
 
 export interface PerchPluginContext {
-  role: "perch";
+  role: 'perch';
   device: string;
   logger: Logger;
   config: Record<string, unknown>;
@@ -38,7 +38,7 @@ export interface PerchPluginContext {
 }
 
 export interface NestPluginContext {
-  role: "nest";
+  role: 'nest';
   nest: Nest;
   logger: Logger;
   config: Record<string, unknown>;
@@ -52,7 +52,8 @@ export interface SwiftnestPlugin {
   name: string;
   kind: PluginKind;
   apiVersion: number;
-  runsOn: PluginRole | "both";
+  runsOn: PluginRole | 'both';
+  // biome-ignore lint/suspicious/noConfusingVoidType: a plugin's setup may simply return nothing
   setup(ctx: PluginContext): void | Disposer | Promise<void | Disposer>;
 }
 
@@ -73,16 +74,16 @@ export class PluginHost {
   async load(plugin: SwiftnestPlugin, ctx: PluginContext): Promise<void> {
     if (plugin.apiVersion !== PLUGIN_API_VERSION) {
       throw new SwiftnestFailure(
-        "PLUGIN_API_MISMATCH",
-        `Plugin ${plugin.name} targets plugin API v${plugin.apiVersion}, this Swiftnest speaks v${PLUGIN_API_VERSION}.`,
-        "Upgrade the plugin or Swiftnest so both use the same plugin API version.",
+        'PLUGIN_API_MISMATCH',
+        text('pluginTargetsPluginApiVSwiftnest', plugin.name, plugin.apiVersion, PLUGIN_API_VERSION),
+        text('hintMatchPluginApi'),
       );
     }
-    if (plugin.runsOn !== "both" && plugin.runsOn !== this.role) {
+    if (plugin.runsOn !== 'both' && plugin.runsOn !== this.role) {
       throw new SwiftnestFailure(
-        "PLUGIN_WRONG_ROLE",
-        `Plugin ${plugin.name} runs on the ${plugin.runsOn}, but this is a ${this.role}.`,
-        plugin.runsOn === "perch" ? "Install it on the device (Perch) instead." : "Install it on the server (Nest) instead.",
+        'PLUGIN_WRONG_ROLE',
+        text('pluginRunsBut', plugin.name, plugin.runsOn, this.role),
+        text(plugin.runsOn === 'perch' ? 'hintInstallOnDevice' : 'hintInstallOnServer'),
       );
     }
     const dispose = await plugin.setup(ctx);

@@ -180,6 +180,8 @@ function PairPage({ onBack }: { onBack: () => void }) {
     clearPairingLocation();
     if (await store.pair(value)) window.location.hash = '/';
   }
+  // Pair once from a link that opened the App; later edits go through the form.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
@@ -295,6 +297,8 @@ function ChatDetail({
   const { client } = store;
   const Send = icons.send,
     Options = icons.settings;
+  // A language switch must not drop and re-follow the chat, so `t` is read but not a dependency.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!client || status !== 'connected') return;
     const controller = new AbortController();
@@ -400,6 +404,9 @@ export function App() {
     </DeviceHubProvider>
   );
 }
+function goHome() {
+  window.location.hash = '/';
+}
 function AppContent() {
   const { t } = useI18n();
   const { reducedMotion } = useTheme();
@@ -431,7 +438,7 @@ function AppContent() {
       return true;
     }
     if (hash && hash !== '#/' && hash !== '#') {
-      back();
+      goHome();
       return true;
     }
     return false;
@@ -459,7 +466,7 @@ function AppContent() {
     const shortcut = (event: KeyboardEvent) => {
       if (event.altKey && event.key === 'ArrowLeft') {
         event.preventDefault();
-        back();
+        goHome();
       }
     };
     const refresh = () => {
@@ -474,10 +481,11 @@ function AppContent() {
       document.removeEventListener('visibilitychange', refresh);
     };
   }, [store]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: focus the new page on every navigation, even within a page
   useEffect(() => {
     document.getElementById('main-content')?.focus({ preventScroll: true });
     if (!chatId && !pairing) void store.refresh();
-  }, [hash, store]);
+  }, [hash, chatId, pairing, store]);
   async function newChat() {
     setCreating(true);
     try {
@@ -504,13 +512,14 @@ function AppContent() {
     setSwipeOffset(distance);
   }
   function endSwipe() {
-    if (swipeOffset > Math.min(120, window.innerWidth / 4)) back();
+    if (swipeOffset > Math.min(120, window.innerWidth / 4)) goHome();
     swipe.current = null;
     setSwipeOffset(0);
   }
   return (
     <div className="app-shell">
       <LanguageSync />
+      {/* biome-ignore lint/a11y/useValidAnchor: a real skip link; following the href would change the route hash */}
       <a
         className="skip-link"
         href="#main-content"
@@ -567,16 +576,16 @@ function AppContent() {
           }
         >
           {transfersPage ? (
-            <TransfersPage onBack={back} />
+            <TransfersPage onBack={goHome} />
           ) : devicesPage ? (
-            <DevicesPage onBack={back} />
+            <DevicesPage onBack={goHome} />
           ) : pairing ? (
-            <PairPage onBack={back} />
+            <PairPage onBack={goHome} />
           ) : chatId ? (
             <ChatDetail
               key={`${chatId}:${status}`}
               sessionId={chatId}
-              onBack={back}
+              onBack={goHome}
               onOptions={() => setPreferences(true)}
             />
           ) : (

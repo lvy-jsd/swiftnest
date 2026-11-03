@@ -59,19 +59,19 @@ swiftnest-server start --config swiftnest.yaml
 
 可选的 YAML 文件（`swiftnest-server start --config swiftnest.yaml`），环境变量优先。
 
-| 字段 | 环境变量 | 默认值 |
-|---|---|---|
-| `home` | `SWIFTNEST_HOME` | `$XDG_DATA_HOME/swiftnest` |
-| `host`（一个具体 IP，不能是 `0.0.0.0`） | `SWIFTNEST_HOST` | `127.0.0.1` |
-| `port` | `SWIFTNEST_PORT` | `3077` |
-| `appDist` | `SWIFTNEST_APP_DIST` | 已安装的 `@swiftnest/app/dist`，否则不可用 |
-| `persona`（字符串） | `SWIFTNEST_PERSONA` | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
-| `assistantName`（字符串） | `SWIFTNEST_ASSISTANT_NAME` | 不设置（App 显示“助手”） |
-| `model.baseUrl` | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1` |
-| `model.id` | `SWIFTNEST_MODEL_ID` | `qwen3` |
-| `model.name`、`model.contextWindow`、`model.maxTokens` | | `Local model`、`32768`、`8192` |
-| `model.apiKeyEnv`（存放密钥的变量名） | | `SWIFTNEST_MODEL_API_KEY` |
-| 内核用的 Node 可执行文件 | `SWIFTNEST_KERNEL_NODE` | 运行 Swiftnest 的那个 Node |
+| 字段                                                   | 环境变量                   | 默认值                                                                      |
+| ------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------- |
+| `home`                                                 | `SWIFTNEST_HOME`           | `$XDG_DATA_HOME/swiftnest`                                                  |
+| `host`（一个具体 IP，不能是 `0.0.0.0`）                | `SWIFTNEST_HOST`           | `127.0.0.1`                                                                 |
+| `port`                                                 | `SWIFTNEST_PORT`           | `3077`                                                                      |
+| `appDist`                                              | `SWIFTNEST_APP_DIST`       | 已安装的 `@swiftnest/app/dist`，否则不可用                                  |
+| `persona`（字符串）                                    | `SWIFTNEST_PERSONA`        | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
+| `assistantName`（字符串）                              | `SWIFTNEST_ASSISTANT_NAME` | 不设置（App 显示“助手”）                                                    |
+| `model.baseUrl`                                        | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1`                                                 |
+| `model.id`                                             | `SWIFTNEST_MODEL_ID`       | `qwen3`                                                                     |
+| `model.name`、`model.contextWindow`、`model.maxTokens` |                            | `Local model`、`32768`、`8192`                                              |
+| `model.apiKeyEnv`（存放密钥的变量名）                  |                            | `SWIFTNEST_MODEL_API_KEY`                                                   |
+| 内核用的 Node 可执行文件                               | `SWIFTNEST_KERNEL_NODE`    | 运行 Swiftnest 的那个 Node                                                  |
 
 DSH 的数据在 `<home>/dsh`。Swiftnest 每次启动都会重新生成 `swiftnest` profile；你自己的 DSH patch 写在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，它最后应用，永远不会被覆盖。
 

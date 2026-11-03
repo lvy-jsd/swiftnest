@@ -40,10 +40,10 @@ swiftnest perch --name laptop --pair 123456 --nest ws://192.168.1.10:7711/swiftn
 
 然后**两边各确认一次指纹**：
 
-| 在哪里 | 显示什么 | 你要做什么 |
-|---|---|---|
-| 笔记本 | 巢的指纹 | 和 `swiftnest pair` 显示的比一比，一样就回答 `y` |
-| 服务器（`swiftnest pair` 的终端） | 笔记本的指纹 | 和笔记本启动时显示的比一比，一样就回答 `y` |
+| 在哪里                            | 显示什么     | 你要做什么                                       |
+| --------------------------------- | ------------ | ------------------------------------------------ |
+| 笔记本                            | 巢的指纹     | 和 `swiftnest pair` 显示的比一比，一样就回答 `y` |
+| 服务器（`swiftnest pair` 的终端） | 笔记本的指纹 | 和笔记本启动时显示的比一比，一样就回答 `y`       |
 
 为什么要两步：配对码证明"是主人允许的"，但 6 位数可以被中间人离线猜出来；指纹一致才证明"中间没有人"。
 
@@ -58,6 +58,7 @@ swiftnest perch --name laptop --pair 123456 --nest ws://192.168.1.10:7711/swiftn
 - **Claude Code**：`claude mcp add --transport http swiftnest http://127.0.0.1:7710/mcp`
 - **Cursor、DSH 等 HTTP MCP 客户端**：填 `http://127.0.0.1:7710/mcp`
 - **Claude Desktop**：在 `claude_desktop_config.json` 里加
+
   ```json
   "swiftnest": { "command": "npx", "args": ["-y", "mcp-remote", "http://127.0.0.1:7710/mcp"] }
   ```
@@ -91,12 +92,12 @@ swiftnest revoke laptop               # 立即断开并删除配对；它必须�
 
 ## 出问题时
 
-| 现象 | 原因和办法 |
-|---|---|
-| 笔记本一直显示"正在寻找巢" | mDNS 被防火墙挡了：加 `--nest ws://<服务器地址>:7711/swiftnest` |
-| `NOT_PAIRED` | 这台设备没配过、或已被吊销：重新 `swiftnest pair` |
-| `NEST_KEY_CHANGED` | 这个地址上的巢不是当初配对的那个（重装了巢，或有人冒充）：确认后重新配对 |
-| `PAIRING_CLOSED` | 巢现在不在配对：先运行 `swiftnest pair`，5 分钟内用配对码 |
-| `NEST_NOT_RUNNING` | `swiftnest pair` 等命令找不到正在运行的巢：先 `swiftnest nest` |
+| 现象                       | 原因和办法                                                               |
+| -------------------------- | ------------------------------------------------------------------------ |
+| 笔记本一直显示"正在寻找巢" | mDNS 被防火墙挡了：加 `--nest ws://<服务器地址>:7711/swiftnest`          |
+| `NOT_PAIRED`               | 这台设备没配过、或已被吊销：重新 `swiftnest pair`                        |
+| `NEST_KEY_CHANGED`         | 这个地址上的巢不是当初配对的那个（重装了巢，或有人冒充）：确认后重新配对 |
+| `PAIRING_CLOSED`           | 巢现在不在配对：先运行 `swiftnest pair`，5 分钟内用配对码                |
+| `NEST_NOT_RUNNING`         | `swiftnest pair` 等命令找不到正在运行的巢：先 `swiftnest nest`           |
 
 无需 Node 的桌面 App 使用方式见[控制这台电脑](./control-this-computer)。中央服务器托管 Nest，App 只托管本机 Perch。

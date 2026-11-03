@@ -1,14 +1,14 @@
 # How Swiftnest Server embeds DSH
 
 Status: verified by hand on 2026-11-01 against `@deepseek-ai/dsh@0.2.1-rc.5` (MIT). Sections marked
-*to verify* are read from the package READMEs and still need a test.
+_to verify_ are read from the package READMEs and still need a test.
 
 ## Pinned kernel
 
 - `@deepseek-ai/dsh` is pinned to an **exact** version (`0.2.1-rc.5`) in `server/package.json`. DSH is a
   developer preview with breaking changes between releases; upgrading is a deliberate PR that runs the full
   e2e suite.
-- The package is a launcher over *profiles*. A profile is a directory under `$DSH_HOME/profiles/<name>` with a
+- The package is a launcher over _profiles_. A profile is a directory under `$DSH_HOME/profiles/<name>` with a
   `package.json` (`dsh.profile.bundles`, an ordered list of bundle packages) and a `cordis.patch.yml`. The tree
   is composed as: each bundle's patch in order → the profile's `cordis.patch.yml` → `$DSH_HOME/cordis.patch.yml`
   → `--patch` overlays.
@@ -39,7 +39,7 @@ model is the `agent-default-model` row:
       local:
         displayName: Local model
         api: openai-completions
-        apiKeyEnv: SWIFTNEST_LOCAL_API_KEY   # required even if the server ignores keys; any value works
+        apiKeyEnv: SWIFTNEST_LOCAL_API_KEY # required even if the server ignores keys; any value works
         baseURL: http://127.0.0.1:11434/v1
         models:
           - { id: qwen3, name: Qwen 3, contextWindow: 131072, maxTokens: 8192, input: [text] }
@@ -91,7 +91,7 @@ default and a configured persona.
   `--trusted-host` adds accepted authorities.
 - DSH ships its own client stack: `@deepseek-ai/dsh-client-connection` (`./client` export: Node ESM bundle and
   browser loader), `dsh-api-session-controller` (sessions: list, create, follow/page history, prompt, queue),
-  `dsh-user-approval`, `dsh-user-questions`. *To verify*: that these run outside a DSH-served page (Node and a
+  `dsh-user-approval`, `dsh-user-questions`. _To verify_: that these run outside a DSH-served page (Node and a
   Tauri WebView) with `ClientTransportHooks.createWebSocket`.
 
 ## Decisions for phase 0

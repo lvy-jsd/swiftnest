@@ -5,9 +5,9 @@
  *
  * Sensitive operations are never decided by the agent: they default to "ask" and need a person.
  */
-import type { ClientRef, Risk } from "@swiftnest/protocol";
+import type { ClientRef, Risk } from '@swiftnest/protocol';
 
-export type Action = "allow" | "ask" | "deny";
+export type Action = 'allow' | 'ask' | 'deny';
 
 export interface PolicyInput {
   client: ClientRef;
@@ -40,7 +40,12 @@ export interface PolicyRule {
 }
 
 /** Safe defaults: observing is fine, anything that changes or runs things asks a person. */
-export const DEFAULT_RISK_ACTIONS: Record<Risk, Action> = { read: "allow", write: "ask", exec: "ask", sensitive: "ask" };
+export const DEFAULT_RISK_ACTIONS: Record<Risk, Action> = {
+  read: 'allow',
+  write: 'ask',
+  exec: 'ask',
+  sensitive: 'ask',
+};
 
 export class RulePolicy implements Policy {
   constructor(
@@ -58,7 +63,7 @@ export class RulePolicy implements Policy {
         (!r.risk || r.risk === i.risk),
     );
     // Rules may tighten anything, but may not silently auto-allow a sensitive call.
-    if (rule && !(i.risk === "sensitive" && rule.action === "allow")) {
+    if (rule && !(i.risk === 'sensitive' && rule.action === 'allow')) {
       return { action: rule.action, reason: rule.note ?? `rule: ${describe(rule)}` };
     }
     const why = i.reason ? `${i.risk} (${i.reason})` : i.risk;
@@ -67,7 +72,15 @@ export class RulePolicy implements Policy {
 }
 
 function describe(r: PolicyRule): string {
-  return [r.client && `client=${r.client}`, r.device && `device=${r.device}`, r.capability && `capability=${r.capability}`, r.tool && `tool=${r.tool}`, r.risk && `risk=${r.risk}`]
-    .filter(Boolean)
-    .join(" ") || "any";
+  return (
+    [
+      r.client && `client=${r.client}`,
+      r.device && `device=${r.device}`,
+      r.capability && `capability=${r.capability}`,
+      r.tool && `tool=${r.tool}`,
+      r.risk && `risk=${r.risk}`,
+    ]
+      .filter(Boolean)
+      .join(' ') || 'any'
+  );
 }
