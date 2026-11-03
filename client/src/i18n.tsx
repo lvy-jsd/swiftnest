@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import type { PropsWithChildren } from 'react';
 
 export const en = {
+  toolApproval: 'Allow this tool request?',
+  toolApprovalSettled: 'This approval request has ended.',
+  toolApprovalFailed: 'Could not answer. The request may have ended; reconnect if needed.',
   languageSyncFailed: 'Language could not sync. Your choice is saved here and will retry when connected.',
   transfers: 'Transfers',
   sendFileTo: 'Send file to\u2026',
@@ -188,6 +191,9 @@ export const en = {
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
 export const zhCN: Record<StringKey, string> = {
+  toolApproval: '允许此工具请求？',
+  toolApprovalSettled: '此审批请求已结束。',
+  toolApprovalFailed: '未能提交回答。请求可能已结束，请在需要时重新连接。',
   languageSyncFailed: '语言暂未同步。已保存在本机，连接恢复后会重试。',
   transfers: '传输',
   sendFileTo: '发送文件到…',
