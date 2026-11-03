@@ -1,24 +1,33 @@
 /** Real Apply → DSH process replacement → cookie reconnect; no registry or model network traffic. */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import type { AddressInfo } from 'node:net';
 import type { Page } from '@playwright/test';
 import { expect, it } from 'vitest';
-import type { ApiWebSocket, PluginsView } from '@swiftnest/api';
+import { ApiError, type ApiWebSocket } from '@swiftnest/api';
+import { AppChannel } from '../../packages/api/src/channel';
 import { loadConfig } from '../../server/src/config';
 import { startKernel, type RunningKernel } from '../../server/src/kernel';
 import { pairingUrl, webAppUrl } from '../../server/src/pairing';
 import { PLUGIN_MANIFEST } from '../../server/src/plugins';
 import { ConnectionStore } from '../src/connection';
 import { launchChromium } from './browser';
+import { testTls } from './fixtures/tls';
 
 const { WebSocket } = createRequire(new URL('../../server/package.json', import.meta.url))('ws') as {
-  WebSocket: new (url: string, options: { headers: Readonly<Record<string, string>> }) => ApiWebSocket;
+  WebSocket: new (
+    url: string,
+    options: { headers: Readonly<Record<string, string>>; rejectUnauthorized?: boolean },
+  ) => ApiWebSocket;
 };
+
+// The local test certificate is trusted explicitly by the kernel and Playwright.
+const testSocket = (url: string, { headers }: { headers: Readonly<Record<string, string>> }) =>
+  new WebSocket(url, { headers, rejectUnauthorized: false });
 
 async function respond(req: IncomingMessage, res: ServerResponse) {
   if (req.url === '/v1/models') {
@@ -50,10 +59,13 @@ async function respond(req: IncomingMessage, res: ServerResponse) {
 async function startApplyKernel(home: string, modelUrl: string, logs: string[], ready: () => void) {
   // DSH's bundled market needs no installation. Disable other optional plugins in
   // the base config (not env locks) so Apply cannot invoke npm or git installers.
+  const host = Object.values(networkInterfaces())
+    .flat()
+    .find((address) => address?.family === 'IPv4' && !address.internal)!.address;
   const config = loadConfig(undefined, {
     SWIFTNEST_HOME: home,
     SWIFTNEST_LANG: 'en',
-    SWIFTNEST_HOST: '127.0.0.1',
+    SWIFTNEST_HOST: host,
     SWIFTNEST_PORT: '0',
     SWIFTNEST_DEVICES_PORT: '0',
     SWIFTNEST_DEVICES_MDNS: 'false',
@@ -63,6 +75,7 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
   });
   config.plugins = Object.fromEntries(PLUGIN_MANIFEST.plugins.map(({ id }) => [id, id === 'market']));
   return startKernel(config, {
+    env: await testTls(config, host),
     readyTimeoutMs: 20_000,
     onReady(kernel) {
       // Keep the allocated origin and its session cookie when Apply restarts DSH.
@@ -70,14 +83,6 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
       ready();
     },
     onLine: (line) => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
-  });
-}
-
-async function pluginsView(page: Page): Promise<PluginsView> {
-  return page.evaluate(async () => {
-    const response = await fetch('/swiftnest/api/plugins');
-    if (!response.ok) throw new Error(`plugins HTTP ${response.status}`);
-    return response.json();
   });
 }
 
@@ -128,7 +133,7 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   const originalToken = kernel.token;
   const originalUrl = kernel.url;
   await page.getByRole('main').getByRole('link', { name: 'Recommended plugins', exact: true }).click();
-  const initial = await pluginsView(page);
+  const initial = await native.client!.listPlugins();
   const market = initial.plugins.find((plugin) => plugin.id === 'market')!;
   expect(market).toMatchObject({ active: true, enabled: true, locked: false });
   const toggle = page.getByRole('switch', { name: market.title, exact: true });
@@ -141,7 +146,8 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   expect(kernel.token).not.toBe(originalToken);
   expect(kernel.url).toBe(originalUrl);
   await expect.poll(() => toggle.isEnabled(), { timeout: 15_000 }).toBe(true);
-  expect(await pluginsView(page)).toMatchObject({
+  await expect.poll(() => native.getSnapshot().status, { timeout: 15_000 }).toBe('connected');
+  expect(await native.client!.listPlugins()).toMatchObject({
     pending: false,
     apply: { state: 'idle' },
     plugins: expect.arrayContaining([expect.objectContaining({ id: 'market', active: false, enabled: false })]),
@@ -152,11 +158,26 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   expect(native.client).toBeDefined();
 }
 
-function resumeWith(kernel: RunningKernel, credential: string) {
-  return fetch(new URL('swiftnest/native/resume', kernel.url), {
-    method: 'POST',
-    headers: { cookie: `swiftnest_native=${credential}` },
-  });
+async function resumeWith(kernel: RunningKernel, credential: string) {
+  const cookie = `swiftnest_native=${credential}`;
+  let channel: AppChannel | undefined;
+  try {
+    channel = await AppChannel.open(
+      new URL(kernel.url),
+      kernel.channelPairing,
+      { createWebSocket: testSocket },
+      { t: 'auth', cookie },
+      AbortSignal.timeout(2000),
+    );
+    const response = await channel.fetch(new URL('swiftnest/native/resume', kernel.url), { method: 'POST' }, cookie);
+    await response.arrayBuffer();
+    return { status: response.status };
+  } catch (error) {
+    if (error instanceof ApiError && error.httpStatus) return { status: error.httpStatus };
+    throw error;
+  } finally {
+    channel?.close();
+  }
 }
 async function nativeChatAfterRestart(native: ConnectionStore, sessionId: string) {
   const stream = await native.client!.follow(sessionId);
@@ -190,6 +211,10 @@ async function rotateAndRestart(kernel: RunningKernel, native: ConnectionStore, 
 async function revokeNative(page: Page, kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {
   const app = (await native.client!.listDevices()).find((d) => d.device.startsWith('app-'))!;
   expect(app).toMatchObject({ paired: true, capabilities: [] });
+  await page.getByRole('link', { name: 'Devices', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Revoke device' });
+  await dialog.waitFor();
   const [session] = await native.client!.listSessions();
   const stream = await native.client!.follow(session!.sessionId);
   let streamClosedAt = 0;
@@ -201,12 +226,7 @@ async function revokeNative(page: Page, kernel: RunningKernel, native: Connectio
   })();
   const revokeStartedAt = performance.now();
   try {
-    expect(
-      await page.evaluate(
-        async (device) => (await fetch(`/swiftnest/api/devices/revoke/${device}`, { method: 'POST' })).status,
-        app.device,
-      ),
-    ).toBe(200);
+    await dialog.getByRole('button', { name: 'Revoke device', exact: true }).click();
     await expect.poll(() => streamClosedAt, { timeout: 2000, interval: 25 }).toBeGreaterThan(0);
     expect(streamClosedAt - revokeStartedAt).toBeLessThanOrEqual(2000);
   } finally {
@@ -229,20 +249,24 @@ async function exerciseApply(
   readyCount: () => number,
   credentials: string[],
 ) {
-  expect(await native.pair(pairingUrl(kernel.url, kernel.token))).toBe(true);
+  expect(await native.pair(pairingUrl(kernel.url, kernel.token, kernel.channelPairing))).toBe(true);
   const observed = observeBrowser(page);
   await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
-  await page.goto(webAppUrl(kernel.url, kernel.token));
+  await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
+  await page.waitForURL((url) => url.hash === '#/');
   await page.getByRole('main').getByRole('link', { name: 'Memory', exact: true }).waitFor();
   const route = await createChat(page);
   await applyAndReconnect(page, kernel, native, readyCount);
   expect(observed.sockets()).toBeGreaterThan(1);
-  expect(observed.exchanges).toEqual(['/']);
+  expect(observed.exchanges).toEqual([]);
   await chatAfterRestart(page, route);
   // Both carriers see the same single chat; the native App used no fresh launch token.
   expect(await native.client!.listSessions()).toMatchObject([{ sessionId: route.split('/').at(-1) }]);
   await nativeChatAfterRestart(native, route.split('/').at(-1)!);
   await rotateAndRestart(kernel, native, credentials);
+  // Ordinary browser loss still asks to pair; the native App resumed without a token.
+  await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
+  await page.waitForURL((url) => url.hash === '#/');
   await revokeNative(page, kernel, native, credentials);
   expect(observed.errors).toEqual([]);
 }
@@ -266,9 +290,10 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !==
       },
       cookieMode: 'manual',
       timeoutMs: 2000,
-      createWebSocket: (url, options) => new WebSocket(url, options),
+      createWebSocket: testSocket,
     }));
     let kernel: RunningKernel | undefined;
+    let page: Page | undefined;
     let readyCount = 0;
     try {
       await new Promise<void>((resolve) => model.listen(0, '127.0.0.1', resolve));
@@ -278,11 +303,16 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !==
         logs,
         () => ++readyCount,
       );
-      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      page = await browser.newPage({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
+      page.setDefaultTimeout(15_000);
       await exerciseApply(page, kernel, native, () => readyCount, credentials);
       expect(credentials.some((credential) => logs.join('\n').includes(credential))).toBe(false);
     } catch (error) {
-      throw new Error(`${String(error)}\n${logs.slice(-40).join('\n')}`, { cause: error });
+      const body = await page
+        ?.locator('body')
+        .innerText()
+        .catch(() => 'No page');
+      throw new Error(`${String(error)}\n${body}\n${logs.slice(-40).join('\n')}`, { cause: error });
     } finally {
       native.disconnect();
       await browser.close();

@@ -59,7 +59,7 @@ function prepareDependencies(dir: string): void {
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
   const overrides = JSON.parse(readFileSync(new URL('../vendor/tool-ultra-overrides.json', import.meta.url), 'utf8'));
   manifest.overrides = { ...manifest.overrides, ...overrides };
-  writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
+  writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(
     join(dir, 'package-lock.json'),
     readFileSync(new URL('../vendor/tool-ultra.package-lock.json', import.meta.url)),
@@ -83,7 +83,7 @@ async function build(dir: string, config: ServerConfig, log: Log): Promise<void>
   toolUltraPatch(dir);
   for (const pkg of TOOL_ULTRA_PACKAGES)
     readFileSync(join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'lib', 'index.js'));
-  writeFileSync(join(dir, TOOL_ULTRA_MARKER), TOOL_ULTRA_SOURCE.commit + '\n');
+  writeFileSync(join(dir, TOOL_ULTRA_MARKER), `${TOOL_ULTRA_SOURCE.commit}\n`);
 }
 
 export async function installToolUltra(config: ServerConfig, log: Log): Promise<void> {
@@ -94,7 +94,7 @@ export async function installToolUltra(config: ServerConfig, log: Log): Promise<
   }
   mkdirSync(dirname(dir), { recursive: true });
   // Do not let concurrent installers delete one another's in-progress checkout.
-  const lock = dir + '.installing';
+  const lock = `${dir}.installing`;
   try {
     mkdirSync(lock);
   } catch (error) {

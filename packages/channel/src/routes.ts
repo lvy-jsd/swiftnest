@@ -1,0 +1,61 @@
+/** A channel is an App carrier, never a generic HTTP proxy or a new API. */
+const get = [
+  /^\/swiftnest\/health$/,
+  /^\/swiftnest\/api\/devices\/?$/,
+  /^\/swiftnest\/api\/devices\/(preferences|transfers|approvals|pairing|audit|events)$/,
+  /^\/swiftnest\/api\/plugins$/,
+  /^\/swiftnest\/api\/memory(?:\/topic)?$/,
+];
+const post = [
+  /^\/api\/(session\/(list|create)|userQuestions\/answer|\$events\/result)$/,
+  /^\/swiftnest\/native\/(issue|resume|rotate|bind|revoke)$/,
+  /^\/swiftnest\/api\/chat$/,
+  /^\/swiftnest\/api\/memory\/(add|edit|delete|topic)$/,
+  /^\/swiftnest\/api\/devices\/(preferences|transfers|pairing|live)$/,
+  /^\/swiftnest\/api\/devices\/transfers\/[a-f0-9]{64}\/(pause|resume|cancel|retry)$/,
+  /^\/swiftnest\/api\/devices\/(pairing|approvals)\/[^/]+\/(approve|deny)$/,
+  /^\/swiftnest\/api\/devices\/revoke\/[^/]+$/,
+  /^\/swiftnest\/api\/plugins\/apply$/,
+  /^\/swiftnest\/api\/plugins\/[^/]+\/(enable|disable)$/,
+];
+export function channelRoute(method: string, path: string): boolean {
+  if (!path.startsWith('/') || path.startsWith('//') || /[\\#\r\n\0]/.test(path)) return false;
+  const url = new URL(path, 'http://channel');
+  if (`${url.pathname}${url.search}` !== path || /%2[ef]|%5c|%25/i.test(url.pathname)) return false;
+  if (method === 'WS') return url.pathname === '/api/remote.mux' || url.pathname === '/swiftnest/api/devices/live';
+  return (method === 'GET' ? get : method === 'POST' ? post : []).some((route) => route.test(url.pathname));
+}
+export interface ChannelFrame {
+  t: 'auth' | 'ready' | 'request' | 'response' | 'data' | 'end' | 'socket' | 'opened' | 'message' | 'cancel' | 'error';
+  id?: number;
+  path?: string;
+  method?: string;
+  cookie?: string;
+  token?: string;
+  browser?: boolean;
+  interactions?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  status?: number;
+  binary?: boolean;
+}
+export function channelFrame(value: unknown): ChannelFrame {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid channel frame');
+  return value as ChannelFrame;
+}
+
+/** Limit the existing DSH mux to the streams the App actually uses. */
+export function appMuxFrame(body: string, binary = false): boolean {
+  if (binary) return false;
+  try {
+    const frame = JSON.parse(body);
+    return (
+      typeof frame.streamId === 'string' &&
+      frame.streamId.length <= 128 &&
+      (frame.type === 'cancel' ||
+        (frame.type === 'open' && ['$events', 'session/follow', 'userQuestions/attachWait'].includes(frame.endpoint)))
+    );
+  } catch {
+    return false;
+  }
+}

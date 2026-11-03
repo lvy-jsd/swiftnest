@@ -1,3 +1,4 @@
+import { testTls } from './fixtures/tls';
 /** Build first. Opt-in; no downloads and no external model credentials. */
 import { launchChromium } from './browser';
 import { createServer } from 'node:http';
@@ -70,26 +71,32 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       expect(existsSync(join(dist, 'index.html')), 'Run pnpm --filter @swiftnest/app build:web first').toBe(true);
       await new Promise<void>((resolve) => model.listen(0, '127.0.0.1', resolve));
       home = await mkdtemp(join(tmpdir(), 'swiftnest-web-e2e-'));
-      // A real non-loopback address exercises the insecure-context LAN path.
+      // A real non-loopback address exercises the browser Noise channel over HTTPS.
       const host =
         Object.values(networkInterfaces())
           .flat()
           .find((address) => address?.family === 'IPv4' && !address.internal)?.address ?? '127.0.0.1';
-      kernel = await startKernel(
-        loadConfig(undefined, {
-          SWIFTNEST_LANG: 'en',
-          SWIFTNEST_HOME: home,
-          SWIFTNEST_DEVICES_PORT: '0',
-          SWIFTNEST_DEVICES_MDNS: 'false',
-          SWIFTNEST_HOST: host,
-          SWIFTNEST_PORT: '0',
-          SWIFTNEST_APP_DIST: dist,
-          SWIFTNEST_MODEL_ID: 'fake',
-          SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
-        }),
-        { readyTimeoutMs: 90_000, onLine: (line) => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) },
-      );
-      page = await browser.newPage({ locale: 'en-US', viewport: { width: 1100, height: 800 } });
+      const config = loadConfig(undefined, {
+        SWIFTNEST_LANG: 'en',
+        SWIFTNEST_HOME: home,
+        SWIFTNEST_DEVICES_PORT: '0',
+        SWIFTNEST_DEVICES_MDNS: 'false',
+        SWIFTNEST_HOST: host,
+        SWIFTNEST_PORT: '0',
+        SWIFTNEST_APP_DIST: dist,
+        SWIFTNEST_MODEL_ID: 'fake',
+        SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
+      });
+      kernel = await startKernel(config, {
+        env: await testTls(config, host),
+        readyTimeoutMs: 90_000,
+        onLine: (line) => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
+      });
+      page = await browser.newPage({
+        locale: 'en-US',
+        viewport: { width: 1100, height: 800 },
+        ignoreHTTPSErrors: true,
+      });
       await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
@@ -98,15 +105,21 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         if (response.status() >= 400) diagnostics.push(`${response.status()} ${new URL(response.url()).pathname}`);
       });
       const modes: string[] = [];
+      const wireFrames: Buffer[] = [];
+      page.on('websocket', (socket) => {
+        socket.on('framesent', ({ payload }) => wireFrames.push(Buffer.from(payload)));
+        socket.on('framereceived', ({ payload }) => wireFrames.push(Buffer.from(payload)));
+      });
       page.on('request', (request) => {
         if (request.url().endsWith('/swiftnest/api/chat')) modes.push(request.postDataJSON().request.mode);
       });
       await page.goto(new URL('app/chats/deep-link', kernel.url).href);
       await page.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
-      await page.goto(webAppUrl(kernel.url, kernel.token));
+      await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
       await page.getByRole('button', { name: 'New chat', exact: true }).waitFor();
       expect(page.url()).not.toContain('token');
-      expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([
+      expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual([
+        'swiftnest.channelPins',
         'swiftnest.locale',
         'swiftnest.serverRoot',
       ]);
@@ -130,7 +143,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
           { timeout: 25_000 },
         )
         .toBe(2);
-      expect(modes).toEqual(['queue', 'queue']);
+      expect(modes).toEqual([]);
+      expect(wireFrames.length).toBeGreaterThan(3);
+      expect(Buffer.concat(wireFrames).includes(Buffer.from('Hello from Swiftnest.'))).toBe(false);
+      expect(Buffer.concat(wireFrames).includes(Buffer.from('queued'))).toBe(false);
+      expect(Buffer.concat(wireFrames).includes(Buffer.from(kernel.token))).toBe(false);
       expect(requests.some((body) => body.includes('queued'))).toBe(true);
       expect(await transcript.locator('[data-streaming="true"]').count()).toBe(0);
       if (process.env.SWIFTNEST_WEB_SCREENSHOT) await page.screenshot({ path: process.env.SWIFTNEST_WEB_SCREENSHOT });
@@ -208,7 +225,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await page.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await page.getByRole('button', { name: '完成', exact: true }).click();
       await page.getByRole('heading', { name: '聊天', exact: true }).waitFor();
-      const second = await browser.newPage({ locale: 'en-US', viewport: { width: 390, height: 844 } });
+      const second = await browser.newPage({
+        locale: 'en-US',
+        viewport: { width: 390, height: 844 },
+        ignoreHTTPSErrors: true,
+      });
       await second.goto(new URL('app/', kernel.url).href);
       await second.getByRole('link', { name: '配对服务器', exact: true }).waitFor();
       // Save an offline English choice and reload it, before choosing Chinese for pairing.
@@ -219,7 +240,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await second.getByRole('button', { name: 'Open preferences' }).first().click();
       await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await second.getByRole('button', { name: '完成', exact: true }).click();
-      await second.goto(webAppUrl(kernel.url, kernel.token));
+      await second.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
       await second.getByRole('button', { name: '新建聊天', exact: true }).waitFor();
       await second.getByRole('button', { name: '打开偏好设置' }).first().click();
       await second.getByLabel('语言', { exact: true }).selectOption('en');
@@ -227,7 +248,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await second.reload();
       await second.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
       expect(await second.locator('html').getAttribute('lang')).toBe('en');
-      await second.goto(webAppUrl(kernel.url, kernel.token));
+      await second.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
       await second.getByRole('button', { name: 'New chat', exact: true }).waitFor();
       // Return to Chinese and record the phone-width default view.
       await second.getByRole('button', { name: 'Open preferences' }).first().click();

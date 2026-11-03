@@ -651,5 +651,7 @@
   "pluginsRequestFailed": "Could not save or refresh the changes. Please try again.",
   "pluginsOwnerOnly": "Only the server owner can open this page.",
   "pluginsLoading": "Loading plugins…",
-  "pluginsPreparing": "Getting plugins ready…"
+  "pluginsPreparing": "Getting plugins ready…",
+  "channelPairAgain": "This server could not be verified. Please ask the owner to pair again.",
+  "channelBrowserHttps": "Open the web App using HTTPS, or pair in the installed App."
 }

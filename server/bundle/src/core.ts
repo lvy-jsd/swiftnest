@@ -8,6 +8,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { deviceProxy, liveUpgrade, OWNER_PREFIXES, type DeviceConnection } from './devices.js';
 import { appHandler } from './app.js';
+import { CHANNEL_PATH } from '@swiftnest/channel';
+import { loadChannelIdentity } from './channel-identity.js';
+import { appChannel } from './channel.js';
 import { nativePairings, type NativeConnection } from './native-pairings.js';
 
 export const name = 'swiftnest-core';
@@ -31,6 +34,7 @@ interface WebRoute {
 interface CoreContext {
   connection?: DeviceConnection;
   webServer: {
+    getOrigin?(): string;
     register(route: WebRoute): () => void;
     registerUpgrade(route: {
       path: string;
@@ -101,8 +105,22 @@ function ownerRoutes(ctx: CoreContext, config: CoreConfig): void {
     ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path, handler }), `swiftnest-core: ${path}`);
 }
 
-export function apply(ctx: CoreContext, config: CoreConfig = {}): void {
+export async function apply(ctx: CoreContext, config: CoreConfig = {}): Promise<void> {
   ownerRoutes(ctx, config);
+  if (config.home && ctx.connection && ctx.webServer.getOrigin) {
+    const channel = appChannel(
+      await loadChannelIdentity(config.home),
+      () => ctx.webServer.getOrigin!(),
+      ctx.connection,
+    );
+    ctx.effect(() => {
+      const off = ctx.webServer.registerUpgrade({ path: CHANNEL_PATH, handler: channel.handler });
+      return () => {
+        off();
+        channel.close();
+      };
+    }, 'swiftnest-core: encrypted App channel');
+  }
   const handler = appHandler(config.appDist);
   // DSH prefix paths have no trailing slash and match both /app and /app/*.
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/app', handler }), 'swiftnest-core: /app');

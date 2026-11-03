@@ -139,7 +139,7 @@ describe('Tool Ultra', () => {
     fakeCommands(command);
     await expect(installToolUltra(config, () => {})).rejects.toThrow('failed');
     expect(existsSync(dir)).toBe(false);
-    expect(existsSync(dir + '.installing')).toBe(false);
+    expect(existsSync(`${dir}.installing`)).toBe(false);
     fakeCommands();
     await installToolUltra(config, () => {});
     expect(isBuilt(dir)).toBe(true);
@@ -155,7 +155,7 @@ describe('Tool Ultra', () => {
   it("leaves another installer's checkout alone", async () => {
     const { config, dir } = setup();
     fixture(dir);
-    mkdirSync(dir + '.installing');
+    mkdirSync(`${dir}.installing`);
     await expect(installToolUltra(config, () => {})).rejects.toThrow('already running');
     expect(existsSync(join(dir, 'packages'))).toBe(true);
     expect(spawn).not.toHaveBeenCalled();

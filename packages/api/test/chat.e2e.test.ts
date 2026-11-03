@@ -1,6 +1,6 @@
 /** Real phase-0 acceptance: no external model, no credentials, no fixed ports. */
 import { createServer, type Server } from 'node:http';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -27,7 +27,7 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
   let client: SwiftnestClient | undefined;
   let home: string | undefined;
   const modelRequests: { stream?: boolean; messages: { role: string; content: unknown }[] }[] = [];
-  const frames: unknown[] = [];
+  const wireFrames: Buffer[] = [];
   const logs: string[] = [];
   beforeAll(async () => {
     model = createServer(async (req, res) => {
@@ -99,22 +99,14 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
 
   it('pairs → creates → follows → sends hi → receives deltas, final and turn end', async () => {
     try {
-      client = await connect(pairingUrl(kernel!.url, kernel!.token), {
-        fetch,
+      client = await connect(pairingUrl(kernel!.url, kernel!.token, kernel!.channelPairing), {
+        fetch: async () => {
+          throw new Error('App requests must stay inside the encrypted channel');
+        },
         createWebSocket: (url, { headers }) => {
           const socket = new WebSocket(url, { headers });
-          socket.on('message', (data) => {
-            const value = JSON.parse(String(data)).value;
-            if (
-              value &&
-              (value.type === 'snapshot' ||
-                value.type === 'assistant-stream' ||
-                (value.type === 'event' &&
-                  ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'turn/end'].includes(
-                    value.event.type,
-                  )))
-            )
-              frames.push(value);
+          socket.prependListener('message', (data) => {
+            wireFrames.push(Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : (data as Buffer)));
           });
           return socket;
         },
@@ -158,9 +150,9 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
         expect(system).not.toContain('coding agent');
         expect(system).not.toContain('{{model}}');
       }
-      if (process.env.SWIFTNEST_RECORD_FIXTURES === '1') {
-        writeFileSync(new URL('./fixtures/chat.json', import.meta.url), `${JSON.stringify(frames, null, 2)}\n`);
-      }
+      expect(wireFrames.length).toBeGreaterThan(3);
+      expect(Buffer.concat(wireFrames).includes(Buffer.from(reply))).toBe(false);
+      expect(Buffer.concat(wireFrames).includes(Buffer.from('sessionId'))).toBe(false);
     } catch (error) {
       throw new Error(
         `${error instanceof Error ? error.stack : error}\nKernel diagnostics:\n${logs.slice(-50).join('\n')}`,

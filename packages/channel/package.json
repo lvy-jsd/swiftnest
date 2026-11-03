@@ -1,0 +1,24 @@
+{
+  "name": "@swiftnest/channel",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@libp2p/noise": "17.0.7",
+    "@libp2p/crypto": "^5.2.0",
+    "@libp2p/peer-id": "^6.0.18",
+    "@libp2p/utils": "^7.4.5"
+  }
+}
