@@ -450,6 +450,7 @@ export const messageEn = {
   toolUltraInstalled: 'Tool Ultra installed at {0}. Restart Swiftnest Server to load it.',
   toolUltraCommandFailed: 'Tool Ultra command {0} failed (exit {1}).',
   toolUltraInstallBusy: 'Tool Ultra installation is already running (lock: {0}).',
+  toolUltraHighRiskLoad: 'Loading high-risk tool(s): {0}',
 } as const;
 export const messageZh: Record<keyof typeof messageEn, string> = {
   useNativeAppHttpsLiveView: '请使用原生 App 或 HTTPS 打开实时画面',
@@ -895,4 +896,5 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   toolUltraInstalled: 'Tool Ultra 已安装到 {0}。重启 Swiftnest 服务器后生效。',
   toolUltraCommandFailed: 'Tool Ultra 命令 {0} 失败（退出码 {1}）。',
   toolUltraInstallBusy: 'Tool Ultra 正在安装（锁目录：{0}）。',
+  toolUltraHighRiskLoad: '正在加载高风险工具：{0}',
 };

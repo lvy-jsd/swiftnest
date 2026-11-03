@@ -83,7 +83,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
       ((env.SWIFTNEST_LANG ?? fromFile.lang) === 'en'
         ? 'You are a helpful assistant in Swiftnest, powered by the {{model}} model.'
         : DEFAULT_PERSONA),
-    assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName || undefined,
+    assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName,
     toolUltra:
       env.SWIFTNEST_TOOL_ULTRA === undefined ? (fromFile.toolUltra ?? true) : env.SWIFTNEST_TOOL_ULTRA !== 'false',
     devices: {
