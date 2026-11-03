@@ -44,7 +44,7 @@ fallback for page routes, and cache hashed assets immutably (index responses are
 
 ## Plugins
 
-Every third-party DSH plugin the Server can load is listed in [`server/plugins.json`](plugins.json): each is pinned to an exact version and npm integrity hash (or a full commit), and only MIT, Apache-2.0 and BSD-3-Clause licenses are accepted. Tool Ultra, cc-safety-net, dsh-client-auto-continue, dsh-smart-title and dsh-cost-meter are on by default; dsh-vision-router and dsh-im, which send data out or need accounts, are off. DSH's own plugin market is on for browsing the community catalog; a plugin you want to keep goes into the manifest.
+Every third-party DSH plugin the Server can load is listed in [`server/plugins.json`](plugins.json): each is pinned to an exact version and npm integrity hash (or a full commit), and only MIT, Apache-2.0 and BSD-3-Clause licenses are accepted. Tool Ultra, cc-safety-net, dsh-client-auto-continue, dsh-smart-title and dsh-cost-meter are on by default; dsh-vision-router and dsh-im, which send data out or need accounts, are off. DSH's own community plugin market is for advanced users and off by default; plugins installed from it stay and are marked unaudited.
 
 ```sh
 swiftnest-server plugins install --config swiftnest.yaml

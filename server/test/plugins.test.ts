@@ -94,30 +94,50 @@ describe('profile plugins', () => {
     install(profile, second!, '0.0.1');
     const plugins = profilePlugins(config, profile);
     expect(plugins.dependencies[first!.source.package]).toBe(first!.source.version);
-    expect(plugins.bundles).toEqual([MARKET, first!.source.package]);
+    expect(plugins.bundles).toEqual([first!.source.package]);
     expect(plugins.missing).toContain(second!.id);
     expect(plugins.missing).not.toContain('vision-router');
-    expect(plugins.rows).toEqual([
-      { id: 'plugin-market', config: { indexes: ['https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json'] } },
-    ]);
+    expect(plugins.rows).toEqual([]);
   });
 
-  it("loads the kernel's own market bundle without installing it, and drops it when disabled", () => {
-    const on = setup();
-    expect(profilePlugins(on.config, on.profile)).toMatchObject({ bundles: [MARKET] });
-    const off = setup('tool-ultra=false,market=false');
+  it("keeps the community market off by default and loads the kernel's own bundle when enabled", () => {
+    const off = setup();
     expect(profilePlugins(off.config, off.profile)).toMatchObject({ bundles: [], rows: [] });
+    const on = setup('tool-ultra=false,market=true');
+    expect(profilePlugins(on.config, on.profile)).toMatchObject({
+      bundles: [MARKET],
+      rows: [
+        { id: 'plugin-market', config: { indexes: ['https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json'] } },
+      ],
+    });
   });
 
-  it('warns when the profile holds packages installed outside the manifest', () => {
-    const { config, home, profile } = setup();
+  function marketInstall(profile: string) {
     mkdirSync(profile, { recursive: true });
-    writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: { 'from-market': '1.0.0' } }));
+    const pkg = { dependencies: { 'from-market': '1.0.0' }, dsh: { profile: { bundles: [MARKET, 'from-market'] } } };
+    writeFileSync(join(profile, 'package.json'), JSON.stringify(pkg));
+  }
+
+  it('keeps market installs while the market is on, marked unaudited', () => {
+    const { config, home, profile } = setup('tool-ultra=false,market=true');
+    marketInstall(profile);
+    const log = vi.fn();
+    writeProfile(config, { bundleDir: home, log });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('not audited: from-market'));
+    const pkg = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'));
+    expect(pkg.dependencies['from-market']).toBe('1.0.0');
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, MARKET, 'from-market']);
+  });
+
+  it('removes market installs once the market is off', () => {
+    const { config, home, profile } = setup();
+    marketInstall(profile);
     const log = vi.fn();
     writeProfile(config, { bundleDir: home, log });
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Removed from-market'));
     const pkg = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'));
     expect(pkg.dependencies).not.toHaveProperty('from-market');
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES]);
   });
 
   it('leaves out disabled plugins and enables opt-in ones on request', () => {
@@ -134,7 +154,7 @@ describe('profile plugins', () => {
     const log = vi.fn();
     writeProfile(config, { bundleDir: home, log });
     const pkg = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'));
-    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, MARKET, first!.source.package]);
+    expect(pkg.dsh.profile.bundles).toEqual([...BUNDLES, first!.source.package]);
     expect(readFileSync(join(profile, 'pnpm-workspace.yaml'), 'utf8')).toContain('strictDepBuilds: false');
     expect(log).toHaveBeenCalledWith(expect.stringContaining('swiftnest-server plugins install'));
   });

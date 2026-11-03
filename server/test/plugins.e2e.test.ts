@@ -28,8 +28,9 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
       SWIFTNEST_DEVICES_PORT: '0',
       SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_MODEL_ID: 'fake',
-      // Tool Ultra has its own e2e test; this one covers the npm plugins.
-      SWIFTNEST_PLUGINS: 'tool-ultra=false',
+      // Tool Ultra has its own e2e test; this one covers the npm plugins and the
+      // kernel's own market bundle, which is off by default.
+      SWIFTNEST_PLUGINS: 'tool-ultra=false,market=true',
     });
     const plugins = enabledNpmPlugins(config.plugins);
     const shipped = enabledPlugins<DshSource>(config.plugins, 'dsh').map((plugin) => plugin.source.package);

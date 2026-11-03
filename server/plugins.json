@@ -27,7 +27,8 @@
     {
       "id": "market",
       "license": "MIT",
-      "enabled": true,
+      "enabled": false,
+      "reason": "community plugins are not audited; plugins installed from it stay and are marked unaudited",
       "source": {
         "type": "dsh",
         "package": "@deepseek-ai/dsh-experimental-plugin-market-bundle"

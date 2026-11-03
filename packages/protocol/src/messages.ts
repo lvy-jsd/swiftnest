@@ -451,7 +451,8 @@ export const messageEn = {
   pluginsMissing:
     'Enabled plugins are not installed: {0}. Run swiftnest-server plugins install with the same --config / SWIFTNEST_HOME, then restart.',
   pluginsOutsideManifest:
-    'Removed {0} from the profile: plugins load only from server/plugins.json. Add one there to keep it.',
+    'Removed {0} from the profile: the community market is off, so plugins load only from server/plugins.json.',
+  pluginsUnaudited: 'Loading plugins installed from the community market, which Swiftnest has not audited: {0}.',
   pluginsInstalling: 'Installing plugins: {0}…',
   pluginsInstalled: 'Plugins are installed. Restart Swiftnest Server to load them.',
   pluginCommandFailed: 'Plugin command {0} failed (exit {1}).',
@@ -907,7 +908,8 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   pluginIntegrityMismatch: '插件 {0} 安装的不是审计过的包（校验值不符）',
   pluginsMissing:
     '以下已启用的插件尚未安装：{0}。请使用相同的 --config / SWIFTNEST_HOME 运行 swiftnest-server plugins install，然后重启。',
-  pluginsOutsideManifest: '已从配置中移除 {0}：插件只从 server/plugins.json 加载，要保留请加进清单。',
+  pluginsOutsideManifest: '已从配置中移除 {0}：社区市场已关闭，插件只从 server/plugins.json 加载。',
+  pluginsUnaudited: '正在加载从社区市场安装、Swiftnest 未审核的插件：{0}。',
   pluginsInstalling: '正在安装插件：{0}…',
   pluginsInstalled: '插件已安装。重启 Swiftnest 服务器后生效。',
   pluginCommandFailed: '插件命令 {0} 失败（退出码 {1}）。',

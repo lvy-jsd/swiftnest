@@ -24,7 +24,13 @@ export interface ProfilePlugins {
   rows: unknown[];
   /** Ids of enabled plugins that are not installed yet. */
   missing: string[];
+  /** Community market installs kept while the market is on. */
+  unaudited: string[];
+  /** Community market installs removed because the market is off. */
+  dropped: string[];
 }
+
+export const MARKET_ID = 'market';
 
 /** Installed means present in the profile at exactly the pinned version. */
 export function isInstalled(profile: string, plugin: Plugin<NpmSource>): boolean {
@@ -36,19 +42,35 @@ export function isInstalled(profile: string, plugin: Plugin<NpmSource>): boolean
   }
 }
 
-/**
- * Packages someone added to the profile outside the manifest, e.g. from the
- * plugin market. The Server rewrites the profile on start, which drops them.
- */
-export function unlistedDependencies(profile: string, dependencies: Record<string, string>): string[] {
+interface ProfileManifest {
+  dependencies?: Record<string, string>;
+  dsh?: { profile?: { bundles?: string[] } };
+}
+
+function readProfileManifest(profile: string): ProfileManifest {
   try {
-    const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
-      dependencies?: Record<string, string>;
-    };
-    return Object.keys(manifest.dependencies ?? {}).filter((name) => !(name in dependencies));
+    return JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as ProfileManifest;
   } catch {
-    return [];
+    return {};
   }
+}
+
+/**
+ * Packages someone installed outside the manifest, from the community plugin
+ * market. They stay while the market is on (unaudited) and go once it is off.
+ */
+function keepMarketInstalls(config: ServerConfig, profile: string, plugins: ProfilePlugins): void {
+  const previous = readProfileManifest(profile);
+  const extra = Object.entries(previous.dependencies ?? {}).filter(([name]) => !(name in plugins.dependencies));
+  if (!extra.length) return;
+  const names = extra.map(([name]) => name);
+  if (!isEnabled(pluginById(MARKET_ID, 'dsh'), config.plugins)) {
+    plugins.dropped = names;
+    return;
+  }
+  plugins.unaudited = names;
+  Object.assign(plugins.dependencies, Object.fromEntries(extra));
+  plugins.bundles.push(...(previous.dsh?.profile?.bundles ?? []).filter((name) => names.includes(name)));
 }
 
 function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] {
@@ -72,5 +94,7 @@ export function profilePlugins(config: ServerConfig, profile: string): ProfilePl
   }
   const bundles = loaded.map((plugin) => (plugin.source as DshSource | NpmSource).package);
   rows.push(...loaded.flatMap((plugin) => plugin.patch ?? []));
-  return { dependencies, bundles, rows, missing };
+  const plugins = { dependencies, bundles, rows, missing, unaudited: [], dropped: [] };
+  keepMarketInstalls(config, profile, plugins);
+  return plugins;
 }
