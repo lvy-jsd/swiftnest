@@ -27,6 +27,8 @@ export class ModelManager {
   private booted: ModelSettings;
   /** Settings and keys the running kernel booted with: the `pending` baseline. */
   private bootedSnapshot: string;
+  /** The local model as the running kernel uses it, once it has booted. */
+  private local?: Pick<ServerConfig['model'], 'contextWindow' | 'vision'>;
   private readonly change: KernelChange;
 
   constructor(
@@ -60,8 +62,9 @@ export class ModelManager {
     return this.store.keyEnv();
   }
 
-  /** The kernel started with the current settings. */
-  loaded(): void {
+  /** The kernel started with the current settings and this local model. */
+  loaded(local?: Pick<ServerConfig['model'], 'contextWindow' | 'vision'>): void {
+    this.local = local && { contextWindow: local.contextWindow, vision: local.vision };
     this.booted = this.store.settings;
     this.bootedSnapshot = this.snapshot();
   }
@@ -69,7 +72,12 @@ export class ModelManager {
   view(config: ServerConfig, lang: Language): ModelsView {
     const { main, expert, expertApproval } = this.store.settings;
     return {
-      local: { name: config.model.name, model: config.model.id, contextWindow: config.model.contextWindow },
+      local: {
+        name: config.model.name,
+        model: config.model.id,
+        contextWindow: this.local?.contextWindow ?? config.model.contextWindow,
+        vision: this.local?.vision ?? config.model.vision,
+      },
       providers: MODEL_PROVIDERS.map((provider) => this.providerView(provider.id, lang)),
       ...(main ? { main } : {}),
       ...(expert ? { expert } : {}),

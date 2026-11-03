@@ -36,6 +36,10 @@ export function scriptedModel(shared: string) {
         res.end('{"data":[{"id":"fake"}]}');
         return;
       }
+      if (req.url !== '/v1/chat/completions') {
+        res.writeHead(404).end();
+        return;
+      }
       let raw = '';
       for await (const part of req) raw += String(part);
       const request = JSON.parse(raw) as ModelRequest;

@@ -19,7 +19,12 @@ export interface ModelConfig {
   id: string;
   /** Display name. */
   name: string;
+  /** Tokens the model reads at once. Detected from the local server unless set. */
   contextWindow: number;
+  /** The model reads images itself. Detected from the local server unless set. */
+  vision: boolean;
+  /** What the owner did not set, so the server asks the local model server at boot. */
+  detect?: { contextWindow?: true; vision?: true };
   maxTokens: number;
   /** Environment variable holding the API key; local servers accept any value. */
   apiKeyEnv: string;
@@ -73,9 +78,31 @@ export const DEFAULT_MODEL: ModelConfig = {
   id: 'qwen3',
   name: '本地模型',
   contextWindow: 32768,
+  vision: false,
   maxTokens: 8192,
   apiKeyEnv: 'SWIFTNEST_MODEL_API_KEY',
 };
+
+/** Model facts the owner set; the rest keep their defaults and are detected at boot. */
+function ownerFacts(
+  contextWindow: number | undefined,
+  vision: boolean | undefined,
+): Pick<ModelConfig, 'contextWindow' | 'vision' | 'detect'> {
+  const detect = {
+    ...(contextWindow === undefined ? { contextWindow: true as const } : {}),
+    ...(vision === undefined ? { vision: true as const } : {}),
+  };
+  return {
+    contextWindow: contextWindow ?? DEFAULT_MODEL.contextWindow,
+    vision: vision ?? DEFAULT_MODEL.vision,
+    ...(Object.keys(detect).length ? { detect } : {}),
+  };
+}
+function bool(v: string | undefined): boolean | undefined {
+  if (v === undefined || v === '') return undefined;
+  if (v !== 'true' && v !== 'false') throw new ServerFailure(text('modelVisionMustBoolean'));
+  return v === 'true';
+}
 
 type Partial2<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
 
@@ -129,6 +156,10 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
       ...fromFile.model,
       ...(env.SWIFTNEST_MODEL_BASE_URL ? { baseUrl: env.SWIFTNEST_MODEL_BASE_URL } : {}),
       ...(env.SWIFTNEST_MODEL_ID ? { id: env.SWIFTNEST_MODEL_ID } : {}),
+      ...ownerFacts(
+        num(env.SWIFTNEST_MODEL_CONTEXT_WINDOW) ?? fromFile.model?.contextWindow,
+        bool(env.SWIFTNEST_MODEL_VISION) ?? fromFile.model?.vision,
+      ),
     },
   };
   validate(config);
@@ -162,5 +193,9 @@ export function validate(config: ServerConfig): void {
   }
   if (!/^[A-Z_][A-Z0-9_]*$/.test(config.model.apiKeyEnv)) {
     throw new ServerFailure(text('modelApikeyenvMustEnvironmentVariableName', config.model.apiKeyEnv));
+  }
+  if (typeof config.model.vision !== 'boolean') throw new ServerFailure(text('modelVisionMustBoolean'));
+  if (!Number.isInteger(config.model.contextWindow) || config.model.contextWindow < 1024) {
+    throw new ServerFailure(text('modelContextWindowInvalid', String(config.model.contextWindow)));
   }
 }

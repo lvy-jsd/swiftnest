@@ -29,7 +29,7 @@ const google = {
   recommendedModel: 'gemini-pro-latest',
 };
 const view: ModelsView = {
-  local: { name: 'Local', model: 'ivy', contextWindow: 131072 },
+  local: { name: 'Local', model: 'ivy', contextWindow: 131072, vision: false },
   providers: [deepseek, google],
   expert: { provider: 'deepseek', model: 'deepseek-v4-flash' },
   expertApproval: 'ask',

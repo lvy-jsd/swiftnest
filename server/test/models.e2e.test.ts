@@ -34,6 +34,7 @@ function scriptedModel() {
   const requests: ModelRequest[] = [];
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.url === '/v1/models') return void res.end('{"data":[{"id":"fake"}]}');
+    if (req.url !== '/v1/chat/completions') return void res.writeHead(404).end();
     let body = '';
     for await (const chunk of req) body += String(chunk);
     const request = JSON.parse(body) as ModelRequest;

@@ -114,6 +114,8 @@
   "hostMustOneConcreteAddressExample": "host must be one concrete address (for example your LAN IP), not a wildcard",
   "modelBaseurlNotUrl": "model.baseUrl is not a URL: {0}",
   "modelApikeyenvMustEnvironmentVariableName": "model.apiKeyEnv must be an environment variable name, got {0}",
+  "modelContextWindowInvalid": "model.contextWindow must be a whole number of tokens, at least 1024, got {0}",
+  "modelVisionMustBoolean": "model.vision must be true or false",
   "invalidViewerLimits": "Invalid viewer limits",
   "deviceAlreadyViewer": "This device already has a viewer",
   "tooManyStreams": "Too many streams",

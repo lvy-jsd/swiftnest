@@ -54,7 +54,15 @@ function localProvider(config: ServerConfig) {
     api: 'openai-completions',
     apiKeyEnv: m.apiKeyEnv,
     baseURL: m.baseUrl,
-    models: [{ id: m.id, name: m.name, contextWindow: m.contextWindow, maxTokens: m.maxTokens, input: ['text'] }],
+    models: [
+      {
+        id: m.id,
+        name: m.name,
+        contextWindow: m.contextWindow,
+        maxTokens: m.maxTokens,
+        input: m.vision ? ['text', 'image'] : ['text'],
+      },
+    ],
   };
 }
 

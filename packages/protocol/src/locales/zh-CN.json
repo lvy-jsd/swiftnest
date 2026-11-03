@@ -114,6 +114,8 @@
   "hostMustOneConcreteAddressExample": "host 必须是具体地址（例如局域网 IP），不能使用通配地址",
   "modelBaseurlNotUrl": "model.baseUrl 不是有效 URL：{0}",
   "modelApikeyenvMustEnvironmentVariableName": "model.apiKeyEnv 必须是环境变量名称，当前为 {0}",
+  "modelContextWindowInvalid": "model.contextWindow 必须是不小于 1024 的整数（单位：token），当前为 {0}",
+  "modelVisionMustBoolean": "model.vision 必须是 true 或 false",
   "invalidViewerLimits": "画面查看参数无效",
   "deviceAlreadyViewer": "此设备已有一个查看端",
   "tooManyStreams": "实时连接数量过多",
