@@ -5,7 +5,7 @@
  */
 import { chmod, rm } from 'node:fs/promises';
 import { createConnection, createServer, type Server } from 'node:net';
-import { SwiftnestFailure, type Nest } from '@swiftnest/core';
+import { SwiftnestFailure, text, type Nest } from '@swiftnest/core';
 
 type Handler = (params: Record<string, unknown>) => unknown | Promise<unknown>;
 
@@ -61,7 +61,7 @@ export async function serveAdmin(path: string, handlers: Record<string, Handler>
             const req = JSON.parse(line) as { id?: unknown; method?: unknown; params?: Record<string, unknown> };
             id = req.id;
             const h = handlers[String(req.method)];
-            if (!h) throw new SwiftnestFailure('UNKNOWN_METHOD', `Unknown admin method ${String(req.method)}.`);
+            if (!h) throw new SwiftnestFailure('UNKNOWN_METHOD', text('unknownAdminMethod', String(req.method)));
             sock.write(`${JSON.stringify({ id, result: (await h(req.params ?? {})) ?? null })}\n`);
           } catch (e) {
             sock.write(`${JSON.stringify({ id, error: SwiftnestFailure.from(e, 'ADMIN_FAILED') })}\n`);
@@ -88,11 +88,7 @@ export function adminCall<T = unknown>(path: string, method: string, params: Rec
     sock.once('error', (e: NodeJS.ErrnoException) =>
       reject(
         e.code === 'ENOENT' || e.code === 'ECONNREFUSED'
-          ? new SwiftnestFailure(
-              'NEST_NOT_RUNNING',
-              'No Nest is running for this user.',
-              'Start it first with `swiftnest nest` (in another terminal or as a service).',
-            )
+          ? new SwiftnestFailure('NEST_NOT_RUNNING', text('noNestRunningUser'), text('hintStartNestFirst'))
           : e,
       ),
     );

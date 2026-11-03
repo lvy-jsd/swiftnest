@@ -12,7 +12,7 @@
 import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile, appendFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { definePlugin, PathGuard, SwiftnestFailure, type Capability } from '@swiftnest/core';
+import { definePlugin, PathGuard, SwiftnestFailure, text, type Capability } from '@swiftnest/core';
 import type { Risk } from '@swiftnest/protocol';
 
 const MAX_READ = 512 * 1024;
@@ -32,20 +32,20 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
   /** The real check, right before acting. */
   async function allowed(raw: unknown, what: string): Promise<string> {
     if (typeof raw !== 'string' || !raw)
-      throw new SwiftnestFailure('BAD_ARGS', `${what} is required.`, `Pass a path, e.g. {"${what}": "~/notes.txt"}.`);
+      throw new SwiftnestFailure('BAD_ARGS', text('required', what), text('hintPassPath', what));
     const c = await guard.check(raw);
     if (c.secret) {
       throw new SwiftnestFailure(
         'PATH_REFUSED',
-        `${raw} is a protected location (keys, credentials or browser data).`,
-        'Swiftnest never reads or writes these, whatever the policy says.',
+        text('protectedLocationKeysCredentialsBrowserData', raw),
+        text('hintNeverTouchesSecrets'),
       );
     }
     if (!c.inside) {
       throw new SwiftnestFailure(
         'PATH_NOT_ALLOWED',
-        `${raw} is outside the folders this device shares (${roots.join(', ')}).`,
-        'Ask the owner to add the folder to cap-files `roots` on this device.',
+        text('outsideFoldersDeviceShares', raw, roots.join(', ')),
+        text('hintAskOwnerToShareFolder'),
       );
     }
     return c.real;
@@ -209,18 +209,14 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
           const file = await allowed(args.path, 'path');
           const info = await stat(file);
           if (!info.isFile())
-            throw new SwiftnestFailure(
-              'NOT_A_FILE',
-              `${String(args.path)} is not a file.`,
-              'Use files.list for folders.',
-            );
+            throw new SwiftnestFailure('NOT_A_FILE', text('notFile2', String(args.path)), text('hintUseFilesList'));
           const buf = await readFile(file).then((b) => b.subarray(0, MAX_READ));
           if (buf.includes(0))
             return { text: `(binary file, ${info.size} bytes)`, data: { path: file, size: info.size, binary: true } };
-          const text =
+          const content =
             buf.toString('utf8') +
             (info.size > MAX_READ ? `\n[truncated: showing ${MAX_READ} of ${info.size} bytes]` : '');
-          return { text, data: { path: file, size: info.size }, untrusted: true };
+          return { text: content, data: { path: file, size: info.size }, untrusted: true };
         }
         case 'stat': {
           const p = await allowed(args.path, 'path');
@@ -233,7 +229,7 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
         }
         case 'write': {
           const file = await allowed(args.path, 'path');
-          if (typeof args.content !== 'string') throw new SwiftnestFailure('BAD_ARGS', 'content must be a string.');
+          if (typeof args.content !== 'string') throw new SwiftnestFailure('BAD_ARGS', text('contentMustString'));
           await mkdir(dirname(file), { recursive: true });
           await (args.append ? appendFile(file, args.content) : writeFile(file, args.content));
           return `${args.append ? 'appended' : 'wrote'} ${Buffer.byteLength(args.content)} bytes to ${file}`;
@@ -254,8 +250,8 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
           )
             throw new SwiftnestFailure(
               'TARGET_EXISTS',
-              `${String(args.to)} already exists.`,
-              'Pick another name, or delete the target first.',
+              text('alreadyExists', String(args.to)),
+              text('hintPickAnotherTarget'),
             );
           await mkdir(dirname(to), { recursive: true });
           await rename(from, to);
@@ -264,19 +260,15 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
         case 'delete': {
           const p = await allowed(args.path, 'path');
           if ((await guard.realRoots()).includes(p))
-            throw new SwiftnestFailure('PATH_REFUSED', 'Refusing to delete a shared root folder itself.');
+            throw new SwiftnestFailure('PATH_REFUSED', text('refusingDeleteSharedRootFolderItself'));
           const info = await lstat(p);
           if (info.isDirectory() && !args.recursive)
-            throw new SwiftnestFailure(
-              'IS_A_FOLDER',
-              `${String(args.path)} is a folder.`,
-              'Pass recursive: true to delete a folder and everything in it.',
-            );
+            throw new SwiftnestFailure('IS_A_FOLDER', text('folder', String(args.path)), text('hintDeleteRecursively'));
           await rm(p, { recursive: Boolean(args.recursive) });
           return `deleted ${relative(homedir(), p).startsWith('..') ? p : `~/${relative(homedir(), p)}`}`;
         }
         default:
-          throw new SwiftnestFailure('UNKNOWN_TOOL', `files has no tool ${tool}.`);
+          throw new SwiftnestFailure('UNKNOWN_TOOL', text('filesNoTool', tool));
       }
     },
   };

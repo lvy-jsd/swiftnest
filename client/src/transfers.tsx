@@ -1,6 +1,6 @@
-import { translateMessage } from '@swiftnest/api';
+import { localizedError } from '@swiftnest/api';
 import { useState } from 'react';
-import type { Transfer } from '@swiftnest/api';
+import type { Language, Transfer } from '@swiftnest/api';
 import { useDevices } from './devices';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
@@ -26,6 +26,21 @@ const stateKey = {
   failed: 'transferFailed',
   cancelled: 'transferCancelled',
 } as const;
+/** A failed transfer's reason and what to do, in the App's current language. */
+function TransferFailure({ transfer, locale }: { transfer: Transfer; locale: Language }) {
+  const failure = localizedError(transfer.failure ?? { message: transfer.error }, locale);
+  return (
+    <p role="alert">
+      {failure.message}
+      {transfer.failure && (
+        <>
+          <br />
+          {failure.hint} ({failure.code})
+        </>
+      )}
+    </p>
+  );
+}
 export function TransferCards({ compact = false }: { compact?: boolean }) {
   const { transfers, busy, act } = useDevices();
   const { store } = useConnection();
@@ -48,17 +63,7 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
             {bytes(r.offset)} / {bytes(r.size)} · {bytes(r.speed)}/{t('seconds')} · {t('transferETA')}:{' '}
             {r.eta === null ? '—' : `${Math.ceil(r.eta)}${t('seconds')}`}
           </p>
-          {r.error && r.state === 'failed' && (
-            <p role="alert">
-              {translateMessage(r.error, locale)}
-              {r.failure && (
-                <>
-                  <br />
-                  {translateMessage(r.failure.hint, locale)} ({r.failure.code})
-                </>
-              )}
-            </p>
-          )}
+          {r.error && r.state === 'failed' && <TransferFailure transfer={r} locale={locale} />}
           <div className="device-actions">
             {['running', 'waiting', 'approval', 'preparing'].includes(r.state) && (
               <Button disabled={busy} onClick={() => action(r, 'pause')}>
