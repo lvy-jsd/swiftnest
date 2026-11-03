@@ -50,7 +50,8 @@ export class ConnectionStore {
   client?: SwiftnestClient;
   private generation = 0;
   private expectingRestart = false;
-  private pairingUrl = '';
+  private unpairing = false;
+  private nativeCredentials = new Map<string, string>();
   private retry?: ReturnType<typeof setTimeout>;
   private activeOptions?: ClientOptions;
   private listeners = new Set<() => void>();
@@ -87,7 +88,7 @@ export class ConnectionStore {
         this.update({ status: 'disconnected', error: 'sameOrigin' });
         return false;
       }
-      const options = await this.options();
+      const options = this.withNativeStore(await this.options());
       if (generation !== this.generation) return false;
       const activeOptions = this.socketOptions(options, root, generation);
       this.activeOptions = activeOptions;
@@ -98,7 +99,6 @@ export class ConnectionStore {
         candidate.close();
         return false;
       }
-      this.pairingUrl = url;
       this.update({ status: 'connected', root, error: undefined, pluginRestart: undefined });
       try {
         localStorage.setItem(ROOT_KEY, root);
@@ -116,15 +116,59 @@ export class ConnectionStore {
       return false;
     }
   }
-  private socketOptions(options: ClientOptions, root: string, generation: number): ClientOptions {
-    const factory = options.createWebSocket ?? ((address: string) => new WebSocket(address));
+  private withNativeStore(options: ClientOptions): ClientOptions {
+    if (options.cookieMode !== 'manual') return options;
+    const generation = this.generation;
+    const storage = options.nativePairingStore ?? {
+      load: async (root: string) => this.nativeCredentials.get(root),
+      save: async (root: string, credential: string | undefined) => {
+        if (credential) this.nativeCredentials.set(root, credential);
+        else this.nativeCredentials.delete(root);
+      },
+    };
     return {
       ...options,
+      nativePairingStore: {
+        load: (root) => storage.load(root),
+        save: async (root, credential) => {
+          if (generation === this.generation) await storage.save(root, credential);
+        },
+      },
+    };
+  }
+  /** Opening the native App restores its private saved pairing; transient failures use the same backoff. */
+  restore(): void {
+    if (!isTauriRuntime() || !this.state.root || this.state.status !== 'disconnected' || this.state.pluginRestart)
+      return;
+    this.startPluginReconnect();
+  }
+  async unpair(): Promise<void> {
+    this.unpairing = true;
+    try {
+      await this.client?.revokeNativePairing();
+      this.disconnect();
+    } catch (error) {
+      this.startPluginReconnect();
+      throw error;
+    } finally {
+      this.unpairing = false;
+    }
+  }
+  private socketOptions(options: ClientOptions, root: string, generation: number): ClientOptions {
+    const factory = options.createWebSocket ?? ((address: string) => new WebSocket(address));
+    let rotating = false;
+    return {
+      ...options,
+      onNativeCredentialRotation: (active) => {
+        rotating = active;
+        options.onNativeCredentialRotation?.(active);
+        if (!active && generation === this.generation && this.state.status === 'connected') this.startPluginReconnect();
+      },
       createWebSocket: (address, init) => {
         const socket = factory(address, init);
         const lost = () => {
-          if (generation !== this.generation || this.state.status !== 'connected') return;
-          if (this.expectingRestart) {
+          if (generation !== this.generation || this.state.status !== 'connected' || this.unpairing || rotating) return;
+          if (this.expectingRestart || options.cookieMode === 'manual') {
             this.startPluginReconnect();
             return;
           }
@@ -152,12 +196,11 @@ export class ConnectionStore {
   private async reconnectPlugins(generation: number, attempt: number): Promise<void> {
     let candidate: SwiftnestClient | undefined;
     try {
-      const options = await this.options();
+      const options = this.withNativeStore(await this.options());
       if (generation !== this.generation) return;
       this.activeOptions = this.socketOptions(options, this.state.root, generation);
       candidate = this.create(this.activeOptions);
-      if (options.cookieMode === 'manual') await candidate.connect(this.pairingUrl);
-      else await candidate.resume(this.state.root);
+      await candidate.resume(this.state.root);
       if (generation !== this.generation) {
         candidate.close();
         return;
@@ -201,10 +244,11 @@ export class ConnectionStore {
       );
       if (this.client !== client || this.activeOptions !== options) return;
       const controllable = local.platform === 'desktop' || local.platform === 'android';
-      options.deviceSlug = controllable
+      const paired = controllable
         ? devices.find((device) => device.device === local.settings.slug && device.fingerprint === local.fingerprint)
-            ?.slug
         : undefined;
+      if (paired && options.cookieMode === 'manual') await client.bindNativePairing(paired.device, paired.fingerprint);
+      options.deviceSlug = paired?.slug;
     } catch {
       if (this.activeOptions === options) options.deviceSlug = undefined;
     }
@@ -225,7 +269,6 @@ export class ConnectionStore {
     ++this.generation;
     clearTimeout(this.retry);
     this.expectingRestart = false;
-    this.pairingUrl = '';
     const previous = this.client;
     this.client = undefined;
     this.activeOptions = undefined;
@@ -239,6 +282,7 @@ export function ConnectionProvider({ children, store: supplied }: PropsWithChild
   const lifetime = useRef(0);
   useEffect(() => {
     const generation = ++lifetime.current;
+    store.restore();
     return () => {
       queueMicrotask(() => {
         if (lifetime.current === generation) store.disconnect();

@@ -95,7 +95,7 @@ function PhonePermissions() {
 /** Loaded only by the native runtime: desktop shares folders and the screen, Android shares the phone. */
 export function ThisDevice() {
   const { t, locale } = useI18n();
-  const { root } = useConnection();
+  const { root, store } = useConnection();
   const [snapshot, setSnapshot] = useState<PerchSnapshot>();
   const [draft, setDraft] = useState<PerchSettings>();
   const [code, setCode] = useState('');
@@ -347,6 +347,7 @@ export function ThisDevice() {
               disabled={busy}
               onClick={() =>
                 void act(async () => {
+                  await store.unpair();
                   const value = await native<PerchSnapshot>('perch_unpair');
                   setDraft(value.settings);
                   setUnpair(false);

@@ -1,7 +1,7 @@
 /**
- * Phase-0 pairing: the App trades the kernel's launch token for an API cookie
- * at `/connect`. The token changes on every restart; per-device credentials
- * replace this with the gateway module.
+ * Initial pairing: /connect trades the kernel's launch token for an API cookie.
+ * Native Apps then exchange that bootstrap for their own revocable, durable credential;
+ * reconnect never needs the launch token again.
  */
 export function pairingUrl(rootUrl: string, token: string): string {
   const url = new URL('connect', rootUrl.endsWith('/') ? rootUrl : `${rootUrl}/`);

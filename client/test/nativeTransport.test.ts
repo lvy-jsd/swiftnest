@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { Message } from '@tauri-apps/plugin-websocket';
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), connect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), connect: vi.fn(), invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: mocks.fetch }));
 vi.mock('@tauri-apps/plugin-websocket', () => ({ default: { connect: mocks.connect } }));
 import { NativeSocket, nativeOptions } from '../src/nativeTransport';
@@ -87,4 +89,47 @@ describe('native transport adapter', () => {
     await vi.waitFor(() => expect(writing.readyState).toBe(3));
     expect(error).toHaveBeenCalledTimes(2);
   });
+});
+
+it('uses the private native store scoped to the server root, including explicit deletion', async () => {
+  const storage = nativeOptions().nativePairingStore!;
+  mocks.invoke.mockResolvedValueOnce('x'.repeat(43));
+  expect(await storage.load('https://server/')).toBe('x'.repeat(43));
+  expect(mocks.invoke).toHaveBeenLastCalledWith('app_pairing_load', { root: 'https://server/' });
+  await storage.save('https://server/', 'y'.repeat(43));
+  expect(mocks.invoke).toHaveBeenLastCalledWith('app_pairing_save', {
+    root: 'https://server/',
+    credential: 'y'.repeat(43),
+  });
+  await storage.save('https://server/', undefined);
+  expect(mocks.invoke).toHaveBeenLastCalledWith('app_pairing_save', { root: 'https://server/', credential: null });
+  mocks.invoke.mockResolvedValueOnce(null);
+  expect(await storage.load('https://other/')).toBeUndefined();
+});
+
+it('allows the native pairing, chat and device-binding workflow through explicit Tauri HTTP paths', () => {
+  const capability = JSON.parse(
+    readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8'),
+  );
+  const http = capability.permissions.find((p: any) => p.identifier === 'http:default');
+  const paths = new Set(
+    http.allow.map((p: { url: string }) => new URL(p.url.replace('://*:*', '://server:3077')).pathname),
+  );
+  for (const path of [
+    '/swiftnest/native/issue',
+    '/swiftnest/native/resume',
+    '/swiftnest/native/rotate',
+    '/swiftnest/native/bind',
+    '/swiftnest/native/revoke',
+    '/swiftnest/api/chat',
+    '/swiftnest/api/devices',
+    '/swiftnest/api/devices/approvals',
+    '/swiftnest/api/devices/pairing',
+    '/swiftnest/api/devices/transfers',
+    '/swiftnest/api/devices/revoke/*',
+  ])
+    expect(paths.has(path)).toBe(true);
+  expect(paths.has('/swiftnest/*')).toBe(false);
+  expect(paths.has('/swiftnest/native/*')).toBe(false);
+  expect([...paths].some((p) => String(p).startsWith('/swiftnest/control'))).toBe(false);
 });

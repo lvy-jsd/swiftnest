@@ -99,6 +99,14 @@ export interface ClientOptions {
   createWebSocket?: (url: string, options: { headers: Readonly<Record<string, string>> }) => ApiWebSocket;
   /** Defaults to manual outside a document, browser otherwise. */
   cookieMode?: 'manual' | 'browser';
+  /** App transport handoff: defer socket recovery until the rotated credential has been saved. */
+  onNativeCredentialRotation?: (active: boolean) => void;
+  nativeDevice?: { name: string; kind: 'desktop' | 'android' };
+  /** Private native credential storage, keyed by the exact server root. Never use URL or Web storage. */
+  nativePairingStore?: {
+    load(root: string): Promise<string | undefined>;
+    save(root: string, credential: string | undefined): Promise<void>;
+  };
   /** Pairing, socket readiness and each unary call; default 15 seconds. */
   timeoutMs?: number;
 }

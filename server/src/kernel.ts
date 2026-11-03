@@ -164,7 +164,7 @@ function waitReady(child: ChildProcess, opts: StartOptions): Promise<DshProcess>
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split(/\r?\n/)) {
         if (!line) continue;
-        opts.onLine?.(line);
+        opts.onLine?.(line.replace(/token=[^&\s]+/g, 'token=…'));
         tail.push(line.replace(/token=[^&\s]+/g, 'token=…'));
         if (tail.length > 40) tail.shift();
         const ready = settled ? undefined : parseReadyLine(line);
