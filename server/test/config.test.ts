@@ -12,7 +12,7 @@ describe('loadConfig', () => {
     expect(c.home).toBe('/data/swiftnest');
     expect(c.host).toBe('127.0.0.1');
     expect(c.port).toBe(DEFAULT_PORT);
-    expect(c.model).toEqual(DEFAULT_MODEL);
+    expect(c.model).toEqual({ ...DEFAULT_MODEL, detect: { contextWindow: true, vision: true } });
     expect(c.persona).toBe(DEFAULT_PERSONA);
   });
 

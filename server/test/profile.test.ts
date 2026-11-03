@@ -120,12 +120,20 @@ describe('writeProfile', () => {
       api: 'openai-completions',
       apiKeyEnv: config.model.apiKeyEnv,
       baseURL: config.model.baseUrl,
-      models: [{ id: 'm1' }],
+      models: [{ id: 'm1', input: ['text'] }],
     });
     expect(rows.find((r: { id: string }) => r.id === 'agent-default-model').config).toEqual({
       provider: PROVIDER_ID,
       model: 'm1',
     });
+  });
+
+  it('lets a local vision model receive images', () => {
+    const { config, bundleDir } = setup();
+    writeProfile({ ...config, model: { ...config.model, vision: true } }, { bundleDir });
+    const rows = parse(readFileSync(join(profileDir(config), 'cordis.patch.yml'), 'utf8'), { customTags });
+    const llm = rows.find((r: { id: string }) => r.id === 'llm-pi-ai');
+    expect(llm.config.providers[PROVIDER_ID].models[0].input).toEqual(['text', 'image']);
   });
 
   it('routes chats to a cloud main model and hard tasks to the expert, keeping the local model', () => {

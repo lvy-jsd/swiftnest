@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { startDevices } from './devices.js';
 import type { ServerConfig } from './config.js';
+import { withLocalFacts } from './model-probe.js';
 import { PROFILE_NAME, dshHome, profileDir, writeProfile } from './profile.js';
 
 const require = createRequire(import.meta.url);
@@ -186,12 +187,13 @@ function waitReady(child: ChildProcess, opts: StartOptions): Promise<DshProcess>
   });
 }
 
-/** Write the profile with the owner's current plugin switches, then start DSH on it. */
-function launch(paths: KernelPaths, devices: Devices, opts: StartOptions): Promise<DshProcess> {
-  const config = devices.config();
+/** Write the profile with the owner's current plugins and models, then start DSH on it. */
+async function launch(paths: KernelPaths, devices: Devices, opts: StartOptions): Promise<DshProcess> {
+  const base = devices.config();
+  const config = { ...base, model: await withLocalFacts(base.model) };
   const { plugins } = writeProfile(config, { bundleDir: paths.bundleDir });
   devices.plugins.loaded(plugins);
-  devices.models.loaded();
+  devices.models.loaded(config.model);
   return waitReady(spawnDsh(config, paths, devices, opts), opts);
 }
 

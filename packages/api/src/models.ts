@@ -24,7 +24,8 @@ export interface ModelRoute {
 export type ExpertApproval = 'ask' | 'auto';
 
 export interface ModelsView {
-  local: { name: string; model: string; contextWindow: number };
+  /** `vision`: the local model reads images itself. */
+  local: { name: string; model: string; contextWindow: number; vision: boolean };
   providers: ModelProviderView[];
   /** The model every chat uses. Unset: the local model. */
   main?: ModelRoute;

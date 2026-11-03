@@ -82,6 +82,10 @@ export class MemoryHarness {
       res.end('{"data":[{"id":"fake"}]}');
       return;
     }
+    if (req.url !== '/v1/chat/completions') {
+      res.writeHead(404).end();
+      return;
+    }
     let body = '';
     for await (const chunk of req) body += String(chunk);
     const request = JSON.parse(body) as ModelRequest;
