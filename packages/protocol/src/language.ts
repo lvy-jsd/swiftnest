@@ -86,33 +86,41 @@ export function translateMessage(text: string, lang: Language = defaultLanguage(
   }
   return text;
 }
+/** Stable error codes for catalog messages that have a well-known one. */
+const CODES: Partial<Record<keyof typeof messageEn, string>> = {
+  unknownPairedDevice: 'UNKNOWN_DEVICE',
+  transfersStopped: 'TRANSFERS_STOPPED',
+  unknownTransfer: 'UNKNOWN_TRANSFER',
+  sourceChangedStartNewTransfer: 'SOURCE_CHANGED',
+  linkDropped: 'DISCONNECTED',
+  transferStalled: 'TRANSFER_STALLED',
+  deviceArgumentsTooLarge: 'ARGS_TOO_LARGE',
+  unknownDeviceTool: 'UNKNOWN_TOOL',
+  expectedObjectArguments: 'BAD_ARGS',
+  deviceOfflineLastSeen: 'DEVICE_OFFLINE',
+  transferRequestTooLarge: 'REQUEST_TOO_LARGE',
+  unknownTransferRoute: 'NOT_FOUND',
+  notFound: 'NOT_FOUND',
+  auditLimitOutOfRange: 'BAD_LIMIT',
+  deviceOffline: 'DEVICE_OFFLINE',
+  approvalNoLongerPending: 'NOT_PENDING',
+  deviceApiFailed: 'DEVICE_API_FAILED',
+  unauthorized: 'UNAUTHORIZED',
+  forbidden: 'FORBIDDEN',
+  invalidLanguage: 'INVALID_LANGUAGE',
+  languageRequestTooLarge: 'REQUEST_TOO_LARGE',
+  methodNotAllowed: 'METHOD_NOT_ALLOWED',
+};
+
+/** The error code for a failure whose message is this catalog entry. */
+export function errorCodeFor(key: MessageKey): string {
+  return CODES[key] ?? `SWIFTNEST_${key.toUpperCase()}`;
+}
+
+/** Legacy: the error code for a finished sentence, found by matching it to the catalog. */
 export function errorCode(text: string): string {
   const item = patterns.find((item) => item.re.test(text));
-  const codes: Partial<Record<keyof typeof messageEn, string>> = {
-    unknownPairedDevice: 'UNKNOWN_DEVICE',
-    transfersStopped: 'TRANSFERS_STOPPED',
-    unknownTransfer: 'UNKNOWN_TRANSFER',
-    sourceChangedStartNewTransfer: 'SOURCE_CHANGED',
-    linkDropped: 'DISCONNECTED',
-    transferStalled: 'TRANSFER_STALLED',
-    deviceArgumentsTooLarge: 'ARGS_TOO_LARGE',
-    unknownDeviceTool: 'UNKNOWN_TOOL',
-    expectedObjectArguments: 'BAD_ARGS',
-    deviceOfflineLastSeen: 'DEVICE_OFFLINE',
-    transferRequestTooLarge: 'REQUEST_TOO_LARGE',
-    unknownTransferRoute: 'NOT_FOUND',
-    notFound: 'NOT_FOUND',
-    limitMust11000: 'BAD_LIMIT',
-    deviceOffline: 'DEVICE_OFFLINE',
-    approvalNoLongerPending: 'NOT_PENDING',
-    deviceApiFailed: 'DEVICE_API_FAILED',
-    unauthorized: 'UNAUTHORIZED',
-    forbidden: 'FORBIDDEN',
-    invalidLanguage: 'INVALID_LANGUAGE',
-    languageSize: 'REQUEST_TOO_LARGE',
-    method: 'METHOD_NOT_ALLOWED',
-  };
-  return item ? (codes[item.key] ?? `SWIFTNEST_${item.key.toUpperCase()}`) : 'SWIFTNEST_FAILED';
+  return item ? errorCodeFor(item.key) : 'SWIFTNEST_FAILED';
 }
 interface ErrorLike {
   code?: string;
@@ -127,7 +135,7 @@ interface ErrorLike {
 export function localizedError(error: unknown, lang: Language = defaultLanguage()) {
   const source = error as ErrorLike | undefined;
   const original = source?.message ?? String(error);
-  const code = source?.code ?? (isText(source?.text) ? 'SWIFTNEST_FAILED' : errorCode(original));
+  const code = source?.code ?? (isText(source?.text) ? errorCodeFor(source.text.key) : errorCode(original));
   return { code, message: localizedMessage(source, original, code, lang), hint: localizedHint(source, lang) };
 }
 

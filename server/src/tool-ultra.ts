@@ -1,4 +1,5 @@
 /** Build the unpublished Tool Ultra source; defaults belong to its package patches. */
+import { text } from '@swiftnest/core';
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -67,7 +68,7 @@ function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEn
     child.once('error', reject);
     child.once('close', (code) => {
       if (code === 0) resolveRun();
-      else reject(new ServerFailure(message('toolUltraCommandFailed', 'en', [command, code])));
+      else reject(new ServerFailure(text('toolUltraCommandFailed', command, String(code))));
     });
   });
 }
@@ -132,7 +133,7 @@ export async function installToolUltra(config: ServerConfig, log: Log): Promise<
     mkdirSync(lock);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    throw new ServerFailure(message('toolUltraInstallBusy', 'en', [lock]));
+    throw new ServerFailure(text('toolUltraInstallBusy', lock));
   }
   try {
     if (isBuilt(dir)) return;
