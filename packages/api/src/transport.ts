@@ -29,6 +29,7 @@ export class ApiError extends Error {
     message: Words,
     hint?: Words,
     public readonly serverCode?: string,
+    public readonly httpStatus?: number,
   ) {
     const source = {
       code,
@@ -46,10 +47,10 @@ export class ApiError extends Error {
   }
 
   /** A failure body from the server: its catalog text when it sent one, else its prose. */
-  static fromServer(code: string, body: ServerFailureBody | undefined, fallback: Text): ApiError {
+  static fromServer(code: string, body: ServerFailureBody | undefined, fallback: Text, httpStatus?: number): ApiError {
     const message = isText(body?.text) ? body.text : (body?.message ?? fallback);
     const hint = isText(body?.hintText) ? body.hintText : body?.hint;
-    return new ApiError(code, message, hint, body?.code);
+    return new ApiError(code, message, hint, body?.code, httpStatus);
   }
 }
 

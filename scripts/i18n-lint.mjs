@@ -57,7 +57,10 @@ export function catalogKeys() {
       else visit(value);
     }
   })(parse(catalog, { sourceType: 'module', plugins: ['typescript', 'jsx'] }));
-  return keys;
+  return [
+    ...keys,
+    ...Object.keys(JSON.parse(readFileSync(resolve(root, 'packages/protocol/src/locales/en.json'), 'utf8'))),
+  ];
 }
 export function lintUI() {
   const tokens = JSON.parse(readFileSync(resolve(root, 'scripts/i18n-technical-tokens.json'), 'utf8')).tokens;

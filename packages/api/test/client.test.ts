@@ -63,7 +63,7 @@ function harness(
     const url = String(input);
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ url, init, body });
-    if (url.includes('/connect?')) {
+    if (new URL(url).searchParams.has('token')) {
       if (options.browser) return { status: 0, type: 'opaqueredirect' } as Response;
       const response = new Response(null, {
         status: 302,
@@ -126,6 +126,12 @@ function harness(
 const pairing = 'https://server.test/mount/connect?token=launch&interactions=answer';
 
 describe('independent API client', () => {
+  it('exchanges web links for the durable browser cookie instead of a single-socket API Peer', async () => {
+    const h = harness({ browser: true });
+    await h.client.connect(pairing);
+    expect(h.calls[0]?.url).toBe('https://server.test/mount/?token=launch&interactions=answer');
+    h.client.close();
+  });
   it('exchanges cookies, retains the mount, and correlates native RPCs without page globals', async () => {
     const h = harness();
     await h.client.connect(pairing);
@@ -435,6 +441,8 @@ describe('device API client', () => {
       output.enqueue(enc.encode(': heartbeat\r\n\r\ndata: {"type":"approval-'));
       output.enqueue(enc.encode('pending"}\r\n\r\n'));
       expect((await stream.next()).value).toEqual({ type: 'approval-pending' });
+      output.enqueue(enc.encode('data: {"type":"plugins-changed"}\n\n'));
+      expect((await stream.next()).value).toEqual({ type: 'plugins-changed' });
       const next = stream.next();
       abort.abort();
       expect(await next).toMatchObject({ done: true });
@@ -464,4 +472,16 @@ it('reports the paired native App connection on the prompt that sends the chat',
   } finally {
     h.client.close();
   }
+});
+
+it('resumes browser sessions without exchanging the old launch token and keeps native resume unavailable', async () => {
+  const h = harness({ browser: true });
+  await h.client.resume('https://server.test/mount/');
+  expect(h.calls).toEqual([]);
+  expect(h.factory).toHaveBeenCalledWith('wss://server.test/mount/api/remote.mux', { headers: {} });
+  await h.client.listPlugins();
+  h.client.close();
+  const native = harness();
+  await expect(native.client.resume('https://server.test/')).rejects.toMatchObject({ code: 'invalid-state' });
+  expect(native.factory).not.toHaveBeenCalled();
 });

@@ -1,3 +1,4 @@
+import { messageEn, messageZh } from '@swiftnest/api';
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { PropsWithChildren } from 'react';
 
@@ -187,6 +188,26 @@ export const en = {
   desktop: 'Desktop app',
   web: 'Web app',
   skipToContent: 'Skip to content',
+  pluginsTitle: messageEn.pluginsTitle,
+  pluginsHelp: messageEn.pluginsHelp,
+  pluginsLocked: messageEn.pluginsLocked,
+  pluginsCommunity: messageEn.pluginsCommunity,
+  pluginsNotReviewed: messageEn.pluginsNotReviewed,
+  pluginsApply: messageEn.pluginsApply,
+  pluginsApplyHelp: messageEn.pluginsApplyHelp,
+  pluginsPreparing: messageEn.pluginsPreparing,
+  pluginsRestarting: messageEn.pluginsRestarting,
+  pluginsRestored: messageEn.pluginsRestored,
+  pluginsRetry: messageEn.pluginsRetry,
+  pluginsPairRequired: messageEn.pluginsPairRequired,
+  pluginsPairHelp: messageEn.pluginsPairHelp,
+  pluginsReconnect: messageEn.pluginsReconnect,
+  pluginsEnable: messageEn.pluginsEnable,
+  pluginsCancel: messageEn.pluginsCancel,
+  pluginsMarketWarning: messageEn.pluginsMarketWarning,
+  pluginsRequestFailed: messageEn.pluginsRequestFailed,
+  pluginsOwnerOnly: messageEn.pluginsOwnerOnly,
+  pluginsLoading: messageEn.pluginsLoading,
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -367,6 +388,26 @@ export const zhCN: Record<StringKey, string> = {
   desktop: '桌面应用',
   web: '网页应用',
   skipToContent: '跳转到内容',
+  pluginsTitle: messageZh.pluginsTitle,
+  pluginsHelp: messageZh.pluginsHelp,
+  pluginsLocked: messageZh.pluginsLocked,
+  pluginsCommunity: messageZh.pluginsCommunity,
+  pluginsNotReviewed: messageZh.pluginsNotReviewed,
+  pluginsApply: messageZh.pluginsApply,
+  pluginsApplyHelp: messageZh.pluginsApplyHelp,
+  pluginsPreparing: messageZh.pluginsPreparing,
+  pluginsRestarting: messageZh.pluginsRestarting,
+  pluginsRestored: messageZh.pluginsRestored,
+  pluginsRetry: messageZh.pluginsRetry,
+  pluginsPairRequired: messageZh.pluginsPairRequired,
+  pluginsPairHelp: messageZh.pluginsPairHelp,
+  pluginsReconnect: messageZh.pluginsReconnect,
+  pluginsEnable: messageZh.pluginsEnable,
+  pluginsCancel: messageZh.pluginsCancel,
+  pluginsMarketWarning: messageZh.pluginsMarketWarning,
+  pluginsRequestFailed: messageZh.pluginsRequestFailed,
+  pluginsOwnerOnly: messageZh.pluginsOwnerOnly,
+  pluginsLoading: messageZh.pluginsLoading,
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];

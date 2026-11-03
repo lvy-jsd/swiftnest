@@ -30,7 +30,7 @@ SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 
 `src/connection.tsx` 管理唯一的临时 `@swiftnest/api` 客户端。localStorage 只保存服务器根地址
 （`swiftnest.serverRoot`），令牌和原生 Cookie 只保存在内存中，网页 Cookie 留在浏览器 Cookie jar。
-阶段 0 刷新或断线后需要“重新配对”，不会自动重发消息或重试写入。重新打开聊天时恢复服务器最近的记录；
+除应用插件时的预期重启外，刷新或断线后需要“重新配对”，不会自动重发消息或重试写入。重新打开聊天时恢复服务器最近的记录；
 更早历史分页和交互式审批/问题控件留待后续。
 
 桌面和 Android 环境由 `isTauriRuntime()` 检测后动态加载 `src/nativeTransport.ts`，网页不会加载 Tauri 模块。
@@ -40,7 +40,7 @@ SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 详见[集成说明](../docs/en/dev/dsh-integration.md)。
 
 能力仅授予本地 **main** 窗口，不向远程页面开放 IPC。HTTP 范围仅包含 HTTP(S) 下用户选择的任意主机和端口，
-路径限定为 `/connect`、`/api/*`、`/swiftnest/health`；局域网主机无法预先枚举。
+路径限定为 `/connect`、`/api/*`、`/swiftnest/health`、插件 API、设备事件及语言设置 API；局域网主机无法预先枚举。
 官方 WebSocket 插件当前没有 URL 范围配置，因此只授予必要的 `allow-connect`、`allow-send`，
 应用根据配对后的根地址派生连接地址。没有添加文件系统、Shell 或导航权限。
 上述 HTTP 范围对应服务器根路径部署；原生应用若使用带路径前缀的反向代理，需要明确调整能力范围。
@@ -49,6 +49,16 @@ SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
 Windows 需要 Rust/MSVC 与 WebView2。
 保留中英切换、系统/明暗主题、强调色、减少动态/透明效果和无障碍弹层；600 像素起双栏、1024 像素起桌面侧栏，
 支持 Alt+左方向键返回及手机左边缘滑动返回。
+
+## 推荐插件
+
+在主菜单打开**推荐插件**（仅服务器所有者可见）。推荐项在前，每项显示说明和开关。
+开启带有提示的插件前需要确认；社区插件市场会额外说明插件未经 Swiftnest 检查。
+管理员锁定的开关不可修改；社区安装的包单独列出并标注“未审核”。
+调整后点**应用**，助手会短暂重启。页面显示准备和重启进度，网页版自动重连并刷新。
+原生 App 如显示“需要重新连接”，点“重新连接”，使用新的连接链接配对后会回到插件页。
+新插件启动失败并回退时显示“新插件没能启动，已恢复之前的设置”；其他失败显示说明并可重试。
+重连不会重发消息或新建聊天。详见[插件说明](../docs/zh/guide/plugins.md)。
 
 ## Android（arm64 调试 APK）
 

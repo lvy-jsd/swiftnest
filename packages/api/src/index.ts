@@ -93,11 +93,20 @@ export class SwiftnestClient {
     this.root = new URL('./', url);
     this.state = 'connecting';
     try {
-      const response = await this.request(url, { redirect: 'manual' });
+      // API pairings own one ephemeral Peer; browser sessions have a durable owner cookie.
+      const exchange = this.manualCookies ? url : new URL('./', url);
+      if (!this.manualCookies) exchange.search = url.search;
+      const response = await this.request(exchange, { redirect: 'manual' });
       // Browser fetch deliberately hides redirect status/headers; its cookie jar
       // still processes Set-Cookie. Socket authentication verifies the exchange.
       if (response.status !== 302 && !(response.type === 'opaqueredirect' && !this.manualCookies))
-        throw new ApiError('pairing-failed', text('pairingReturnedHttp', response.status));
+        throw new ApiError(
+          'pairing-failed',
+          text('pairingReturnedHttp', response.status),
+          undefined,
+          undefined,
+          response.status,
+        );
       if (this.manualCookies) {
         const cookies =
           typeof response.headers.getSetCookie === 'function'
@@ -106,29 +115,47 @@ export class SwiftnestClient {
         this.cookie = cookies.map((value) => value.split(';', 1)[0]!.trim()).join('; ');
         if (!this.cookie) throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
       }
-      const socketUrl = new URL('api/remote.mux', this.root);
-      socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-      if (this.manualCookies && !this.options.createWebSocket)
-        throw new ApiError('transport-required', text('nodeRequiresCreatewebsocketCookieHeaderSupport'));
-      const socket = this.options.createWebSocket
-        ? this.options.createWebSocket(socketUrl.href, { headers: this.headers() })
-        : new WebSocket(socketUrl.href);
-      this.connectingSocket = socket;
-      this.mux = await Mux.open(socket, this.timeoutMs);
-      this.connectingSocket = undefined;
-      this.lifetime.signal.throwIfAborted();
-      const events = this.mux.stream('$events', {});
-      const first = await this.withTimeout(events.next());
-      const ready = first.value as RemoteEventDownlinkFrame;
-      if (first.done || ready?.type !== 'ready')
-        throw new ApiError('protocol-error', text('eventStreamDidNotBeginReady'));
-      this.clientId = ready.clientId;
-      this.state = 'connected';
-      void this.pumpInteractions(events);
+      await this.openTransport();
     } catch (error) {
       this.close();
       throw error;
     }
+  }
+
+  /** Reopen a web session using its existing HttpOnly cookie after an expected restart. */
+  async resume(root: string): Promise<void> {
+    if (this.state !== 'new' || this.manualCookies)
+      throw new ApiError('invalid-state', text('createNewClientEachPairing'));
+    this.root = new URL(root);
+    this.state = 'connecting';
+    try {
+      await this.openTransport();
+    } catch (error) {
+      this.close();
+      throw error;
+    }
+  }
+
+  private async openTransport(): Promise<void> {
+    const socketUrl = new URL('api/remote.mux', this.root!);
+    socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (this.manualCookies && !this.options.createWebSocket)
+      throw new ApiError('transport-required', text('nodeRequiresCreatewebsocketCookieHeaderSupport'));
+    const socket = this.options.createWebSocket
+      ? this.options.createWebSocket(socketUrl.href, { headers: this.headers() })
+      : new WebSocket(socketUrl.href);
+    this.connectingSocket = socket;
+    this.mux = await Mux.open(socket, this.timeoutMs);
+    this.connectingSocket = undefined;
+    this.lifetime.signal.throwIfAborted();
+    const events = this.mux.stream('$events', {});
+    const first = await this.withTimeout(events.next());
+    const ready = first.value as RemoteEventDownlinkFrame;
+    if (first.done || ready?.type !== 'ready')
+      throw new ApiError('protocol-error', text('eventStreamDidNotBeginReady'));
+    this.clientId = ready.clientId;
+    this.state = 'connected';
+    void this.pumpInteractions(events);
   }
 
   async health(): Promise<Health> {
@@ -280,6 +307,7 @@ export class SwiftnestClient {
                   'approvals-changed',
                   'pairing-changed',
                   'transfers-changed',
+                  'plugins-changed',
                 ].includes(event.type)
               )
                 throw new ApiError('protocol-error', text('unknownDeviceEvent'));
@@ -317,7 +345,7 @@ export class SwiftnestClient {
     if (!response.ok) {
       const failure = (await response.json().catch(() => undefined)) as ServerFailureBody | undefined;
       const code = response.status === 409 ? 'device-conflict' : 'http-error';
-      throw ApiError.fromServer(code, failure, text('deviceApiReturnedHttp', response.status));
+      throw ApiError.fromServer(code, failure, text('deviceApiReturnedHttp', response.status), response.status);
     }
     return (await response.json()) as T;
   }
