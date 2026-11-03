@@ -418,7 +418,7 @@ async fn establish(
         if status["status"] != "code_ok" {
             return Err(Failure::new(
                 "PAIRING_REJECTED",
-                "Wrong or expired pairing code",
+                "Wrong or expired pairing code.",
             ));
         }
         let (tx, rx) = oneshot::channel();
@@ -568,7 +568,7 @@ async fn session(
             tokio::select! {
                 biased;
                 _ = stop.cancelled() => {
-                    let bye = channel.cipher.seal(&json!({"type":"bye","code":"DEVICE_DISCONNECTED","message":"Disconnected on this device"}))?;
+                    let bye = channel.cipher.seal(&json!({"type":"bye","code":"DEVICE_DISCONNECTED","message":"Disconnected on this device."}))?;
                     let _ = timeout(Duration::from_secs(1), writer.send(Message::Text(bye.into()))).await;
                     return Ok(());
                 },
@@ -636,7 +636,7 @@ async fn session(
                                 let work = async { cap?.invoke(&tool, Value::Object(args), context).await };
                                 let result = tokio::select! {
                                     biased;
-                                    _ = cancel.cancelled() => Err(Failure::new("CANCELLED", "Cancelled by request")),
+                                    _ = cancel.cancelled() => Err(Failure::new("CANCELLED", "Cancelled by request.")),
                                     result = timeout(Duration::from_millis(timeout_ms), work) => result.unwrap_or_else(|_| Err(Failure::new("TIMEOUT", "Tool timed out; retry with a longer timeout"))),
                                 };
                                 cancel.cancel();
@@ -674,7 +674,7 @@ async fn send_frame(
 ) -> Result<()> {
     tokio::select! {
         biased;
-        _ = stop.cancelled() => Err(Failure::new("DEVICE_DISCONNECTED", "Disconnected on this device")),
+        _ = stop.cancelled() => Err(Failure::new("DEVICE_DISCONNECTED", "Disconnected on this device.")),
         result = timeout(Duration::from_secs(5), writer.send(message)) => {
             result.map_err(|_| Failure::new("DISCONNECTED", "Nest stopped reading the link"))?
                 .map_err(|e| Failure::new("DISCONNECTED", e.to_string()))

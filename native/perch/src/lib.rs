@@ -27,7 +27,7 @@ impl Failure {
         Self {
             code: code.into(),
             message: i18n::failure_message(code, &diagnostic),
-            hint: i18n::text("retryHint"),
+            hint: i18n::text("retryHintDevice"),
             diagnostic,
             retryable: matches!(code, "TIMEOUT" | "DISCONNECTED" | "NEST_UNREACHABLE"),
         }

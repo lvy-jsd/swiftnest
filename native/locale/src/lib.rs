@@ -1,4 +1,5 @@
-//! Small owner-facing catalog shared by the desktop and Android hosts.
+//! The Swiftnest message catalog for the desktop and Android hosts: the same files the TypeScript
+//! packages use, so every key means one thing everywhere.
 use regex::Regex;
 use std::{
     collections::BTreeMap,
@@ -8,8 +9,8 @@ use std::{
     },
 };
 static LANGUAGE: AtomicU8 = AtomicU8::new(0);
-pub const EN_JSON: &str = include_str!("locales/en.json");
-pub const ZH_JSON: &str = include_str!("locales/zh-CN.json");
+pub const EN_JSON: &str = include_str!("../../../packages/protocol/src/locales/en.json");
+pub const ZH_JSON: &str = include_str!("../../../packages/protocol/src/locales/zh-CN.json");
 static EN: LazyLock<BTreeMap<String, String>> =
     LazyLock::new(|| serde_json::from_str(EN_JSON).expect("en catalog"));
 static ZH: LazyLock<BTreeMap<String, String>> =
@@ -108,7 +109,7 @@ pub fn failure_message(code: &str, source: &str) -> String {
     if english() {
         source.into()
     } else {
-        translated(source).unwrap_or_else(|| text("fallbackError").replace("{code}", code))
+        translated(source).unwrap_or_else(|| text("fallbackError").replace("{0}", code))
     }
 }
 /// Localize owner console output without changing protocol fields or user payloads.
@@ -126,7 +127,10 @@ mod tests {
         for value in ZH.values() {
             assert!(!value.is_empty());
         }
-        assert_eq!(translated("command is empty").unwrap(), "command 不能为空");
+        assert_eq!(
+            translated("command is empty.").unwrap(),
+            "command 不能为空。"
+        );
         assert_eq!(translated("port is required").unwrap(), "必须提供 port");
         assert_eq!(
             translated("Source changed; start a new transfer").unwrap(),

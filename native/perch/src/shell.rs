@@ -240,7 +240,7 @@ impl Capability for Shell {
         }
         let command = string_arg(&args, "command")?.trim();
         if command.is_empty() {
-            return Err(Failure::new("BAD_ARGS", "command is empty"));
+            return Err(Failure::new("BAD_ARGS", "command is empty."));
         }
         let root = self
             .guard
@@ -307,7 +307,7 @@ impl Capability for Shell {
         };
         let (out, err, status) = tokio::select! {
             biased;
-            _ = ctx.cancel.cancelled() => { return Err(Failure::new("CANCELLED", "Cancelled by request")); },
+            _ = ctx.cancel.cancelled() => { return Err(Failure::new("CANCELLED", "Cancelled by request.")); },
             result = work => result?,
         };
         let remaining = MAX_OUTPUT.saturating_sub(out.0.len());

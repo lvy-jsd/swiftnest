@@ -70,7 +70,7 @@ impl Files {
     fn call(&self, tool: &str, args: &Value, ctx: InvokeContext) -> Result<ToolResult> {
         let cancelled = || {
             if ctx.cancel.is_cancelled() {
-                Err(Failure::new("CANCELLED", "Cancelled by request"))
+                Err(Failure::new("CANCELLED", "Cancelled by request."))
             } else {
                 Ok(())
             }
@@ -189,7 +189,7 @@ impl Files {
                 let path = allowed("path")?;
                 let content = args["content"]
                     .as_str()
-                    .ok_or_else(|| Failure::new("BAD_ARGS", "content must be a string"))?;
+                    .ok_or_else(|| Failure::new("BAD_ARGS", "content must be a string."))?;
                 fs::create_dir_all(
                     path.parent()
                         .ok_or_else(|| Failure::new("BAD_ARGS", "Invalid parent"))?,
@@ -241,7 +241,7 @@ impl Files {
                     if realish(root)? == path {
                         return Err(Failure::new(
                             "PATH_REFUSED",
-                            "Refusing to delete a shared root folder itself",
+                            "Refusing to delete a shared root folder itself.",
                         ));
                     }
                 }

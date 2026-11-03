@@ -92,7 +92,7 @@ mod tests {
     use super::*;
     #[test]
     fn untrusted_file_contents_stay_exact_even_when_they_match_catalog_text() {
-        let text = "command is empty";
+        let text = "command is empty.";
         let result = ToolResult::data(text, serde_json::json!({"path":"notes.txt"}), true);
         assert_eq!(result.text, text);
     }
