@@ -331,3 +331,5 @@ export const LinkMessage = z.discriminatedUnion('type', [
   PairConfirm,
 ]);
 export type LinkMessage = z.infer<typeof LinkMessage>;
+
+export type * from './memory.js';

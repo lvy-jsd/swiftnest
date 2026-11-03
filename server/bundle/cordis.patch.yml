@@ -14,3 +14,8 @@
       config:
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN
+    - id: swiftnest-memory
+      name: "@swiftnest/server-bundle/memory"
+      config:
+        home: !!js process.env.SWIFTNEST_HOME
+        enabled: !!js process.env.SWIFTNEST_MEMORY !== 'false'

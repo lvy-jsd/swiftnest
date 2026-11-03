@@ -43,6 +43,8 @@ export interface ServerConfig {
   pluginLocks: Record<string, boolean>;
   model: ModelConfig;
   files?: { quotaBytes: number };
+  /** Built-in central memory: on without installing or configuring a plugin. */
+  memory?: { enabled: boolean };
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -74,6 +76,13 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
   }
   const num = (v: string | undefined) => (v === undefined || v === '' ? undefined : Number(v));
   const appDist = env.SWIFTNEST_APP_DIST || fromFile.appDist;
+  if (env.SWIFTNEST_MEMORY !== undefined && !['true', 'false'].includes(env.SWIFTNEST_MEMORY))
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
+  if (
+    fromFile.memory !== undefined &&
+    (!fromFile.memory || typeof fromFile.memory !== 'object' || typeof fromFile.memory.enabled !== 'boolean')
+  )
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
   const pluginLocks = parsePluginsEnv(env.SWIFTNEST_PLUGINS);
   const config: ServerConfig = {
     lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'en' : 'zh-CN',
@@ -88,6 +97,10 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
         ? 'You are a helpful assistant in Swiftnest, powered by the {{model}} model.'
         : DEFAULT_PERSONA),
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName,
+    memory: {
+      enabled:
+        env.SWIFTNEST_MEMORY === undefined ? (fromFile.memory?.enabled ?? true) : env.SWIFTNEST_MEMORY === 'true',
+    },
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
     devices: {
@@ -112,6 +125,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
+    throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
     throw new ServerFailure(text('assistantNameMustString'));
   checkOverrides(config.plugins);

@@ -1,0 +1,202 @@
+/** Real Apply → DSH process replacement → cookie reconnect; no registry or model network traffic. */
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import type { AddressInfo } from 'node:net';
+import type { Page } from '@playwright/test';
+import { expect, it } from 'vitest';
+import type { ApiWebSocket, PluginsView } from '@swiftnest/api';
+import { loadConfig } from '../../server/src/config';
+import type { RunningKernel } from '../../server/src/kernel';
+import { startStableKernel } from '../../server/test/fixtures/kernel';
+import { pairingUrl, webAppUrl } from '../../server/src/pairing';
+import { PLUGIN_MANIFEST } from '../../server/src/plugins';
+import { ConnectionStore } from '../src/connection';
+import { launchChromium } from './browser';
+
+const { WebSocket } = createRequire(new URL('../../server/package.json', import.meta.url))('ws') as {
+  WebSocket: new (url: string, options: { headers: Readonly<Record<string, string>> }) => ApiWebSocket;
+};
+
+async function respond(req: IncomingMessage, res: ServerResponse) {
+  if (req.url === '/v1/models') {
+    res.end('{"data":[{"id":"fake"}]}');
+    return;
+  }
+  if (req.url !== '/v1/chat/completions') {
+    res.writeHead(404).end();
+    return;
+  }
+  let body = '';
+  for await (const chunk of req) body += String(chunk);
+  if (!JSON.parse(body).stream) {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Restart chat' } }] }));
+    return;
+  }
+  res.writeHead(200, { 'content-type': 'text/event-stream' });
+  for (const [delta, finish_reason] of [
+    [{ role: 'assistant', content: 'Reply after real restart.' }, null],
+    [{}, 'stop'],
+  ]) {
+    const chunk = { id: 'fake', model: 'fake', choices: [{ index: 0, delta, finish_reason }] };
+    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+  res.end('data: [DONE]\n\n');
+}
+
+async function startApplyKernel(home: string, modelUrl: string, logs: string[], ready: () => void) {
+  // DSH's bundled market needs no installation. Disable other optional plugins in
+  // the base config (not env locks) so Apply cannot invoke npm or git installers.
+  const config = loadConfig(undefined, {
+    SWIFTNEST_HOME: home,
+    SWIFTNEST_LANG: 'en',
+    SWIFTNEST_HOST: '127.0.0.1',
+    SWIFTNEST_DEVICES_PORT: '0',
+    SWIFTNEST_DEVICES_MDNS: 'false',
+    SWIFTNEST_APP_DIST: fileURLToPath(new URL('../dist/', import.meta.url)),
+    SWIFTNEST_MODEL_ID: 'fake',
+    SWIFTNEST_MODEL_BASE_URL: modelUrl,
+  });
+  config.plugins = Object.fromEntries(PLUGIN_MANIFEST.plugins.map(({ id }) => [id, id === 'market']));
+  return startStableKernel(config, {
+    readyTimeoutMs: 20_000,
+    onReady: ready,
+    onLine: (line) => logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
+  });
+}
+
+async function pluginsView(page: Page): Promise<PluginsView> {
+  return page.evaluate(async () => {
+    const response = await fetch('/swiftnest/api/plugins');
+    if (!response.ok) throw new Error(`plugins HTTP ${response.status}`);
+    return response.json();
+  });
+}
+
+async function createChat(page: Page) {
+  await page.getByRole('button', { name: 'New chat', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Write a message' }).waitFor();
+  const route = page.url().split('#')[1]!;
+  await page.getByRole('button', { name: 'Go back', exact: true }).click();
+  const links = page.getByRole('main').locator('a[href^="#/chats/"]');
+  await links.first().waitFor();
+  expect(await links.count()).toBe(1);
+  return route;
+}
+
+async function chatAfterRestart(page: Page, route: string) {
+  await page.getByRole('button', { name: 'Go back', exact: true }).click();
+  const links = page.getByRole('main').locator('a[href^="#/chats/"]');
+  await links.first().waitFor();
+  expect(await links.count()).toBe(1);
+  expect(await links.first().getAttribute('href')).toBe(`#${route}`);
+  await links.first().click();
+  await page.getByRole('textbox', { name: 'Write a message' }).fill('hi after restart');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  const messages = page.getByRole('list', { name: 'Messages' });
+  await messages.getByText('Reply after real restart.', { exact: true }).waitFor();
+  await expect.poll(() => messages.locator('[data-streaming="true"]').count()).toBe(0);
+  expect(await messages.getByText('hi after restart', { exact: true }).count()).toBe(1);
+  expect(await messages.getByText('Reply after real restart.', { exact: true }).count()).toBe(1);
+  await page.getByRole('button', { name: 'Go back', exact: true }).click();
+  await expect.poll(() => page.getByRole('main').locator('a[href^="#/chats/"]').count()).toBe(1);
+}
+
+function observeBrowser(page: Page) {
+  const errors: string[] = [];
+  const exchanges: string[] = [];
+  let sockets = 0;
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('websocket', () => ++sockets);
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.searchParams.has('token')) exchanges.push(url.pathname);
+  });
+  return { errors, exchanges, sockets: () => sockets };
+}
+
+async function applyAndReconnect(page: Page, kernel: RunningKernel, native: ConnectionStore, readyCount: () => number) {
+  const originalChild = kernel.child;
+  const originalToken = kernel.token;
+  await page.getByRole('main').getByRole('link', { name: 'Recommended plugins', exact: true }).click();
+  const initial = await pluginsView(page);
+  const market = initial.plugins.find((plugin) => plugin.id === 'market')!;
+  expect(market).toMatchObject({ active: true, enabled: true, locked: false });
+  const toggle = page.getByRole('switch', { name: market.title, exact: true });
+  await toggle.click();
+  await expect.poll(() => toggle.isChecked()).toBe(false);
+  native.expectPluginRestart(true);
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect.poll(readyCount, { timeout: 25_000 }).toBe(2);
+  expect(kernel.child.pid).not.toBe(originalChild.pid);
+  expect(originalChild.exitCode !== null || originalChild.signalCode !== null).toBe(true);
+  expect(kernel.token).not.toBe(originalToken);
+  await expect.poll(() => toggle.isEnabled(), { timeout: 15_000 }).toBe(true);
+  expect(await pluginsView(page)).toMatchObject({
+    pending: false,
+    apply: { state: 'idle' },
+    plugins: expect.arrayContaining([expect.objectContaining({ id: 'market', active: false, enabled: false })]),
+  });
+  expect(page.url()).toContain('#/plugins');
+  await expect.poll(() => native.getSnapshot().pluginRestart, { timeout: 15_000 }).toBe('pair-required');
+  expect(native.getSnapshot()).toMatchObject({ status: 'disconnected', error: undefined });
+  expect(native.client).toBeUndefined();
+}
+
+async function exerciseApply(page: Page, kernel: RunningKernel, native: ConnectionStore, readyCount: () => number) {
+  expect(await native.pair(pairingUrl(kernel.url, kernel.token))).toBe(true);
+  const observed = observeBrowser(page);
+  await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
+  await page.goto(webAppUrl(kernel.url, kernel.token));
+  await page.getByRole('main').getByRole('link', { name: 'Memory', exact: true }).waitFor();
+  const route = await createChat(page);
+  await applyAndReconnect(page, kernel, native, readyCount);
+  expect(observed.sockets()).toBeGreaterThan(1);
+  expect(observed.exchanges).toEqual(['/']);
+  await chatAfterRestart(page, route);
+  // Re-pairing the native client with the new token sees the same single session.
+  expect(await native.pair(pairingUrl(kernel.url, kernel.token))).toBe(true);
+  expect(await native.client!.listSessions()).toMatchObject([{ sessionId: route.split('/').at(-1) }]);
+  expect(observed.errors).toEqual([]);
+}
+
+it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !== '1')(
+  'real Apply replaces DSH, browser owner reconnects, native client needs pairing, and one chat survives',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'swiftnest-apply-real-'));
+    const browser = await launchChromium();
+    const model = createServer((req, res) => void respond(req, res));
+    const logs: string[] = [];
+    const native = new ConnectionStore(async () => ({
+      cookieMode: 'manual',
+      timeoutMs: 2000,
+      createWebSocket: (url, options) => new WebSocket(url, options),
+    }));
+    let kernel: RunningKernel | undefined;
+    let readyCount = 0;
+    try {
+      await new Promise<void>((resolve) => model.listen(0, '127.0.0.1', resolve));
+      kernel = await startApplyKernel(
+        home,
+        `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
+        logs,
+        () => ++readyCount,
+      );
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await exerciseApply(page, kernel, native, () => readyCount);
+    } catch (error) {
+      throw new Error(`${String(error)}\n${logs.slice(-40).join('\n')}`, { cause: error });
+    } finally {
+      native.disconnect();
+      await browser.close();
+      await kernel?.stop();
+      await new Promise<void>((resolve) => model.close(() => resolve()));
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);

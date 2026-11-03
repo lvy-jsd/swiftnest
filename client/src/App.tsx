@@ -1,4 +1,5 @@
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
+import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
@@ -430,6 +431,7 @@ function AppContent() {
   const devicesPage = hash.startsWith('#/devices');
   const pluginsPage = hash.startsWith('#/plugins');
   const transfersPage = hash.startsWith('#/transfers');
+  const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
     Avatar = icons.avatar;
   const visibleChats = sessions.filter((item) =>
@@ -555,6 +557,9 @@ function AppContent() {
             {t('pluginsTitle')}
           </a>
         )}
+        <a className="devices-link" href="#/memory">
+          {t('memory')}
+        </a>
         <nav aria-label={t('chatNavigation')}>
           <VirtualList
             items={sessions}
@@ -588,6 +593,8 @@ function AppContent() {
         >
           {pluginsPage ? (
             <PluginsPage onBack={goHome} />
+          ) : memoryPage ? (
+            <MemoryPage key={status} onBack={goHome} />
           ) : transfersPage ? (
             <TransfersPage onBack={goHome} />
           ) : devicesPage ? (
@@ -595,7 +602,12 @@ function AppContent() {
           ) : pairing ? (
             <PairPage onBack={goHome} />
           ) : chatId ? (
-            <ChatDetail key={chatId} sessionId={chatId} onBack={goHome} onOptions={() => setPreferences(true)} />
+            <ChatDetail
+              key={`${chatId}:${status}`}
+              sessionId={chatId}
+              onBack={goHome}
+              onOptions={() => setPreferences(true)}
+            />
           ) : (
             <HubPage
               title={t('chats')}
@@ -618,6 +630,9 @@ function AppContent() {
                   {t('pluginsTitle')}
                 </a>
               )}
+              <a className="devices-link" href="#/memory">
+                {t('memory')}
+              </a>
               <DeviceApprovals compact />
               <TransferCards compact />
               <LiveDeviceButton />

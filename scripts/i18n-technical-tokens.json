@@ -308,6 +308,13 @@
     "you",
     "youControl",
     "zh-CN",
-    "{count}"
+    "{count}",
+    "#/memory",
+    "start",
+    "loaded",
+    "memory-entries",
+    "memory-actions",
+    "memory-form",
+    "memory-item"
   ]
 }

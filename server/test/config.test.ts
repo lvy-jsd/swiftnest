@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MODEL, DEFAULT_PORT, DEFAULT_PERSONA, loadConfig } from '../src/config.js';
+import { DEFAULT_MODEL, DEFAULT_PORT, DEFAULT_PERSONA, loadConfig, validate } from '../src/config.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'swiftnest-config-'));
 
@@ -113,3 +113,36 @@ it.each(['42', 'false', '[]', '{}', 'null'])('rejects non-string assistantName: 
   writeFileSync(file, `assistantName: ${value}\n`);
   expect(() => loadConfig(file, {})).toThrow('assistantName must be a string');
 });
+
+it('defaults memory on, accepts explicit off, and rejects invalid memory configuration', () => {
+  expect(loadConfig(undefined, {}).memory).toEqual({ enabled: true });
+  expect(loadConfig(undefined, { SWIFTNEST_MEMORY: 'false' }).memory).toEqual({ enabled: false });
+  expect(() => loadConfig(undefined, { SWIFTNEST_MEMORY: 'no' })).toThrow(/memory.enabled/);
+  const config = loadConfig(undefined, {});
+  expect(() => validate({ ...config, memory: { enabled: 'false' as unknown as boolean } })).toThrow(/memory.enabled/);
+});
+
+it('keeps built-in memory independent of third-party plugin overrides, with environment precedence', () => {
+  const file = join(tmp(), 'memory.yaml');
+  writeFileSync(file, 'memory: { enabled: false }\nplugins: { tool-ultra: false, im: true }\n');
+  const fromFile = loadConfig(file, {});
+  expect(fromFile.memory).toEqual({ enabled: false });
+  expect(fromFile.plugins).toEqual({ 'tool-ultra': false, im: true });
+  expect(fromFile.pluginLocks).toEqual({});
+  const fromEnv = loadConfig(file, { SWIFTNEST_MEMORY: 'true', SWIFTNEST_PLUGINS: 'im=false' });
+  expect(fromEnv.memory).toEqual({ enabled: true });
+  expect(fromEnv.plugins).toEqual({ 'tool-ultra': false, im: false });
+  expect(fromEnv.pluginLocks).toEqual({ im: false });
+  writeFileSync(file, 'memory: { enabled: true }\n');
+  expect(loadConfig(file, { SWIFTNEST_MEMORY: 'false' }).memory).toEqual({ enabled: false });
+  expect(loadConfig(undefined, { SWIFTNEST_PLUGINS: 'tool-ultra=false' }).memory).toEqual({ enabled: true });
+});
+
+it.each(['false', '[]', '{}', 'null', '{ enabled: "false" }'])(
+  'rejects malformed memory YAML even when the environment overrides it: %s',
+  (value) => {
+    const file = join(tmp(), 'memory.yaml');
+    writeFileSync(file, `memory: ${value}\n`);
+    expect(() => loadConfig(file, { SWIFTNEST_MEMORY: 'true' })).toThrow(/memory.enabled/);
+  },
+);

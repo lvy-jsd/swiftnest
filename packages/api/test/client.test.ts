@@ -54,6 +54,7 @@ function harness(
     browser?: boolean;
     legacyHeaders?: boolean;
     deviceSlug?: string;
+    memory?: (url: string, init: RequestInit) => Response;
     devices?: (url: string, init: RequestInit) => Response;
   } = {},
 ) {
@@ -78,6 +79,8 @@ function harness(
       return response;
     }
     if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
+    if (url.includes('/swiftnest/api/memory'))
+      return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
     if (url.includes('/swiftnest/api/plugins')) return Response.json({ plugins: [] });
     const value =
@@ -130,6 +133,10 @@ describe('independent API client', () => {
     const h = harness({ browser: true });
     await h.client.connect(pairing);
     expect(h.calls[0]?.url).toBe('https://server.test/mount/?token=launch&interactions=answer');
+    expect(h.calls[0]?.init).toMatchObject({ redirect: 'manual', credentials: 'include' });
+    expect(h.factory).toHaveBeenCalledWith('wss://server.test/mount/api/remote.mux', { headers: {} });
+    await h.client.listPlugins();
+    expect(h.calls.at(-1)?.init.credentials).toBe('include');
     h.client.close();
   });
   it('exchanges cookies, retains the mount, and correlates native RPCs without page globals', async () => {
@@ -484,4 +491,45 @@ it('resumes browser sessions without exchanging the old launch token and keeps n
   const native = harness();
   await expect(native.client.resume('https://server.test/')).rejects.toMatchObject({ code: 'invalid-state' });
   expect(native.factory).not.toHaveBeenCalled();
+});
+
+it('uses authenticated central memory endpoints and preserves catalog errors', async () => {
+  const { client, calls } = harness({
+    memory: (_url, init) => {
+      const body = init.body ? JSON.parse(String(init.body)) : undefined;
+      if (body?.text === 'rejected')
+        return Response.json({ code: 'MEMORY_SECRET', text: { key: 'memorySecret' } }, { status: 400 });
+      return Response.json({ entries: [], topics: [] });
+    },
+  });
+  await client.connect(pairing);
+  try {
+    await client.listPlugins();
+    await client.listMemory();
+    await client.addMemory('fact', 'Work');
+    await client.editMemory('id-one', 'updated');
+    await client.deleteMemory('id-one');
+    await client.readMemoryTopic('中文 space');
+    await client.writeMemoryTopic('Work', '- next');
+    const memory = calls.filter((call) => call.url.includes('/swiftnest/api/memory'));
+    expect(memory.map((call) => new URL(call.url).pathname)).toEqual([
+      '/mount/swiftnest/api/memory',
+      '/mount/swiftnest/api/memory/add',
+      '/mount/swiftnest/api/memory/edit',
+      '/mount/swiftnest/api/memory/delete',
+      '/mount/swiftnest/api/memory/topic',
+      '/mount/swiftnest/api/memory/topic',
+    ]);
+    expect(new URL(memory[4]!.url).searchParams.get('topic')).toBe('中文 space');
+    expect(memory.every((call) => (call.init.headers as Record<string, string>).cookie === 'dsh_api=secret')).toBe(
+      true,
+    );
+    expect(memory[1]!.body).toEqual({ text: 'fact', topic: 'Work' });
+    await expect(client.addMemory('rejected')).rejects.toMatchObject({
+      text: { key: 'memorySecret' },
+      serverCode: 'MEMORY_SECRET',
+    });
+  } finally {
+    client.close();
+  }
 });

@@ -417,6 +417,9 @@ importers:
 
   server/bundle:
     dependencies:
+      '@swiftnest/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@swiftnest/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
