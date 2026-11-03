@@ -59,26 +59,26 @@ Turn plugins on or off by id with YAML `plugins: { im: true, tool-ultra: false }
 
 Optional YAML file (`swiftnest-server start --config swiftnest.yaml`); environment variables override it.
 
-| Field                                                  | Env                        | Default                                                                     |
-| ------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------- |
-| `plugins` (id → `true`/`false`)                        | `SWIFTNEST_PLUGINS`        | defaults from `server/plugins.json`                                         |
-| `home`                                                 | `SWIFTNEST_HOME`           | `$XDG_DATA_HOME/swiftnest`                                                  |
-| `host` (one concrete IP, never `0.0.0.0`)              | `SWIFTNEST_HOST`           | `127.0.0.1`                                                                 |
-| `port`                                                 | `SWIFTNEST_PORT`           | `3077`                                                                      |
-| `devices.host`                                         | `SWIFTNEST_DEVICES_HOST`   | server `host`                                                               |
-| `devices.port`                                         | `SWIFTNEST_DEVICES_PORT`   | `7711`                                                                      |
-| `devices.mdns`                                         | `SWIFTNEST_DEVICES_MDNS`   | `true` (`false` disables)                                                   |
-| `appDist`                                              | `SWIFTNEST_APP_DIST`       | installed `@swiftnest/app/dist`, otherwise unavailable                      |
-| `persona` (string)                                     | `SWIFTNEST_PERSONA`        | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
-| `assistantName` (string)                               | `SWIFTNEST_ASSISTANT_NAME` | unset (Apps show "Assistant")                                               |
-| `model.baseUrl`                                        | `SWIFTNEST_MODEL_BASE_URL` | `http://127.0.0.1:11434/v1`                                                 |
-| `model.id`                                             | `SWIFTNEST_MODEL_ID`       | `qwen3`                                                                     |
-| `model.name`, `model.maxTokens`                        |                            | `Local model`, `8192`                                                       |
-| `model.contextWindow`                                  | `SWIFTNEST_MODEL_CONTEXT_WINDOW` | asked from the local model server, else `32768`                       |
-| `model.vision` (the model reads images itself)         | `SWIFTNEST_MODEL_VISION`   | asked from the local model server, else `false`                             |
-| `freeVision.baseUrl`, `freeVision.models` (free photo reading, used only after the owner agrees in the App) | `SWIFTNEST_FREE_VISION_BASE_URL` | OVHcloud AI Endpoints, `Qwen3.5-397B-A17B`, `Qwen2.5-VL-72B-Instruct` |
-| `model.apiKeyEnv` (name of the key variable)           |                            | `SWIFTNEST_MODEL_API_KEY`                                                   |
-| Node binary for the kernel                             | `SWIFTNEST_KERNEL_NODE`    | the Node running Swiftnest                                                  |
+| Field                                                                                                       | Env                              | Default                                                                     |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
+| `plugins` (id → `true`/`false`)                                                                             | `SWIFTNEST_PLUGINS`              | defaults from `server/plugins.json`                                         |
+| `home`                                                                                                      | `SWIFTNEST_HOME`                 | `$XDG_DATA_HOME/swiftnest`                                                  |
+| `host` (one concrete IP, never `0.0.0.0`)                                                                   | `SWIFTNEST_HOST`                 | `127.0.0.1`                                                                 |
+| `port`                                                                                                      | `SWIFTNEST_PORT`                 | `3077`                                                                      |
+| `devices.host`                                                                                              | `SWIFTNEST_DEVICES_HOST`         | server `host`                                                               |
+| `devices.port`                                                                                              | `SWIFTNEST_DEVICES_PORT`         | `7711`                                                                      |
+| `devices.mdns`                                                                                              | `SWIFTNEST_DEVICES_MDNS`         | `true` (`false` disables)                                                   |
+| `appDist`                                                                                                   | `SWIFTNEST_APP_DIST`             | installed `@swiftnest/app/dist`, otherwise unavailable                      |
+| `persona` (string)                                                                                          | `SWIFTNEST_PERSONA`              | `You are a helpful assistant in Swiftnest, powered by the {{model}} model.` |
+| `assistantName` (string)                                                                                    | `SWIFTNEST_ASSISTANT_NAME`       | unset (Apps show "Assistant")                                               |
+| `model.baseUrl`                                                                                             | `SWIFTNEST_MODEL_BASE_URL`       | `http://127.0.0.1:11434/v1`                                                 |
+| `model.id`                                                                                                  | `SWIFTNEST_MODEL_ID`             | `qwen3`                                                                     |
+| `model.name`, `model.maxTokens`                                                                             |                                  | `Local model`, `8192`                                                       |
+| `model.contextWindow`                                                                                       | `SWIFTNEST_MODEL_CONTEXT_WINDOW` | asked from the local model server, else `32768`                             |
+| `model.vision` (the model reads images itself)                                                              | `SWIFTNEST_MODEL_VISION`         | asked from the local model server, else `false`                             |
+| `freeVision.baseUrl`, `freeVision.models` (free photo reading, used only after the owner agrees in the App) | `SWIFTNEST_FREE_VISION_BASE_URL` | OVHcloud AI Endpoints, `Qwen3.5-397B-A17B`, `Qwen2.5-VL-72B-Instruct`       |
+| `model.apiKeyEnv` (name of the key variable)                                                                |                                  | `SWIFTNEST_MODEL_API_KEY`                                                   |
+| Node binary for the kernel                                                                                  | `SWIFTNEST_KERNEL_NODE`          | the Node running Swiftnest                                                  |
 
 The persistent Nest identity, paired devices, last-seen metadata and raw-argument audit live in
 `<home>/devices/`. The loopback admin and MCP listeners have separate random per-process credentials,
