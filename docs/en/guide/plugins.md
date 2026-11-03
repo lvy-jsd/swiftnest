@@ -52,9 +52,13 @@ Rerun `plugins install` and restart after changing them. Before enabling `vision
 
 ## From the App
 
-The App's plugin page lists the audited plugins with a name and a one-line description in the owner's language. Opt-in plugins carry a note on what to know first. The owner flips switches, then applies them: Swiftnest Server installs what is missing, checks integrity and restarts DSH. If DSH does not start with the new plugins, the server restores the plugins that last started and reports the failure, so the server stays reachable. Switches are saved in `<home>/plugin-settings.json`. A plugin set by `SWIFTNEST_PLUGINS` shows as locked.
+Open **Recommended plugins** from the App's main menu on desktop, phone or web. Only the server owner sees this entry. Recommended choices appear first, with a name, a short description and a switch. The text follows the owner's language. Plugins set by the server administrator have a read-only switch and an explanation.
 
-Restarting DSH changes its launch token. Web App sessions survive it; a native App paired through `/connect` has to pair again.
+Before enabling a plugin with a note, read it and choose **Enable** or **Cancel**. The community market asks for extra confirmation: community plugins are not checked by Swiftnest and may access data or take actions. Installed community packages appear separately, each labelled **Not reviewed**.
+
+After changing switches, choose **Apply**. The App explains that the assistant restarts briefly and shows preparation and restart progress. It keeps the page open while the web connection recovers automatically, then refreshes the list. A native App paired through `/connect` may need **Reconnect** because the launch token changes: use the new connection link in the existing pairing form, then the App returns to this page. Reconnection does not resend chat messages or create chats.
+
+If new plugins cannot start, the page says **The new plugins didn't start, so the previous settings were restored**. Other failures show the localized explanation and a retry button. Swiftnest Server installs missing plugins, checks integrity and restarts DSH; switches are saved in `<home>/plugin-settings.json`.
 
 The owner-only API behind the page, also available as `SwiftnestClient.listPlugins`, `setPluginEnabled` and `applyPlugins`:
 

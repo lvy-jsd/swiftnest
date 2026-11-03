@@ -1,3 +1,4 @@
+import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
@@ -176,10 +177,13 @@ function PairPage({ onBack }: { onBack: () => void }) {
   const { store, status, error, root } = useConnection();
   const [url, setUrl] = useState(pairingFromLocation);
   const opened = useRef(false);
+  const returnToPlugins = useRef(
+    window.location.hash.includes('return=plugins') || !!store.getSnapshot().pluginRestart,
+  );
   async function pair(value: string) {
     setUrl('');
     clearPairingLocation();
-    if (await store.pair(value)) window.location.hash = '/';
+    if (await store.pair(value)) window.location.hash = returnToPlugins.current ? '/plugins' : '/';
   }
   // Pair once from a link that opened the App; later edits go through the form.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount
@@ -321,7 +325,8 @@ function ChatDetail({
       } catch {
         if (!ended) {
           setReady(false);
-          dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') });
+          if (!store.getSnapshot().pluginRestart)
+            dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') });
         }
       }
     })();
@@ -401,7 +406,9 @@ function ChatDetail({
 export function App() {
   return (
     <DeviceHubProvider>
-      <AppContent />
+      <PluginsProvider>
+        <AppContent />
+      </PluginsProvider>
     </DeviceHubProvider>
   );
 }
@@ -412,6 +419,7 @@ function AppContent() {
   const { t } = useI18n();
   const { reducedMotion } = useTheme();
   const { store, sessions, status } = useConnection();
+  const { owner } = usePlugins();
   const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '#/' : window.location.hash));
   const [preferences, setPreferences] = useState(false);
   const [query, setQuery] = useState('');
@@ -421,6 +429,7 @@ function AppContent() {
   const chatId = chatFromHash(hash);
   const pairing = hash.startsWith('#/pair');
   const devicesPage = hash.startsWith('#/devices');
+  const pluginsPage = hash.startsWith('#/plugins');
   const transfersPage = hash.startsWith('#/transfers');
   const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
@@ -543,6 +552,11 @@ function AppContent() {
         <a className="devices-link" href="#/transfers">
           {t('transfers')}
         </a>
+        {owner && (
+          <a className="devices-link" href="#/plugins">
+            {t('pluginsTitle')}
+          </a>
+        )}
         <a className="devices-link" href="#/memory">
           {t('memory')}
         </a>
@@ -577,7 +591,9 @@ function AppContent() {
               : undefined
           }
         >
-          {memoryPage ? (
+          {pluginsPage ? (
+            <PluginsPage onBack={goHome} />
+          ) : memoryPage ? (
             <MemoryPage key={status} onBack={goHome} />
           ) : transfersPage ? (
             <TransfersPage onBack={goHome} />
@@ -609,6 +625,11 @@ function AppContent() {
               <a className="devices-link" href="#/transfers">
                 {t('transfers')}
               </a>
+              {owner && (
+                <a className="devices-link" href="#/plugins">
+                  {t('pluginsTitle')}
+                </a>
+              )}
               <a className="devices-link" href="#/memory">
                 {t('memory')}
               </a>

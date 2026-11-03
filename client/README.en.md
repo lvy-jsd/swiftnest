@@ -32,7 +32,7 @@ by the server for real web chat. Assets are relative and navigation uses hash ro
 
 `src/connection.tsx` owns one ephemeral `@swiftnest/api` client. Only the server root is remembered in
 localStorage (`swiftnest.serverRoot`). Tokens and native cookies stay in memory; browser cookies stay
-in the browser jar. Reloading or losing the connection requires **Pair again** in phase 0. No automatic
+in the browser jar. Outside an expected plugin restart, reloading or losing the connection requires **Pair again**. No automatic
 mutation retry or message resubmission occurs. Recent server history is replayed when reopening a chat;
 older-page navigation and interactive approval/question controls are deferred.
 
@@ -44,7 +44,7 @@ TLS verification remains enabled. WebSocket forwards the API Cookie in its nativ
 the kernel's Origin/fetch-site fence intact. See the [integration notes](../docs/en/dev/dsh-integration.md).
 
 The capability applies only to the local **main** window, with no remote-origin IPC access. HTTP scopes
-allow HTTP(S), arbitrary user-selected hosts/ports, and only `/connect`, `/api/*`, `/swiftnest/health`.
+allow HTTP(S), arbitrary user-selected hosts/ports, and only `/connect`, `/api/*`, `/swiftnest/health`, plugin API routes, device events and preferences.
 Hosts cannot be enumerated ahead of LAN pairing. The official WebSocket plugin currently has no URL scope;
 only its required `allow-connect` and `allow-send` commands are granted. The App derives the socket URL
 from the paired root. The WebView receives no general filesystem or shell plugin permissions. Local custom IPC commands control
@@ -55,6 +55,19 @@ Desktop development uses `pnpm --filter @swiftnest/app tauri dev` (not part of c
 come from Nix; Windows needs Rust/MSVC and WebView2.
 Preferences retain bilingual copy, system/light/dark themes, accent presets, reduced motion/transparency,
 accessible sheets, two panes at 600 px, desktop sidebar at 1024 px, Alt+Left and phone edge-swipe back.
+
+## Recommended plugins
+
+Open **Recommended plugins** in the main menu (server owner only). Recommended choices come first,
+with a description and switch. Read and confirm a plugin's note before enabling it. The community market
+has an extra warning that Swiftnest does not check community plugins. Administrator-set switches are
+read-only; community packages are listed separately as **Not reviewed**.
+Choose **Apply** after changing switches. The assistant restarts briefly, with preparation and restart
+progress on the page. Web connections recover automatically and refresh the list. If a native App says
+**Reconnect needed**, use **Reconnect** and the new connection link in the existing pairing form;
+success returns to the plugin page. A failed startup with rollback shows **The new plugins didn't start,
+so the previous settings were restored**; other failures show an explanation and allow retry.
+Reconnection does not resend messages or create chats. See the [plugin guide](../docs/en/guide/plugins.md).
 
 ## Android (arm64 debug APK)
 

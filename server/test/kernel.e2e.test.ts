@@ -10,19 +10,11 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
-import { startKernel, type RunningKernel } from '../src/kernel.js';
+import type { RunningKernel } from '../src/kernel.js';
+import { startStableKernel } from './fixtures/kernel.js';
 import { pairingUrl } from '../src/pairing.js';
 
 const enabled = process.env.SWIFTNEST_E2E === '1';
-
-/** A port that was free a moment ago: DSH binds a fixed port in real use, and sessions are bound to it. */
-async function freePort(): Promise<number> {
-  const probe = createServer();
-  await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
-  const { port } = probe.address() as AddressInfo;
-  await new Promise((r) => probe.close(r));
-  return port;
-}
 
 describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
   let model: Server;
@@ -50,11 +42,11 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
       SWIFTNEST_DEVICES_PORT: '0',
       SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_APP_DIST: dist,
-      SWIFTNEST_PORT: String(await freePort()),
+      SWIFTNEST_PORT: '0',
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
       SWIFTNEST_MODEL_ID: 'fake',
     });
-    kernel = await startKernel(config, { readyTimeoutMs: 90_000 });
+    kernel = await startStableKernel(config, { readyTimeoutMs: 90_000 });
   }, 120_000);
 
   afterAll(async () => {

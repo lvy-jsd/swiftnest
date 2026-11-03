@@ -196,3 +196,96 @@ describe('connection store', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 });
+
+function restartHarness(native = false, reconnect = vi.fn(async () => {})) {
+  const sockets: EventTarget[] = [];
+  const clients: any[] = [];
+  const store = new ConnectionStore(
+    async () => ({
+      cookieMode: native ? 'manual' : 'browser',
+      createWebSocket: () => {
+        const socket = new EventTarget();
+        sockets.push(socket);
+        return socket as unknown as ApiWebSocket;
+      },
+    }),
+    (options) => {
+      const open = async () => {
+        if (clients.length > 1) await reconnect();
+        options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} });
+      };
+      const client = {
+        connect: vi.fn(open),
+        resume: vi.fn(open),
+        close: vi.fn(),
+        listSessions: vi.fn(async () => [{ sessionId: 'saved', title: 'Saved chat', updatedAt: 1 }]),
+      };
+      clients.push(client);
+      return client as unknown as SwiftnestClient;
+    },
+  );
+  return { store, sockets, clients };
+}
+it('recovers an expected restart with backoff, preserving sessions and using the browser cookie', async () => {
+  vi.useFakeTimers();
+  const retry = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+  const { store, sockets, clients } = restartHarness(false, retry);
+  try {
+    await store.pair(url);
+    const sessions = store.getSnapshot().sessions;
+    store.expectPluginRestart(true);
+    sockets[0]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot()).toMatchObject({ status: 'connecting', pluginRestart: 'reconnecting', sessions });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(store.getSnapshot()).toMatchObject({ status: 'connected', pluginRestart: undefined, sessions });
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect(clients[2].resume).toHaveBeenCalledWith('http://127.0.0.1:3077/');
+    expect(clients[2].connect).not.toHaveBeenCalled();
+  } finally {
+    store.disconnect();
+    vi.useRealTimers();
+  }
+});
+it('turns native token rejection into a single re-pair step, then keeps sessions on successful pairing', async () => {
+  const { ApiError } = await import('@swiftnest/api');
+  const { store, sockets, clients } = restartHarness(
+    true,
+    vi.fn().mockRejectedValueOnce(new ApiError('pairing-failed', 'raw token failure', undefined, undefined, 403)),
+  );
+  await store.pair(url);
+  store.expectPluginRestart(true);
+  sockets[0]!.dispatchEvent(new Event('close'));
+  await vi.waitFor(() => expect(store.getSnapshot().pluginRestart).toBe('pair-required'));
+  expect(store.getSnapshot()).toMatchObject({
+    status: 'disconnected',
+    error: undefined,
+    sessions: [{ sessionId: 'saved' }],
+  });
+  expect(JSON.stringify(store.getSnapshot())).not.toContain('raw');
+  expect(clients[1].resume).not.toHaveBeenCalled();
+  expect(await store.pair(url.replace('SECRET', 'NEW'))).toBe(true);
+  expect(store.getSnapshot()).toMatchObject({
+    status: 'connected',
+    pluginRestart: undefined,
+    sessions: [{ sessionId: 'saved' }],
+  });
+  store.disconnect();
+});
+it('cancels pending restart recovery when the user disconnects', async () => {
+  vi.useFakeTimers();
+  const retry = vi.fn().mockRejectedValue(new Error('offline'));
+  const { store, sockets } = restartHarness(false, retry);
+  try {
+    await store.pair(url);
+    store.expectPluginRestart(true);
+    sockets[0]!.dispatchEvent(new Event('close'));
+    await vi.advanceTimersByTimeAsync(0);
+    store.disconnect();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(retry).toHaveBeenCalledOnce();
+    expect(store.getSnapshot().status).toBe('disconnected');
+  } finally {
+    store.disconnect();
+    vi.useRealTimers();
+  }
+});
