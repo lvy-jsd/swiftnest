@@ -1,5 +1,5 @@
 import type { SessionFollowFrame, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types';
-import type { SwiftnestEvent } from './types.js';
+import type { MessageImage, SwiftnestEvent } from './types.js';
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
@@ -13,6 +13,25 @@ function text(content: unknown): string {
       return b.type === 'text' ? String(b.text ?? '') : '';
     })
     .join('');
+}
+
+/** Stored image references in a user message; DSH replaces uploaded bytes with these. */
+function images(content: unknown): MessageImage[] {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block) => {
+    const b = record(block);
+    const ref = record(b.attachment ?? b);
+    if (b.type !== 'image' || typeof ref.attachmentId !== 'string') return [];
+    return [
+      {
+        attachmentId: ref.attachmentId,
+        mediaType: String(ref.mediaType ?? 'image/png'),
+        ...(typeof ref.width === 'number' ? { width: ref.width } : {}),
+        ...(typeof ref.height === 'number' ? { height: ref.height } : {}),
+        ...(typeof ref.name === 'string' ? { name: ref.name } : {}),
+      },
+    ];
+  });
 }
 
 /** Translate only chat presentation events; unknown kernel bookkeeping is intentionally ignored. */
@@ -31,6 +50,7 @@ export function mapEvent(sessionId: string, event: SessionWireEvent): SwiftnestE
           type: 'user-message',
           messageId: String(data.id),
           text: text(data.content),
+          ...(images(data.content).length ? { images: images(data.content) } : {}),
           ...(typeof record(data.source).rpcId === 'string' ? { requestId: record(data.source).rpcId as string } : {}),
         },
       ];

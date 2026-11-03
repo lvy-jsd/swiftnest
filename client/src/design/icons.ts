@@ -5,6 +5,7 @@ import {
   CheckIcon,
   DesktopIcon,
   GearSixIcon,
+  ImageIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   UserCircleIcon,
@@ -24,4 +25,5 @@ export const icons = {
   search: MagnifyingGlassIcon,
   add: PlusIcon,
   avatar: UserCircleIcon,
+  photo: ImageIcon,
 } as const;

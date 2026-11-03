@@ -255,6 +255,12 @@ export const en = {
   modelsMain: 'Model for every chat',
   modelsMainHelp:
     'Most people keep the local model. With a cloud model here, every chat is sent to that provider and billed.',
+  photo: 'Photo',
+  photoAdd: 'Add photos',
+  photoDrafts: 'Photos to send',
+  photoRemove: 'Remove photo',
+  photoFailed: 'Some photos could not be added. Try a smaller JPEG or PNG.',
+  photoUnavailable: 'Photo unavailable',
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -500,6 +506,12 @@ export const zhCN: Record<StringKey, string> = {
   modelsKeyRemove: '删除密钥',
   modelsMain: '所有聊天使用的模型',
   modelsMainHelp: '大多数人保持本地模型即可。选了云端模型后，每次聊天都会发送给该服务商并计费。',
+  photo: '图片',
+  photoAdd: '添加图片',
+  photoDrafts: '待发送的图片',
+  photoRemove: '移除图片',
+  photoFailed: '有图片没能添加，请换一张小一点的 JPEG 或 PNG。',
+  photoUnavailable: '图片无法显示',
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];

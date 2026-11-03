@@ -8,7 +8,7 @@ const get = [
   /^\/swiftnest\/api\/memory(?:\/topic)?$/,
 ];
 const post = [
-  /^\/api\/(session\/(list|create)|userQuestions\/answer|\$events\/result)$/,
+  /^\/api\/(session\/(list|create|attachment)|userQuestions\/answer|\$events\/result)$/,
   /^\/swiftnest\/native\/(issue|resume|rotate|bind|revoke)$/,
   /^\/swiftnest\/api\/chat$/,
   /^\/swiftnest\/api\/memory\/(add|edit|delete|topic)$/,

@@ -1,4 +1,4 @@
-import type { DisplayReason, SwiftnestEvent } from '@swiftnest/api';
+import type { DisplayReason, MessageImage, SwiftnestEvent } from '@swiftnest/api';
 
 export type ChatRow =
   | {
@@ -6,6 +6,7 @@ export type ChatRow =
       id: string;
       role: 'user' | 'assistant';
       text: string;
+      images?: MessageImage[];
       attemptId?: string;
       seq?: number;
       final?: boolean;
@@ -73,6 +74,7 @@ export function chatReducer(
           id: event.messageId,
           role: 'user',
           text: event.text,
+          ...(event.images ? { images: event.images } : {}),
           seq: event.seq,
           final: true,
         });

@@ -1,4 +1,6 @@
 import { ModelsPage } from './models';
+import { MessagePhotos, PhotoButton, PhotoDrafts, usePhotoDrafts } from './photos';
+import { isPhoto } from './photoState';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
@@ -243,11 +245,19 @@ function Thinking() {
     </p>
   );
 }
-function TranscriptRow({ row, onAnswered }: { row: ChatRow; onAnswered: (requestId: string) => void }) {
+function TranscriptRow({
+  row,
+  sessionId,
+  onAnswered,
+}: {
+  row: ChatRow;
+  sessionId: string;
+  onAnswered: (requestId: string) => void;
+}) {
   const { t, locale } = useI18n();
   const { assistantName } = useConnection();
   if (row.kind === 'message') {
-    if (!row.text) return null;
+    if (!row.text && !row.images?.length) return null;
     const author = row.role === 'user' ? t('you') : (assistantName ?? t('assistant'));
     return (
       <article
@@ -256,7 +266,8 @@ function TranscriptRow({ row, onAnswered }: { row: ChatRow; onAnswered: (request
       >
         <div className="message__body">
           <strong>{author}</strong>
-          <p>{row.text}</p>
+          <MessagePhotos sessionId={sessionId} images={row.images} />
+          {row.text && <p>{row.text}</p>}
         </div>
       </article>
     );
@@ -301,6 +312,7 @@ function ChatDetail({
   const { store, status, root, sessions } = useConnection();
   const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
   const [draft, setDraft] = useState('');
+  const photos = usePhotoDrafts();
   const [hasKeyboard] = useState(hasPrecisePointer);
   const [ready, setReady] = useState(false);
   const { client } = store;
@@ -341,11 +353,11 @@ function ChatDetail({
   }, [client, sessionId, status, store]);
   function send(event: FormEvent) {
     event.preventDefault();
-    if (!draft.trim() || !ready || !client) return;
+    if ((!draft.trim() && !photos.drafts.length) || !ready || !client) return;
     const text = draft.trim();
     setDraft('');
     dispatch({ type: 'waiting' });
-    void client.sendMessage(sessionId, text).catch(() => {
+    void client.sendMessage(sessionId, text, photos.take()).catch(() => {
       dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') });
     });
   }
@@ -371,7 +383,11 @@ function ChatDetail({
         followEnd
         className="transcript"
         renderItem={(row) => (
-          <TranscriptRow row={row} onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })} />
+          <TranscriptRow
+            row={row}
+            sessionId={sessionId}
+            onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })}
+          />
         )}
       />
       <div className="composer-area glass">
@@ -379,13 +395,22 @@ function ChatDetail({
         {(state.waiting || hasKeyboard) && (
           <p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p>
         )}
+        {photos.failed && <p role="alert">{t('photoFailed')}</p>}
+        <PhotoDrafts drafts={photos.drafts} remove={photos.remove} />
         <form className="composer" onSubmit={send}>
+          <PhotoButton disabled={photos.full || status !== 'connected'} add={(files) => void photos.add(files)} />
           <textarea
             aria-label={t('composer')}
             placeholder={t('composer')}
             rows={2}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onPaste={(event) => {
+              const pasted = [...event.clipboardData.files].filter(isPhoto);
+              if (!pasted.length) return;
+              event.preventDefault();
+              void photos.add(pasted);
+            }}
             onKeyDown={(event) => {
               if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                 event.preventDefault();
@@ -397,7 +422,7 @@ function ChatDetail({
             type="submit"
             variant="primary"
             iconOnly
-            disabled={!draft.trim() || !ready || status !== 'connected'}
+            disabled={(!draft.trim() && !photos.drafts.length) || !ready || status !== 'connected'}
             aria-label={t('send')}
           >
             <Send size={24} />
