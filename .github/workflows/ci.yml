@@ -62,3 +62,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test -p swiftnest-locale
+      - run: cargo fmt -p swiftnest-app-pairing --check
+      - run: cargo clippy -p swiftnest-app-pairing --all-targets -- -D warnings
+      - run: cargo test -p swiftnest-app-pairing
