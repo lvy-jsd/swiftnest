@@ -687,5 +687,6 @@
   "phoneSummaryPhoneApps": "Phone apps",
   "phoneSummaryOpenedTheApp": "Opened the app",
   "phoneSettingsAndroidOnly": "Phone settings exist only on Android",
-  "thisPhone": "This phone"
+  "thisPhone": "This phone",
+  "transferCancelled": "Cancelled"
 }

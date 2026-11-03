@@ -1,4 +1,5 @@
 //! Wire format mirrors packages/core/src/channel.ts, including exact transcript bytes.
+use crate::i18n::text;
 use crate::{store::public_key, Failure, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit},
@@ -48,18 +49,18 @@ impl Cipher {
         let plain = serde_json::to_vec(value)?;
         // Also respect link-lan's encoded WebSocket payload cap.
         if (plain.len() + 24).div_ceil(3) * 4 > MAX_FRAME {
-            return Err(Failure::new("FRAME_TOO_LARGE", "Frame exceeds 16 MiB"));
+            return Err(Failure::new("FRAME_TOO_LARGE", text!("frameExceeds16Mib")));
         }
         let next = self
             .sent
             .checked_add(1)
-            .ok_or_else(|| Failure::new("CHANNEL_CLOSED", "Counter exhausted"))?;
+            .ok_or_else(|| Failure::new("CHANNEL_CLOSED", text!("counterExhausted")))?;
         let mut nonce = [0u8; 12];
         nonce[4..].copy_from_slice(&self.sent.to_be_bytes());
         let body = self
             .send
             .encrypt(Nonce::from_slice(&nonce), plain.as_slice())
-            .map_err(|_| Failure::new("INTEGRITY_FAILED", "Encryption failed"))?;
+            .map_err(|_| Failure::new("INTEGRITY_FAILED", text!("encryptionFailed")))?;
         let mut frame = self.sent.to_be_bytes().to_vec();
         frame.extend(body);
         self.sent = next;
@@ -67,18 +68,18 @@ impl Cipher {
     }
     pub fn open(&mut self, text: &str) -> Result<Value> {
         if text.len() > MAX_FRAME {
-            return Err(Failure::new("FRAME_TOO_LARGE", "Frame exceeds 16 MiB"));
+            return Err(Failure::new("FRAME_TOO_LARGE", text!("frameExceeds16Mib")));
         }
         let frame = B64
             .decode(text)
-            .map_err(|_| Failure::new("INTEGRITY_FAILED", "Invalid frame encoding"))?;
+            .map_err(|_| Failure::new("INTEGRITY_FAILED", text!("invalidFrameEncoding")))?;
         if frame.len() < 24 || frame.len() > MAX_FRAME {
-            return Err(Failure::new("INTEGRITY_FAILED", "Invalid frame size"));
+            return Err(Failure::new("INTEGRITY_FAILED", text!("invalidFrameSize")));
         }
         if frame[..8] != self.received.to_be_bytes() {
             return Err(Failure::new(
                 "INTEGRITY_FAILED",
-                "Replayed or out-of-order frame",
+                text!("replayedOutOrderFrame"),
             ));
         }
         let mut nonce = [0u8; 12];
@@ -86,11 +87,11 @@ impl Cipher {
         let plain = self
             .recv
             .decrypt(Nonce::from_slice(&nonce), &frame[8..])
-            .map_err(|_| Failure::new("INTEGRITY_FAILED", "Invalid authentication tag"))?;
+            .map_err(|_| Failure::new("INTEGRITY_FAILED", text!("invalidAuthenticationTag")))?;
         self.received = self
             .received
             .checked_add(1)
-            .ok_or_else(|| Failure::new("CHANNEL_CLOSED", "Counter exhausted"))?;
+            .ok_or_else(|| Failure::new("CHANNEL_CLOSED", text!("counterExhausted")))?;
         Ok(serde_json::from_slice(&plain)?)
     }
 }
@@ -117,7 +118,7 @@ impl Channel {
             connect_async_with_config(url, Some(cfg), false),
         )
         .await
-        .map_err(|_| Failure::new("NEST_UNREACHABLE", "Connection timed out"))?
+        .map_err(|_| Failure::new("NEST_UNREACHABLE", text!("connectionTimedOut")))?
         .map_err(transport)?;
         let secret = StaticSecret::random_from_rng(OsRng);
         let mut nonce = [0u8; 16];
@@ -129,21 +130,24 @@ impl Channel {
             .map_err(transport)?;
         let hs2_raw = timeout(Duration::from_secs(10), next_text(&mut socket))
             .await
-            .map_err(|_| Failure::new("HANDSHAKE_TIMEOUT", "Nest handshake timed out"))??;
+            .map_err(|_| Failure::new("HANDSHAKE_TIMEOUT", text!("nestHandshakeTimedOut")))??;
         let hs2: Value = serde_json::from_str(&hs2_raw)?;
         if hs2["t"] != "hs2" || hs2["v"] != 1 {
-            return Err(Failure::new("PROTOCOL_MISMATCH", "Expected channel v1 hs2"));
+            return Err(Failure::new(
+                "PROTOCOL_MISMATCH",
+                text!("expectedChannelV1Hs2"),
+            ));
         }
         let peer = hs2["id"]
             .as_str()
-            .ok_or_else(|| Failure::new("HANDSHAKE_FAILED", "Missing Nest key"))?
+            .ok_or_else(|| Failure::new("HANDSHAKE_FAILED", text!("missingNestKey")))?
             .to_string();
         let key: [u8; 32] = decode32(&peer)?;
         let eph = decode32(hs2["eph"].as_str().unwrap_or(""))?;
         if !pairing && Some(peer.as_str()) != pin {
             return Err(Failure::new(
                 "NEST_KEY_CHANGED",
-                "Nest identity differs from the pinned key. Compare fingerprints and pair again.",
+                text!("nestIdentityDiffersPinnedKeyCompare"),
             ));
         }
         let mut hash = Sha256::new();
@@ -156,17 +160,17 @@ impl Channel {
         if !shared.was_contributory() {
             return Err(Failure::new(
                 "HANDSHAKE_FAILED",
-                "Invalid X25519 shared secret",
+                text!("invalidX25519SharedSecret"),
             ));
         }
         let mut keys = zeroize::Zeroizing::new([0u8; 64]);
         Hkdf::<Sha256>::new(Some(&transcript), shared.as_bytes())
             .expand(b"swiftnest/keys/v1", &mut *keys)
-            .map_err(|_| Failure::new("HANDSHAKE_FAILED", "Key derivation failed"))?;
+            .map_err(|_| Failure::new("HANDSHAKE_FAILED", text!("keyDerivationFailed")))?;
         let mut stream_root = [0; 32];
         Hkdf::<Sha256>::new(Some(&transcript), shared.as_bytes())
             .expand(b"swiftnest/streams/v1", &mut stream_root)
-            .map_err(|_| Failure::new("BAD_STREAM", "Exporter failed"))?;
+            .map_err(|_| Failure::new("BAD_STREAM", text!("exporterFailed")))?;
         let mut channel = Self {
             socket,
             cipher: Cipher::new(&keys[..32], &keys[32..]),
@@ -181,20 +185,20 @@ impl Channel {
             .await?;
         let auth = timeout(Duration::from_secs(10), channel.recv())
             .await
-            .map_err(|_| Failure::new("HANDSHAKE_TIMEOUT", "Authentication timed out"))??;
+            .map_err(|_| Failure::new("HANDSHAKE_TIMEOUT", text!("authenticationTimedOut")))??;
         let signature = B64
             .decode(auth["sig"].as_str().unwrap_or(""))
-            .map_err(|_| Failure::new("AUTH_FAILED", "Bad signature encoding"))?;
+            .map_err(|_| Failure::new("AUTH_FAILED", text!("badSignatureEncoding")))?;
         let mut payload = b"swiftnest/auth/v1/nest\0".to_vec();
         payload.extend(transcript);
         let verifying = VerifyingKey::from_bytes(&key)
-            .map_err(|_| Failure::new("AUTH_FAILED", "Invalid identity key"))?;
+            .map_err(|_| Failure::new("AUTH_FAILED", text!("invalidIdentityKey")))?;
         let sig = Signature::from_slice(&signature)
-            .map_err(|_| Failure::new("AUTH_FAILED", "Invalid signature"))?;
+            .map_err(|_| Failure::new("AUTH_FAILED", text!("invalidSignature")))?;
         if auth["type"] != "auth" || verifying.verify_strict(&payload, &sig).is_err() {
             return Err(Failure::new(
                 "AUTH_FAILED",
-                "Nest cannot prove its identity",
+                text!("nestCannotProveIdentity"),
             ));
         }
         Ok(channel)
@@ -210,7 +214,7 @@ impl Channel {
     }
     pub fn proof(&self, code: &str) -> Result<String> {
         if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
-            return Err(Failure::new("BAD_ARGS", "Pairing code must be six digits"));
+            return Err(Failure::new("BAD_ARGS", text!("pairingCodeMustSixDigits")));
         }
         let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(code.as_bytes())
             .expect("HMAC accepts any length");
@@ -221,9 +225,9 @@ impl Channel {
 }
 fn decode32(s: &str) -> Result<[u8; 32]> {
     B64.decode(s)
-        .map_err(|_| Failure::new("HANDSHAKE_FAILED", "Invalid key encoding"))?
+        .map_err(|_| Failure::new("HANDSHAKE_FAILED", text!("invalidKeyEncoding")))?
         .try_into()
-        .map_err(|_| Failure::new("HANDSHAKE_FAILED", "Invalid key length"))
+        .map_err(|_| Failure::new("HANDSHAKE_FAILED", text!("invalidKeyLength")))
 }
 async fn next_text(socket: &mut Socket) -> Result<String> {
     loop {
@@ -243,13 +247,13 @@ async fn next_text(socket: &mut Socket) -> Result<String> {
                     .unwrap_or("DISCONNECTED");
                 return Err(Failure::new(
                     if is_final(code) { code } else { "DISCONNECTED" },
-                    "Nest closed the connection",
+                    text!("nestClosedConnection"),
                 ));
             }
             _ => {
                 return Err(Failure::new(
                     "PROTOCOL_ERROR",
-                    "Binary streams have not been negotiated",
+                    text!("binaryStreamsNotBeenNegotiated"),
                 ))
             }
         }

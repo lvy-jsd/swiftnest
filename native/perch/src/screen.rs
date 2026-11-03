@@ -1,5 +1,6 @@
 //! Host-owned screen/input state. Agent tools cannot change consent or the input gate.
 use crate::capability::CancelCheck;
+use crate::i18n::text;
 use crate::{
     capability::{string_arg, Capability, Classification, InvokeContext, Risk, ToolResult},
     Failure, Result,
@@ -63,7 +64,7 @@ impl Mapping {
         {
             return Err(Failure::new(
                 "BAD_COORDINATES",
-                "Point must be inside the referenced screenshot",
+                text!("pointMustInsideReferencedScreenshot"),
             ));
         }
         Ok((
@@ -100,9 +101,9 @@ impl InputGate {
                     "OWNER_HAS_CONTROL"
                 },
                 if owner {
-                    "Take over before sending input"
+                    text!("takeOverBeforeSendingInput")
                 } else {
-                    "The owner has taken over. Hand back to Ivy before using input tools."
+                    text!("ownerTakenOverHandBackIvy")
                 },
             ));
         }
@@ -170,7 +171,7 @@ impl Desktop {
         {
             Err(Failure::new(
                 "UNSUPPORTED_PLATFORM",
-                "Screen/input backend is not available on this platform",
+                text!("screenInputBackendNotAvailablePlatform"),
             ))
         }
     }
@@ -178,7 +179,7 @@ impl Desktop {
     fn with_portal<T>(&self, work: impl FnOnce(&portal::Portal) -> Result<T>) -> Result<T> {
         let mut portal = self.portal.lock().unwrap();
         if self.stop.is_cancelled() {
-            return Err(Failure::new("CANCELLED", "Desktop access stopped"));
+            return Err(Failure::new("CANCELLED", text!("desktopAccessStopped")));
         }
         if portal.is_none() {
             self.portal_active.store(true, Ordering::SeqCst);
@@ -206,7 +207,9 @@ impl Desktop {
         self.displays()?
             .into_iter()
             .find(|d| id.is_empty() || d.id == id)
-            .ok_or_else(|| Failure::new("DISPLAY_UNAVAILABLE", "Display disconnected or not found"))
+            .ok_or_else(|| {
+                Failure::new("DISPLAY_UNAVAILABLE", text!("displayDisconnectedNotFound"))
+            })
     }
     pub fn capture(&self, args: &Value, quality: u8) -> Result<Frame> {
         self.reading.fetch_add(1, Ordering::SeqCst);
@@ -214,14 +217,14 @@ impl Desktop {
         let _capture = self.capture_lock.lock().unwrap();
 
         if self.stop.is_cancelled() {
-            return Err(Failure::new("CANCELLED", "Desktop access stopped"));
+            return Err(Failure::new("CANCELLED", text!("desktopAccessStopped")));
         }
         let id = args["displayId"].as_str().unwrap_or("");
         let d = self.display(id)?;
         if d.width > 16384 || d.height > 16384 || d.width as u64 * d.height as u64 > 64_000_000 {
             return Err(Failure::new(
                 "CAPTURE_TOO_LARGE",
-                "Display exceeds capture limit",
+                text!("displayExceedsCaptureLimit"),
             ));
         }
         let mut image: image::DynamicImage = {
@@ -233,7 +236,7 @@ impl Desktop {
                         &["-o", &d.id, "-s", &d.scale.to_string(), "-t", "png", "-"],
                     )?;
                     image::load_from_memory(&raw).map_err(|e| {
-                        Failure::new("CAPTURE_FAILED", format!("wlr-screencopy unavailable: {e}"))
+                        Failure::new("CAPTURE_FAILED", text!("wlrScreencopyUnavailableE", e))
                     })?
                 } else if d.backend == "portal-pipewire" {
                     self.with_portal(|p| p.capture())?
@@ -249,7 +252,7 @@ impl Desktop {
             {
                 return Err(Failure::new(
                     "UNSUPPORTED_PLATFORM",
-                    "Capture is not supported",
+                    text!("captureNotSupported"),
                 ));
             }
         };
@@ -272,13 +275,13 @@ impl Desktop {
         {
             return Err(Failure::new(
                 "BAD_COORDINATES",
-                "Region is outside the display",
+                text!("regionOutsideDisplay"),
             ));
         }
         image = image.crop_imm(x, y, w, h);
         let max = args["maxDimension"].as_u64().unwrap_or(1280);
         if !(64..=2560).contains(&max) {
-            return Err(Failure::new("BAD_ARGS", "maxDimension must be 64–2560"));
+            return Err(Failure::new("BAD_ARGS", text!("maxdimensionMust642560")));
         }
         if w.max(h) > max as u32 {
             image = image.resize(
@@ -323,11 +326,11 @@ impl Desktop {
         if bytes.len() > crate::stream::MAX - 8192 {
             return Err(Failure::new(
                 "CAPTURE_TOO_LARGE",
-                "Use a smaller maxDimension",
+                text!("useSmallerMaxdimension"),
             ));
         }
         if self.stop.is_cancelled() {
-            return Err(Failure::new("CANCELLED", "Desktop access stopped"));
+            return Err(Failure::new("CANCELLED", text!("desktopAccessStopped")));
         }
         Ok(Frame {
             hash,
@@ -338,7 +341,7 @@ impl Desktop {
     pub fn input(&self, tool: &str, args: &Value, owner: bool) -> Result<()> {
         self.gate.inject(owner, || {
             if self.stop.is_cancelled() {
-                return Err(Failure::new("CANCELLED", "Desktop input stopped"));
+                return Err(Failure::new("CANCELLED", text!("desktopInputStopped")));
             }
             if ![
                 "input_click",
@@ -350,12 +353,12 @@ impl Desktop {
             ]
             .contains(&tool)
             {
-                return Err(Failure::new("UNKNOWN_TOOL", "Unknown input tool"));
+                return Err(Failure::new("UNKNOWN_TOOL", text!("unknownInputTool")));
             }
             if args["text"].as_str().is_some_and(|s| s.len() > 16384)
                 || args["key"].as_str().is_some_and(|s| s.len() > 128)
             {
-                return Err(Failure::new("BAD_ARGS", "Input is too long"));
+                return Err(Failure::new("BAD_ARGS", text!("inputTooLong")));
             }
             let id = string_arg(args, "displayId")?;
             let d = self.display(id)?;
@@ -363,12 +366,12 @@ impl Desktop {
                 let capture = string_arg(args, "captureId")?;
                 let maps = self.mappings.lock().unwrap();
                 let (m, previous) = maps.get(capture).ok_or_else(|| {
-                    Failure::new("STALE_CAPTURE", "Capture the screen again before pointing")
+                    Failure::new("STALE_CAPTURE", text!("captureScreenAgainBeforePointing"))
                 })?;
                 if previous != &d {
                     return Err(Failure::new(
                         "STALE_CAPTURE",
-                        "Display geometry changed. Capture again.",
+                        text!("displayGeometryChangedCaptureAgain"),
                     ));
                 }
                 Some(m.clone())
@@ -407,7 +410,7 @@ impl Desktop {
             {
                 Err(Failure::new(
                     "UNSUPPORTED_PLATFORM",
-                    "Input is not supported",
+                    text!("inputNotSupported"),
                 ))
             }
         })
@@ -435,7 +438,7 @@ impl Capability for ScreenCapability {
         serde_json::from_str(include_str!("manifests/screen.json")).unwrap()
     }
     fn classify(&self, _: &str, _: &Value) -> Classification {
-        Classification::new(Risk::Read, "Read the desktop screen")
+        Classification::new(Risk::Read, text!("readDesktopScreen"))
     }
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult> {
         context.cancel.check()?;
@@ -443,7 +446,7 @@ impl Capability for ScreenCapability {
         let tool = tool.to_string();
         tokio::task::spawn_blocking(move|| {context.cancel.check()?;
             if tool=="screen_info" {let displays=desktop.displays()?;return Ok(ToolResult::data("Desktop displays",json!({"displays":displays,"backend":displays.first().map(|d|&d.backend),"liveView":true}),true));}
-            if tool!="screen_capture" {return Err(Failure::new("UNKNOWN_TOOL","Unknown screen tool"));}
+            if tool!="screen_capture" {return Err(Failure::new("UNKNOWN_TOOL",text!("unknownScreenTool")));}
             desktop.observed_at.store(now_ms(),Ordering::SeqCst);
             let frame=desktop.capture(&args,80)?;let mut data=frame.metadata;data["data"]=json!(B64.encode(frame.bytes));Ok(ToolResult::data("Desktop screenshot (untrusted screen content)",data,true))
         }).await.map_err(|e|Failure::new("CAPTURE_FAILED",e.to_string()))?
@@ -455,7 +458,7 @@ impl Capability for InputCapability {
         serde_json::from_str(include_str!("manifests/input.json")).unwrap()
     }
     fn classify(&self, _: &str, _: &Value) -> Classification {
-        Classification::new(Risk::Exec, "Inject desktop input; owner approval required")
+        Classification::new(Risk::Exec, text!("injectDesktopInputOwnerApprovalRequired"))
     }
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult> {
         let desktop = self.0.clone();
@@ -479,13 +482,13 @@ fn number(args: &Value, key: &str) -> Result<f64> {
     args[key]
         .as_f64()
         .filter(|v| v.is_finite())
-        .ok_or_else(|| Failure::new("BAD_ARGS", format!("{key} must be a finite number")))
+        .ok_or_else(|| Failure::new("BAD_ARGS", text!("keyMustFiniteNumber", key)))
 }
 fn uint(args: &Value, key: &str) -> Result<u32> {
     args[key]
         .as_u64()
         .and_then(|v| u32::try_from(v).ok())
-        .ok_or_else(|| Failure::new("BAD_ARGS", format!("{key} must be a positive integer")))
+        .ok_or_else(|| Failure::new("BAD_ARGS", text!("keyMustPositiveInteger", key)))
 }
 /// No shell, bounded disk output, deadline and kill. Helpers never receive agent-provided executable names.
 fn command(program: &str, args: &[&str]) -> Result<Vec<u8>> {
@@ -499,7 +502,7 @@ fn command(program: &str, args: &[&str]) -> Result<Vec<u8>> {
         .map_err(|e| {
             Failure::new(
                 "BACKEND_UNAVAILABLE",
-                format!("{program}: {e}. Start the App in its packaged environment or devShell."),
+                text!("programEStartAppPackagedEnvironment", program, e),
             )
         })?;
     let start = Instant::now();
@@ -508,7 +511,7 @@ fn command(program: &str, args: &[&str]) -> Result<Vec<u8>> {
             if !status.success() {
                 return Err(Failure::new(
                     "BACKEND_UNAVAILABLE",
-                    format!("{program} failed; the compositor may not support this protocol"),
+                    text!("programFailedCompositorMayNotSupport", program),
                 ));
             }
             break;
@@ -518,7 +521,7 @@ fn command(program: &str, args: &[&str]) -> Result<Vec<u8>> {
             let _ = child.wait();
             return Err(Failure::new(
                 "BACKEND_UNAVAILABLE",
-                format!("{program} timed out or exceeded output limit"),
+                text!("programTimedOutExceededOutputLimit", program),
             ));
         }
         std::thread::sleep(Duration::from_millis(5));

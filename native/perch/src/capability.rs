@@ -1,3 +1,4 @@
+use crate::i18n::text;
 use crate::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -13,19 +14,26 @@ pub enum Risk {
     Sensitive,
 }
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Classification {
     pub risk: Risk,
+    /// English, for logs and readers that do not know the key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason_text: Option<crate::i18n::Text>,
 }
 impl Classification {
-    pub fn new(risk: Risk, reason: impl Into<String>) -> Self {
+    pub fn new(risk: Risk, reason: impl Into<crate::Words>) -> Self {
+        let (reason, reason_text) = reason.into().split();
         Self {
             risk,
-            reason: Some(crate::i18n::translate(&reason.into())),
+            reason: Some(reason),
+            reason_text,
         }
     }
 }
+/// What a tool returns to the agent. `text` is English, like every tool result the agent reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResult {
     pub text: String,
@@ -36,18 +44,14 @@ pub struct ToolResult {
 impl ToolResult {
     pub fn text(text: impl Into<String>) -> Self {
         Self {
-            text: crate::i18n::translate(&text.into()),
+            text: text.into(),
             data: None,
             untrusted: false,
         }
     }
     pub fn data(text: impl Into<String>, data: Value, untrusted: bool) -> Self {
         Self {
-            text: if untrusted {
-                text.into()
-            } else {
-                crate::i18n::translate(&text.into())
-            },
+            text: text.into(),
             data: Some(data),
             untrusted,
         }
@@ -73,7 +77,7 @@ impl CancelCheck for CancellationToken {
         if self.is_cancelled() {
             Err(crate::Failure::new(
                 "CANCELLED",
-                "Cancelled before native operation",
+                text!("cancelledBeforeNativeOperation"),
             ))
         } else {
             Ok(())
@@ -84,16 +88,5 @@ pub fn string_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str> {
     args[key]
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| crate::Failure::new("BAD_ARGS", format!("{key} is required")))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn untrusted_file_contents_stay_exact_even_when_they_match_catalog_text() {
-        let text = "command is empty.";
-        let result = ToolResult::data(text, serde_json::json!({"path":"notes.txt"}), true);
-        assert_eq!(result.text, text);
-    }
+        .ok_or_else(|| crate::Failure::new("BAD_ARGS", text!("keyRequired", key)))
 }

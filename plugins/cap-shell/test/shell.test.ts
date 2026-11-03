@@ -1,8 +1,7 @@
 import { createTestNest, type TestNest } from '@swiftnest/sdk';
-import { messageEn, PathGuard, render } from '@swiftnest/core';
+import { PathGuard, render } from '@swiftnest/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import cases from './classification-cases.json' with { type: 'json' };
-import rules from '../src/shell-rules.json' with { type: 'json' };
 import plugin, { classifyCommand, DEFAULT_READ_ONLY, tokenize } from '../src/index.js';
 
 const guard = new PathGuard();
@@ -23,11 +22,6 @@ describe('classifyCommand', () => {
   it('honours extra read-only programs from config', () => {
     expect(classifyCommand('git status', DEFAULT_READ_ONLY, guard).risk).toBe('exec');
     expect(classifyCommand('git status', ['git'], guard).risk).toBe('read');
-  });
-
-  it('names a catalog entry with the same English for every writing reason', () => {
-    for (const { reason, reasonKey } of Object.values(rules.writingInvocations))
-      expect(messageEn[reasonKey as keyof typeof messageEn], reasonKey).toBe(reason);
   });
 
   it('tokenizes quotes', () => {

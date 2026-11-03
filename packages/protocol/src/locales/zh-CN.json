@@ -687,5 +687,6 @@
   "phoneSummaryPhoneApps": "手机应用",
   "phoneSummaryOpenedTheApp": "已打开应用",
   "phoneSettingsAndroidOnly": "只有安卓手机才有这些设置",
-  "thisPhone": "这台手机"
+  "thisPhone": "这台手机",
+  "transferCancelled": "已取消"
 }

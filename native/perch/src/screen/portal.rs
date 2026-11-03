@@ -1,5 +1,6 @@
 //! GNOME/KDE: the portal chooser remains the authority. No persisted restore token.
 use super::*;
+use crate::i18n::text;
 use ashpd::desktop::{
     remote_desktop::{DeviceType, KeyState, RemoteDesktop},
     screencast::{CursorMode, Screencast, SourceType},
@@ -13,7 +14,7 @@ use std::{
 fn failure(e: impl std::fmt::Display) -> Failure {
     Failure::new(
         "PORTAL_UNAVAILABLE",
-        format!("ScreenCast/RemoteDesktop portal: {e}"),
+        text!("screencastRemotedesktopPortalE", e),
     )
 }
 struct PortalSession(Arc<Session<'static, RemoteDesktop<'static>>>);
@@ -179,12 +180,13 @@ impl Portal {
                 let mut keys = vec![];
                 for name in string_arg(args, "key")?.split('+') {
                     keys.push(
-                        keysym(name)
-                            .ok_or_else(|| Failure::new("BAD_ARGS", "Unsupported key combo"))?,
+                        keysym(name).ok_or_else(|| {
+                            Failure::new("BAD_ARGS", text!("unsupportedKeyCombo"))
+                        })?,
                     );
                 }
                 if keys.len() > 5 {
-                    return Err(Failure::new("BAD_ARGS", "Too many keys"));
+                    return Err(Failure::new("BAD_ARGS", text!("tooManyKeys")));
                 }
                 let mut pressed = vec![];
                 let mut error = None;
