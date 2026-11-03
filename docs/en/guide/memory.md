@@ -12,7 +12,7 @@ Limits count Unicode characters: 300 per fact, 4,000 for `MEMORY.md`, 16,000 per
 
 Each change first records `pending.json`, then replaces the affected files and appends one transaction to `journal.jsonl` with before/after lines. Recovery completes interrupted changes before the next read or write and on startup, without applying a committed transaction twice. A partial final journal row is preserved in `journal.torn`. Back up the whole memory directory while the server is stopped; do not edit files concurrently with the server.
 
-Memory is enabled by default. To disable the tools and prompt block (the Memory page reports that it is disabled), set:
+Memory is built in and enabled by default, with no installation or setup. Its setting is separate from the third-party `plugins` map. To disable the tools and prompt block (the Memory page reports that it is disabled), set:
 
 ```yaml
 memory:

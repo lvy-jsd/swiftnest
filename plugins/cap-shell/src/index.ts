@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { definePlugin, PathGuard, SwiftnestFailure, text, type Capability, type InvokeContext } from '@swiftnest/core';
-import type { Risk } from '@swiftnest/protocol';
+import { isText, type MessageKey, type Risk, type Text } from '@swiftnest/protocol';
 import rules from './shell-rules.json' with { type: 'json' };
 
 /** What makes an otherwise read-only program write: flags that write, and limits on its positional arguments. */
@@ -21,7 +21,8 @@ interface WritingRule {
   valueFlags?: string[];
   maxPositionals?: number;
   positionalPrefix?: string;
-  reason: string;
+  /** Catalog key of why the invocation writes; checked when the rules load. */
+  reasonKey: MessageKey;
 }
 const RULES: {
   readOnly: string[];
@@ -30,7 +31,15 @@ const RULES: {
   shellOperators: string;
   findWrites: string[];
   writingInvocations: Record<string, WritingRule>;
-} = rules;
+} = { ...rules, writingInvocations: checkedReasonKeys(rules.writingInvocations) };
+
+/** The rule table is JSON, so its catalog keys are checked once when it loads. */
+function checkedReasonKeys(table: Record<string, Omit<WritingRule, 'reasonKey'> & { reasonKey: string }>) {
+  for (const [program, rule] of Object.entries(table)) {
+    if (!isText({ key: rule.reasonKey })) throw new Error(`shell rule ${program}: unknown reasonKey ${rule.reasonKey}`);
+  }
+  return table as Record<string, WritingRule>;
+}
 
 export const DEFAULT_READ_ONLY: readonly string[] = RULES.readOnly;
 export const DESTRUCTIVE: readonly string[] = RULES.destructive;
@@ -57,7 +66,7 @@ function positionals(args: string[], valueFlags: readonly string[]): string[] {
  * Why this invocation of a read-only program writes files, runs programs or changes the system, or undefined when it
  * only reads. Reads run WITHOUT a sandbox, so a miss here is an unapproved write: doubtful cases count as writes.
  */
-export function writingInvocation(program: string, args: string[]): string | undefined {
+export function writingInvocation(program: string, args: string[]): Text | undefined {
   const rule = RULES.writingInvocations[program];
   if (!rule) return undefined;
   // Short-flag clusters (`-ro`) are split by the program, so a letter anywhere in the cluster counts.
@@ -68,7 +77,7 @@ export function writingInvocation(program: string, args: string[]): string | und
     args.some((a) => shortFlag(a) || longFlag(a)) ||
     rest.length > (rule.maxPositionals ?? Infinity) ||
     (rule.positionalPrefix !== undefined && rest.some((a) => !a.startsWith(rule.positionalPrefix!)));
-  return writes ? rule.reason : undefined;
+  return writes ? text(rule.reasonKey) : undefined;
 }
 
 /** Split a command line on whitespace, honouring simple single/double quotes. Returns null on unbalanced quotes. */
@@ -99,7 +108,7 @@ export function classifyCommand(
   command: string,
   readOnly: readonly string[] = DEFAULT_READ_ONLY,
   guard?: PathGuard,
-): { risk: Risk; reason: string } {
+): { risk: Risk; reason: Text } {
   const unquoted = command.replace(/'[^']*'|"[^"]*"/g, '');
   const tokens = tokenize(command);
   const program = tokens?.[0] ? basename(tokens[0]) : '';
@@ -118,13 +127,12 @@ export function classifyCommand(
     }
   }
   if (!destructive && DESTRUCTIVE.find((d) => program.startsWith(`${d}.`))) destructive = program;
-  if (destructive)
-    return { risk: 'sensitive', reason: `runs "${destructive}", which can destroy data or change the system` };
-  if (!tokens || !program) return { risk: 'exec', reason: 'could not parse the command' };
+  if (destructive) return { risk: 'sensitive', reason: text('runsWhichCanDestroyDataChange', destructive) };
+  if (!tokens || !program) return { risk: 'exec', reason: text('couldNotParseCommand') };
   if ([...RULES.shellOperators].some((op) => unquoted.includes(op)))
-    return { risk: 'exec', reason: 'uses shell operators (pipes, redirects, globs or substitutions)' };
+    return { risk: 'exec', reason: text('usesShellOperatorsPipesRedirectsGlobs') };
   if (program === 'find' && tokens.some((t) => RULES.findWrites.includes(t))) {
-    return { risk: 'sensitive', reason: 'find with -delete/-exec/-fprint can modify files' };
+    return { risk: 'sensitive', reason: text('findDeleteExecFprintCanModify') };
   }
   if (readOnly.includes(program)) {
     const writes = writingInvocation(program, tokens.slice(1));
@@ -134,14 +142,13 @@ export function classifyCommand(
     if (guard && FILE_READING.has(program)) {
       for (const a of fileArgs(tokens)) {
         const l = guard.lexical(a);
-        if (l.secret) return { risk: 'sensitive', reason: `"${program} ${a}" reads a protected location (${l.path})` };
-        if (!l.inside)
-          return { risk: 'exec', reason: `"${program} ${a}" reads outside the shared folders (${l.path})` };
+        if (l.secret) return { risk: 'sensitive', reason: text('readsProtectedLocation', program, a, l.path) };
+        if (!l.inside) return { risk: 'exec', reason: text('readsOutsideSharedFolders', program, a, l.path) };
       }
     }
-    return { risk: 'read', reason: `"${program}" is on the read-only list` };
+    return { risk: 'read', reason: text('readOnlyList', program) };
   }
-  return { risk: 'exec', reason: `"${program}" is not on the read-only list` };
+  return { risk: 'exec', reason: text('notReadOnlyList', program) };
 }
 
 function run(file: string, args: string[], cwd: string, ctx: InvokeContext) {

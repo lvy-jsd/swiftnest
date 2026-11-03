@@ -3,6 +3,7 @@
 //! The core stays platform-neutral: a host hands it a [`Bridge`] plus a manifest, and every tool call is
 //! forwarded as `bridge.call(method, args)`. Risk is fixed per tool in the spec, never decided by the host.
 use crate::capability::{CancelCheck, Capability, Classification, InvokeContext, Risk, ToolResult};
+use crate::i18n::text;
 use crate::{Failure, Result};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -18,7 +19,8 @@ pub struct BridgeTool {
     pub name: &'static str,
     pub method: &'static str,
     pub risk: Risk,
-    pub reason: &'static str,
+    /// Catalog key of why the tool has this risk.
+    pub reason_key: &'static str,
     /// Short line the agent sees above the returned data, e.g. "Phone notifications".
     pub summary: &'static str,
     /// Results that carry third-party content (screens, notifications) are marked untrusted for the agent.
@@ -55,7 +57,7 @@ impl BridgeCapability {
         self.tools
             .iter()
             .find(|tool| tool.name == name)
-            .ok_or_else(|| Failure::new("UNKNOWN_TOOL", format!("Unknown tool {name}")))
+            .ok_or_else(|| Failure::new("UNKNOWN_TOOL", text!("unknownToolName", name)))
     }
 }
 
@@ -67,8 +69,14 @@ impl Capability for BridgeCapability {
 
     fn classify(&self, tool: &str, _: &Value) -> Classification {
         match self.tool(tool) {
-            Ok(spec) => Classification::new(spec.risk, spec.reason),
-            Err(error) => Classification::new(Risk::Sensitive, error.to_string()),
+            Ok(spec) => Classification::new(
+                spec.risk,
+                crate::i18n::Text {
+                    key: spec.reason_key,
+                    args: vec![],
+                },
+            ),
+            Err(error) => Classification::new(Risk::Sensitive, error.words()),
         }
     }
 
@@ -79,11 +87,7 @@ impl Capability for BridgeCapability {
         let value = tokio::task::spawn_blocking(move || bridge.call(spec.method, args))
             .await
             .map_err(|error| Failure::new("TOOL_FAILED", error.to_string()))??;
-        Ok(ToolResult::data(
-            crate::i18n::translate(spec.summary),
-            value,
-            spec.untrusted,
-        ))
+        Ok(ToolResult::data(spec.summary, value, spec.untrusted))
     }
 }
 
@@ -101,7 +105,7 @@ mod tests {
             name: "demo_read",
             method: "readThing",
             risk: Risk::Read,
-            reason: "Read",
+            reason_key: "phoneReadScreen",
             summary: "Read",
             untrusted: true,
         },
@@ -109,7 +113,7 @@ mod tests {
             name: "demo_tap",
             method: "tap",
             risk: Risk::Exec,
-            reason: "Tap",
+            reason_key: "phoneTouchNeedsApproval",
             summary: "Tapped",
             untrusted: false,
         },

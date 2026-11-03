@@ -15,6 +15,23 @@ it('renders catalog text, including text in its arguments, in the reader languag
   expect(render(text('timedOutAfterMs', 500), 'en')).toBe('Timed out after 500 ms.');
 });
 
+it.each([
+  ['memoryEntryLimit', 300, 'Memory entries must be at most 300 characters.', '每条记忆最多 300 个字符。'],
+  [
+    'memoryIndexLimit',
+    4000,
+    'MEMORY.md must be at most 4000 characters. Use a topic for details.',
+    'MEMORY.md 最多 4000 个字符，请将详细内容放入主题。',
+  ],
+  ['memoryTopicLimit', 16000, 'A memory topic must be at most 16000 characters.', '每个记忆主题最多 16000 个字符。'],
+  ['memoryTopicsLimit', 40, 'Memory supports at most 40 topics.', '最多保存 40 个记忆主题。'],
+  ['memoryApiReturnedHttp', 503, 'Memory API returned HTTP 503', '记忆 API 返回 HTTP 503'],
+] as const)('renders migrated memory message %s in both reader languages', (key, value, en, zh) => {
+  const content = text(key, value);
+  expect(render(content, 'en')).toBe(en);
+  expect(render(content, 'zh-CN')).toBe(zh);
+});
+
 it('localizes a failure from its catalog text, falling back to its English for unknown keys', () => {
   const failure = {
     code: 'DEVICE_OFFLINE',

@@ -1,5 +1,6 @@
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
+import { checkOverrides, fileOverrides, parsePluginsEnv } from './plugins.js';
 /**
  * Swiftnest Server configuration: one YAML file, every field optional, with
  * environment overrides for containers. Defaults are for a stranger's machine,
@@ -36,10 +37,11 @@ export interface ServerConfig {
   persona: string;
   /** Name the Apps show on the assistant's messages (e.g. "小艾"); Apps fall back to a generic label. */
   assistantName?: string;
-  /** Enable the pinned, separately installed Tool Ultra bundle. */
-  toolUltra: boolean;
+  /** Per-plugin on/off overrides of the plugin manifest's defaults, by id. */
+  plugins: Record<string, boolean>;
   model: ModelConfig;
   files?: { quotaBytes: number };
+  /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean };
   devices: { host: string; port: number; mdns: boolean };
 }
@@ -92,12 +94,11 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
         ? 'You are a helpful assistant in Swiftnest, powered by the {{model}} model.'
         : DEFAULT_PERSONA),
     assistantName: env.SWIFTNEST_ASSISTANT_NAME || fromFile.assistantName,
-    toolUltra:
-      env.SWIFTNEST_TOOL_ULTRA === undefined ? (fromFile.toolUltra ?? true) : env.SWIFTNEST_TOOL_ULTRA !== 'false',
     memory: {
       enabled:
         env.SWIFTNEST_MEMORY === undefined ? (fromFile.memory?.enabled ?? true) : env.SWIFTNEST_MEMORY === 'true',
     },
+    plugins: { ...fileOverrides(fromFile.plugins), ...parsePluginsEnv(env.SWIFTNEST_PLUGINS) },
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
@@ -124,7 +125,7 @@ export function validate(config: ServerConfig): void {
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
     throw new ServerFailure(text('assistantNameMustString'));
-  if (typeof config.toolUltra !== 'boolean') throw new ServerFailure(text('toolUltraMustBoolean'));
+  checkOverrides(config.plugins);
   if (config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0))
     throw new ServerFailure(text('filesQuotabytesMustNonnegativeSafeInteger'));
   if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535)

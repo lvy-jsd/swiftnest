@@ -1,0 +1,28 @@
+import { render, text } from '@swiftnest/protocol';
+import { expect, it } from 'vitest';
+import { RulePolicy } from '../src/policy';
+
+const input = { client: { id: 'c' }, device: 'laptop', capability: 'shell', tool: 'run', args: {} };
+
+it('explains a default decision as catalog text, including the capability reason', () => {
+  const decision = new RulePolicy().decide({
+    ...input,
+    risk: 'exec',
+    reason: 'uses shell operators (pipes, redirects, globs or substitutions)',
+    reasonText: text('usesShellOperatorsPipesRedirectsGlobs'),
+  });
+  expect(decision.action).toBe('ask');
+  expect(decision.reason).toBe('default for exec (uses shell operators (pipes, redirects, globs or substitutions))');
+  expect(render(decision.reasonText!, 'zh-CN')).toBe(
+    render(
+      text('policyDefault', text('riskReason', text('policyExec'), text('usesShellOperatorsPipesRedirectsGlobs'))),
+      'zh-CN',
+    ),
+  );
+  expect(render(decision.reasonText!, 'zh-CN')).not.toMatch(/default for/);
+});
+
+it("shows an owner's rule note as written", () => {
+  const policy = new RulePolicy([{ tool: 'run', action: 'deny', note: '不许在周末跑命令' }]);
+  expect(policy.decide({ ...input, risk: 'exec' })).toEqual({ action: 'deny', reason: '不许在周末跑命令' });
+});

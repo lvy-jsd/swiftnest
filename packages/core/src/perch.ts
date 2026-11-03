@@ -7,12 +7,12 @@ import {
   PROTOCOL_VERSION,
   type InvokeRequest,
   type InvokeResult,
-  type Risk,
   type ToolResult,
   text,
 } from '@swiftnest/protocol';
 import type { z } from 'zod';
 import { SwiftnestFailure } from './errors.js';
+import { classification, type Classification } from './policy.js';
 import { generateIdentity, type Identity } from './identity.js';
 import { createLogger, type Logger } from './log.js';
 import { PluginHost, type Capability, type SwiftnestPlugin, type ToolOutput } from './plugin.js';
@@ -104,9 +104,10 @@ export class Perch {
     return { cap, desc };
   }
 
-  classify(capability: string, tool: string, args: Record<string, unknown>): { risk: Risk; reason?: string } {
+  classify(capability: string, tool: string, args: Record<string, unknown>): Classification {
     const { cap, desc } = this.lookup(capability, tool);
-    return cap.impl.classify?.(tool, args) ?? { risk: desc.risk };
+    const rated = cap.impl.classify?.(tool, args);
+    return rated ? classification(rated.risk, rated.reason) : { risk: desc.risk };
   }
 
   async invoke(req: Invoke): Promise<Result> {

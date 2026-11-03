@@ -1,3 +1,4 @@
+use crate::i18n::text;
 use crate::{
     capability::{Capability, Classification, InvokeContext, Risk},
     channel::{is_final, Channel},
@@ -111,39 +112,31 @@ impl Controller {
     pub async fn configure(&self, mut settings: Settings, code: Option<String>) -> Result<()> {
         if let Some(code) = &code {
             if code.len() != 6 || !code.bytes().all(|c| c.is_ascii_digit()) {
-                return Err(Failure::new("BAD_ARGS", "Pairing code must be six digits"));
+                return Err(Failure::new("BAD_ARGS", text!("pairingCodeMustSixDigits")));
             }
         }
         if settings.name.trim().is_empty() || settings.name.len() > 128 {
-            return Err(Failure::new(
-                "BAD_ARGS",
-                "Device name must have 1–128 bytes",
-            ));
+            return Err(Failure::new("BAD_ARGS", text!("deviceNameMust1128Bytes")));
         }
         if settings.enabled {
             // Validation without dialing: never accept credentials or a non-WebSocket URL.
             let url = settings
                 .url
                 .parse::<tokio_tungstenite::tungstenite::http::Uri>()
-                .map_err(|_| {
-                    Failure::new(
-                        "BAD_ARGS",
-                        "Use ws://host:port/swiftnest or wss://host/swiftnest",
-                    )
-                })?;
+                .map_err(|_| Failure::new("BAD_ARGS", text!("useWsHostPortSwiftnestWss")))?;
             if !matches!(url.scheme_str(), Some("ws" | "wss"))
                 || url.host().is_none()
                 || settings.url.contains('@')
             {
                 return Err(Failure::new(
                     "BAD_ARGS",
-                    "Use a WebSocket URL without credentials",
+                    text!("useWebsocketUrlWithoutCredentials"),
                 ));
             }
             if settings.roots.is_empty() {
                 return Err(Failure::new(
                     "BAD_ARGS",
-                    "Choose at least one shared folder",
+                    text!("chooseLeastOneSharedFolder"),
                 ));
             }
         }
@@ -158,7 +151,7 @@ impl Controller {
                 if c.secret || !c.path.is_dir() {
                     return Err(Failure::new(
                         "PATH_REFUSED",
-                        "Choose an existing folder outside protected storage",
+                        text!("chooseExistingFolderOutsideProtectedStorage"),
                     ));
                 }
                 Ok(c.path)
@@ -173,7 +166,7 @@ impl Controller {
             if settings.nest_key.is_some() && settings.url != store.settings.url && code.is_none() {
                 return Err(Failure::new(
                     "BAD_ARGS",
-                    "Pair again to change the Nest address",
+                    text!("pairAgainChangeNestAddress"),
                 ));
             }
         }
@@ -209,10 +202,10 @@ impl Controller {
             .confirm
             .take()
             .ok_or_else(|| {
-                Failure::new("PAIRING_CLOSED", "No fingerprint confirmation is pending")
+                Failure::new("PAIRING_CLOSED", text!("noFingerprintConfirmationPending"))
             })?
             .send(accept)
-            .map_err(|_| Failure::new("PAIRING_CLOSED", "Pairing session ended"))
+            .map_err(|_| Failure::new("PAIRING_CLOSED", text!("pairingSessionEnded")))
     }
     /// Emergency off is independent of unsaved names, paths or address validation.
     pub async fn disable(&self) -> Result<()> {
@@ -399,7 +392,7 @@ async fn establish(
     if code.is_none() && settings.nest_key.is_none() {
         return Err(Failure::new(
             "NOT_PAIRED",
-            "Enter the code from the server Devices page",
+            text!("enterCodeServerDevicesPage"),
         ));
     }
     let mut channel = Channel::connect(
@@ -418,7 +411,7 @@ async fn establish(
         if status["status"] != "code_ok" {
             return Err(Failure::new(
                 "PAIRING_REJECTED",
-                "Wrong or expired pairing code",
+                text!("wrongExpiredPairingCode"),
             ));
         }
         let (tx, rx) = oneshot::channel();
@@ -439,14 +432,14 @@ async fn establish(
         if !accept {
             return Err(Failure::new(
                 "PAIRING_REJECTED",
-                "Fingerprint was not confirmed",
+                text!("fingerprintNotConfirmed"),
             ));
         }
         let status = expect(&mut channel, "pair_status", 300).await?;
         if status["status"] != "paired" {
             return Err(Failure::new(
                 "PAIRING_REJECTED",
-                "Pairing was not confirmed on the server",
+                text!("pairingNotConfirmedServer"),
             ));
         }
         let mut store = store.lock().unwrap();
@@ -476,7 +469,7 @@ async fn establish(
 async fn expect(channel: &mut Channel, kind: &str, seconds: u64) -> Result<Value> {
     let message = timeout(Duration::from_secs(seconds), channel.recv())
         .await
-        .map_err(|_| Failure::new("TIMEOUT", format!("No {kind} response")))??;
+        .map_err(|_| Failure::new("TIMEOUT", text!("noKindResponse", kind)))??;
     if message["type"] == "bye" {
         return Err(Failure::new(
             message["code"].as_str().unwrap_or("DISCONNECTED"),
@@ -486,7 +479,7 @@ async fn expect(channel: &mut Channel, kind: &str, seconds: u64) -> Result<Value
         ));
     }
     if message["type"] != kind {
-        return Err(Failure::new("PROTOCOL_ERROR", format!("Expected {kind}")));
+        return Err(Failure::new("PROTOCOL_ERROR", text!("expectedKind", kind)));
     }
     Ok(message)
 }
@@ -535,7 +528,7 @@ fn lookup(caps: &[Arc<dyn Capability>], id: &str, tool: &str) -> Result<Arc<dyn 
                     .is_some_and(|ts| ts.iter().any(|t| t["name"] == tool))
         })
         .cloned()
-        .ok_or_else(|| Failure::new("UNKNOWN_TOOL", format!("No tool {id}.{tool}")))
+        .ok_or_else(|| Failure::new("UNKNOWN_TOOL", text!("noToolIdTool", id, tool)))
 }
 async fn session(
     mut channel: Channel,
@@ -568,7 +561,7 @@ async fn session(
             tokio::select! {
                 biased;
                 _ = stop.cancelled() => {
-                    let bye = channel.cipher.seal(&json!({"type":"bye","code":"DEVICE_DISCONNECTED","message":"Disconnected on this device"}))?;
+                    let bye = channel.cipher.seal(&json!({"type":"bye","code":"DEVICE_DISCONNECTED","message":"Disconnected on this device."}))?;
                     let _ = timeout(Duration::from_secs(1), writer.send(Message::Text(bye.into()))).await;
                     return Ok(());
                 },
@@ -583,17 +576,17 @@ async fn session(
                     }
                 },
                 _ = heartbeat.tick() => {
-                    if pong.elapsed() > Duration::from_secs(45) { return Err(Failure::new("DISCONNECTED", "Heartbeat timed out")); }
+                    if pong.elapsed() > Duration::from_secs(45) { return Err(Failure::new("DISCONNECTED", text!("heartbeatTimedOut"))); }
                     send_frame(&mut writer, Message::Ping(vec![1].into()), &stop).await?;
                 },
                 frame = reader.next() => {
-                    let frame = frame.ok_or_else(|| Failure::new("DISCONNECTED", "Link dropped"))?.map_err(|e| Failure::new("DISCONNECTED", e.to_string()))?;
+                    let frame = frame.ok_or_else(|| Failure::new("DISCONNECTED", text!("linkDropped")))?.map_err(|e| Failure::new("DISCONNECTED", e.to_string()))?;
                     let text = match frame {
                         Message::Text(t) => t,
                         Message::Pong(_) => { pong = Instant::now(); continue; },
                         Message::Ping(payload) => { send_frame(&mut writer, Message::Pong(payload), &stop).await?; continue; },
-                        Message::Close(c) => return Err(Failure::new(c.as_ref().map(|c| c.reason.as_str()).filter(|s| is_final(s)).unwrap_or("DISCONNECTED"), "Nest closed the link")),
-                        _ => return Err(Failure::new("PROTOCOL_ERROR", "Unnegotiated binary stream")),
+                        Message::Close(c) => return Err(Failure::new(c.as_ref().map(|c| c.reason.as_str()).filter(|s| is_final(s)).unwrap_or("DISCONNECTED"), text!("nestClosedLink"))),
+                        _ => return Err(Failure::new("PROTOCOL_ERROR", text!("unnegotiatedBinaryStream"))),
                     };
                     let incoming: Incoming = serde_json::from_value(channel.cipher.open(&text)?)?;
                     match incoming {
@@ -620,14 +613,14 @@ async fn session(
                         Incoming::Cancel { task_id } => { if let Some(cancel) = running.get(&task_id) { cancel.cancel(); } },
                         Incoming::Classify { request_id, capability, tool, args } => {
                             let args = Value::Object(args);
-                            let c = match lookup(&caps, &capability, &tool) { Ok(cap) => cap.classify(&tool, &args), Err(e) => Classification::new(Risk::Sensitive, e.to_string()) };
+                            let c = match lookup(&caps, &capability, &tool) { Ok(cap) => cap.classify(&tool, &args), Err(e) => Classification::new(Risk::Sensitive, e.words()) };
                             let mut reply = serde_json::to_value(c)?;
                             reply["type"] = json!("classified"); reply["requestId"] = json!(request_id);
                             send_frame(&mut writer, Message::Text(channel.cipher.seal(&reply)?.into()), &stop).await?;
                         },
                         Incoming::Invoke { task_id, capability, tool, args, timeout_ms } => {
                             if timeout_ms == 0 || timeout_ms > 3_600_000 || running.len() >= 32 || running.contains_key(&task_id) {
-                                return Err(Failure::new("PROTOCOL_ERROR", "Invalid timeout, duplicate task or too many concurrent calls"));
+                                return Err(Failure::new("PROTOCOL_ERROR", text!("invalidTimeoutDuplicateTaskTooMany")));
                             }
                             let cap = lookup(&caps, &capability, &tool);
                             let cancel = CancellationToken::new(); running.insert(task_id.clone(), cancel.clone());
@@ -636,8 +629,8 @@ async fn session(
                                 let work = async { cap?.invoke(&tool, Value::Object(args), context).await };
                                 let result = tokio::select! {
                                     biased;
-                                    _ = cancel.cancelled() => Err(Failure::new("CANCELLED", "Cancelled by request")),
-                                    result = timeout(Duration::from_millis(timeout_ms), work) => result.unwrap_or_else(|_| Err(Failure::new("TIMEOUT", "Tool timed out; retry with a longer timeout"))),
+                                    _ = cancel.cancelled() => Err(Failure::new("CANCELLED", text!("cancelledRequest"))),
+                                    result = timeout(Duration::from_millis(timeout_ms), work) => result.unwrap_or_else(|_| Err(Failure::new("TIMEOUT", text!("toolTimedOutRetryLongerTimeout")))),
                                 };
                                 cancel.cancel();
                                 let response = match result {
@@ -674,9 +667,9 @@ async fn send_frame(
 ) -> Result<()> {
     tokio::select! {
         biased;
-        _ = stop.cancelled() => Err(Failure::new("DEVICE_DISCONNECTED", "Disconnected on this device")),
+        _ = stop.cancelled() => Err(Failure::new("DEVICE_DISCONNECTED", text!("disconnectedDevice"))),
         result = timeout(Duration::from_secs(5), writer.send(message)) => {
-            result.map_err(|_| Failure::new("DISCONNECTED", "Nest stopped reading the link"))?
+            result.map_err(|_| Failure::new("DISCONNECTED", text!("nestStoppedReadingLink")))?
                 .map_err(|e| Failure::new("DISCONNECTED", e.to_string()))
         }
     }

@@ -2,7 +2,7 @@
  * Plugin contract. Everything beyond the core — capabilities, links, surfaces, policies — is a plugin with this shape.
  * Built-in trusted plugins run in-process (cheap on phones and small boards); third-party isolation comes later (design §5.4).
  */
-import { PLUGIN_API_VERSION, text, type CapabilityManifestInput, type Risk } from '@swiftnest/protocol';
+import { PLUGIN_API_VERSION, text, type CapabilityManifestInput, type Risk, type Text } from '@swiftnest/protocol';
 import { SwiftnestFailure } from './errors.js';
 import type { Logger } from './log.js';
 import type { Nest } from './nest.js';
@@ -24,7 +24,7 @@ export type ToolOutput = string | { text?: string; data?: unknown; untrusted?: b
 export interface Capability {
   manifest: CapabilityManifestInput;
   /** Argument-level risk: e.g. `ls` is a read, `rm -rf` is sensitive. Defaults to the tool's declared risk. */
-  classify?(tool: string, args: Record<string, unknown>): { risk: Risk; reason?: string } | undefined;
+  classify?(tool: string, args: Record<string, unknown>): { risk: Risk; reason?: string | Text } | undefined;
   invoke(tool: string, args: Record<string, unknown>, ctx: InvokeContext): Promise<ToolOutput>;
   dispose?(): void | Promise<void>;
 }

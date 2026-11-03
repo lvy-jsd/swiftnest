@@ -39,7 +39,7 @@ export class MemoryHarness {
       loadConfig(undefined, {
         SWIFTNEST_LANG: 'en',
         SWIFTNEST_HOME: this.home,
-        SWIFTNEST_TOOL_ULTRA: 'false',
+        SWIFTNEST_PLUGINS: 'tool-ultra=false',
         SWIFTNEST_DEVICES_PORT: '0',
         SWIFTNEST_DEVICES_MDNS: 'false',
         SWIFTNEST_PORT: '0',

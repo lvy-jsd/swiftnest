@@ -1,3 +1,4 @@
+import { localizedError, type Text } from '@swiftnest/api';
 import { useEffect, useState } from 'react';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
@@ -23,7 +24,8 @@ export type PerchSnapshot = {
   fingerprint: string;
   nestFingerprint: string | null;
   confirmationPending: boolean;
-  error: { code: string } | null;
+  /** English prose plus catalog text, rendered in the App's language. */
+  error: { code: string; message: string; text?: Text } | null;
   platform: 'desktop' | 'android' | 'ios';
   watching?: boolean;
   ownerControl?: boolean;
@@ -92,13 +94,14 @@ function PhonePermissions() {
 
 /** Loaded only by the native runtime: desktop shares folders and the screen, Android shares the phone. */
 export function ThisDevice() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { root } = useConnection();
   const [snapshot, setSnapshot] = useState<PerchSnapshot>();
   const [draft, setDraft] = useState<PerchSettings>();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /** What the last native call threw, if it failed. */
+  const [failure, setFailure] = useState<{ error: unknown }>();
   const [unpair, setUnpair] = useState(false);
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -109,8 +112,8 @@ export function ThisDevice() {
         if (disposed) return;
         setSnapshot(value);
         setDraft((previous) => previous ?? { ...value.settings, url: value.settings.url || perchAddress(root) });
-      } catch {
-        if (!disposed) setFailed(true);
+      } catch (error) {
+        if (!disposed) setFailure({ error });
       }
     };
     void read();
@@ -122,16 +125,17 @@ export function ThisDevice() {
   }, [root]);
   if (!snapshot || !draft || snapshot.platform === 'ios') return null;
   const phone = snapshot.platform === 'android';
+  const shownFailure = failure?.error ?? snapshot.error;
   // Desktop needs shared folders before it can be enabled; the phone uses the App's own folder.
   const foldersReady = phone || draft.roots.length > 0;
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
-    setFailed(false);
+    setFailure(undefined);
     try {
       await action();
       setSnapshot(await native<PerchSnapshot>('perch_snapshot'));
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      setFailure({ error });
     } finally {
       setBusy(false);
     }
@@ -207,10 +211,9 @@ export function ThisDevice() {
       <p role="status" className={snapshot.phase === 'online' ? 'device-online' : undefined}>
         {t(phase)}
       </p>
-      {(failed || snapshot.error) && (
+      {shownFailure && (
         <p role="alert">
-          {t('deviceActionFailed')}
-          {snapshot.error ? ` (${snapshot.error.code})` : ''}
+          {t('deviceActionFailed')} {localizedError(shownFailure, locale).message}
         </p>
       )}
       <label className="field">

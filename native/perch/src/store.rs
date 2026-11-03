@@ -1,3 +1,4 @@
+use crate::i18n::text;
 use crate::{Failure, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64, Engine};
 use ed25519_dalek::SigningKey;
@@ -27,7 +28,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            name: crate::i18n::text(if cfg!(target_os = "android") {
+            name: crate::i18n::message(if cfg!(target_os = "android") {
                 "thisPhone"
             } else {
                 "thisComputer"
@@ -61,7 +62,7 @@ impl Store {
         #[cfg(windows)]
         {
             let user = std::env::var("USERNAME")
-                .map_err(|_| Failure::new("STORE_PERMISSIONS", "No Windows user"))?;
+                .map_err(|_| Failure::new("STORE_PERMISSIONS", text!("noWindowsUser")))?;
             let status = std::process::Command::new("icacls")
                 .arg(&dir)
                 .args(["/inheritance:r", "/grant:r", &format!("{user}:(OI)(CI)F")])
@@ -69,7 +70,7 @@ impl Store {
             if !status.success() {
                 return Err(Failure::new(
                     "STORE_PERMISSIONS",
-                    "Cannot restrict data directory ACL",
+                    text!("cannotRestrictDataDirectoryAcl"),
                 ));
             }
         }
@@ -78,7 +79,7 @@ impl Store {
             Ok(raw) => {
                 let raw = Zeroizing::new(raw);
                 let bytes = Zeroizing::new(<[u8; 32]>::try_from(raw.as_slice()).map_err(|_| {
-                    Failure::new("STORE_CORRUPT", "Invalid private key; do not overwrite it")
+                    Failure::new("STORE_CORRUPT", text!("invalidPrivateKeyNotOverwrite"))
                 })?);
                 SigningKey::from_bytes(&bytes)
             }
@@ -145,11 +146,11 @@ pub fn public_key(identity: &SigningKey) -> String {
 pub fn fingerprint(key: &str) -> Result<String> {
     let raw = B64
         .decode(key)
-        .map_err(|_| Failure::new("HANDSHAKE_FAILED", "Invalid public key"))?;
+        .map_err(|_| Failure::new("HANDSHAKE_FAILED", text!("invalidPublicKey")))?;
     if raw.len() != 32 {
         return Err(Failure::new(
             "HANDSHAKE_FAILED",
-            "Invalid public key length",
+            text!("invalidPublicKeyLength"),
         ));
     }
     let hash = Sha256::digest(raw);

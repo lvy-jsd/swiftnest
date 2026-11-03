@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { stringify, parse } from 'yaml';
 import { loadConfig } from '../src/config.js';
 import { writeProfile } from '../src/profile.js';
+import { PLUGIN_MANIFEST } from '../src/plugins.js';
 import {
   installToolUltra,
   isBuilt,
@@ -17,6 +18,10 @@ import {
   TOOL_ULTRA_SOURCE,
 } from '../src/tool-ultra.js';
 
+const NPM_PLUGINS_OFF = PLUGIN_MANIFEST.plugins
+  .filter((plugin) => plugin.source.type === 'npm')
+  .map((plugin) => `${plugin.id}=false`)
+  .join(',');
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock('node:child_process', async (original) => ({
   ...(await original<typeof import('node:child_process')>()),
@@ -30,7 +35,8 @@ afterEach(() => {
 function setup() {
   const home = mkdtempSync(join(tmpdir(), 'swiftnest-ultra-'));
   homes.push(home);
-  const config = loadConfig(undefined, { SWIFTNEST_HOME: home });
+  // Only Tool Ultra: the npm plugins have their own tests.
+  const config = loadConfig(undefined, { SWIFTNEST_HOME: home, SWIFTNEST_PLUGINS: NPM_PLUGINS_OFF });
   return { home, config, dir: toolUltraDir(config) };
 }
 function fixture(dir: string) {
@@ -109,7 +115,7 @@ describe('Tool Ultra', () => {
     await installToolUltra(config, log);
     expect(spawn.mock.calls.map(([command, args]) => [command, args])).toEqual([
       ['git', ['init']],
-      ['git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repo, TOOL_ULTRA_SOURCE.commit]],
+      ['git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repository, TOOL_ULTRA_SOURCE.commit]],
       ['git', ['checkout', '--detach', 'FETCH_HEAD']],
       ['npm', ['ci']],
       ['npm', ['run', 'build']],
@@ -169,7 +175,7 @@ describe('Tool Ultra', () => {
     );
     expect(readFileSync(user, 'utf8')).toContain('pinned: [mine]');
     expect(opts.log).not.toHaveBeenCalled();
-    config.toolUltra = false;
+    config.plugins['tool-ultra'] = false;
     writeProfile(config, opts);
     expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
   });
@@ -182,8 +188,8 @@ describe('Tool Ultra', () => {
       const log = vi.fn();
       const profile = writeProfile(config, { bundleDir: home, log });
       expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('swiftnest-server tools install'));
-      expect(log.mock.calls[0]![0]).toContain(lang === 'en' ? 'not built' : '尚未构建');
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('swiftnest-server plugins install'));
+      expect(log.mock.calls[0]![0]).toContain(lang === 'en' ? 'not installed: tool-ultra' : '尚未安装：tool-ultra');
       expect(spawn).not.toHaveBeenCalled();
     },
   );

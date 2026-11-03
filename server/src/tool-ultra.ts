@@ -1,29 +1,19 @@
 /** Build the unpublished Tool Ultra source; defaults belong to its package patches. */
 import { text } from '@swiftnest/core';
-import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { parse } from 'yaml';
 import type { ServerConfig } from './config.js';
+import { type Log, run } from './command.js';
 import { message, ServerFailure } from './i18n.js';
+import { type GitSource, pluginById } from './plugins.js';
 
-export const TOOL_ULTRA_SOURCE = {
-  repo: 'https://github.com/lvy-jsd/dsh-tool-ultra',
-  commit: '8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9',
-} as const;
-export const TOOL_ULTRA_PACKAGES = [
-  'core',
-  'classifier-rules',
-  'risk-gate',
-  'persist',
-  'pack-essentials',
-  'pack-web',
-  'devices',
-] as const;
+export const TOOL_ULTRA_ID = 'tool-ultra';
+/** The pin lives in the plugin manifest with every other plugin. */
+export const TOOL_ULTRA_SOURCE = pluginById<GitSource>(TOOL_ULTRA_ID, 'git').source;
+export const TOOL_ULTRA_PACKAGES = TOOL_ULTRA_SOURCE.packages;
 export const TOOL_ULTRA_MARKER = '.swiftnest-built';
-
-type Log = (line: string) => void;
 
 export function toolUltraDir(config: ServerConfig): string {
   return resolve(config.home, 'vendor', `dsh-tool-ultra-${TOOL_ULTRA_SOURCE.commit.slice(0, 12)}`);
@@ -46,30 +36,6 @@ export function toolUltraPatch(dir: string): unknown[] {
       for (const entry of row.insert) entry.name = join(packageDir, 'lib', 'index.js');
     }
     return rows;
-  });
-}
-
-function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, log: Log): Promise<void> {
-  return new Promise((resolveRun, reject) => {
-    const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    const collect = (stream: NodeJS.ReadableStream) => {
-      let pending = '';
-      stream.on('data', (chunk: Buffer) => {
-        const lines = (pending + chunk.toString('utf8')).split(/\r?\n/);
-        pending = lines.pop() ?? '';
-        for (const line of lines) if (line) log(line);
-      });
-      stream.on('end', () => {
-        if (pending) log(pending);
-      });
-    };
-    collect(child.stdout!);
-    collect(child.stderr!);
-    child.once('error', reject);
-    child.once('close', (code) => {
-      if (code === 0) resolveRun();
-      else reject(new ServerFailure(text('toolUltraCommandFailed', command, String(code))));
-    });
   });
 }
 
@@ -106,7 +72,7 @@ async function build(dir: string, config: ServerConfig, log: Log): Promise<void>
   const execute = (command: string, args: string[]) => run(command, args, dir, env, log);
   log(message('toolUltraFetch', config.lang, [TOOL_ULTRA_SOURCE.commit]));
   await execute('git', ['init']);
-  await execute('git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repo, TOOL_ULTRA_SOURCE.commit]);
+  await execute('git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repository, TOOL_ULTRA_SOURCE.commit]);
   await execute('git', ['checkout', '--detach', 'FETCH_HEAD']);
   prepareDependencies(dir);
   log(message('toolUltraDependencies', config.lang));

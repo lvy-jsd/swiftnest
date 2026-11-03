@@ -80,15 +80,32 @@ describe('loadConfig', () => {
   });
 });
 
-it('defaults Tool Ultra on and supports YAML and environment overrides', () => {
-  const file = join(tmp(), 'ultra.yaml');
-  expect(loadConfig(undefined, {}).toolUltra).toBe(true);
-  writeFileSync(file, 'toolUltra: false\n');
-  expect(loadConfig(file, {}).toolUltra).toBe(false);
-  expect(loadConfig(file, { SWIFTNEST_TOOL_ULTRA: 'true' }).toolUltra).toBe(true);
-  expect(loadConfig(undefined, { SWIFTNEST_TOOL_ULTRA: 'false' }).toolUltra).toBe(false);
-  writeFileSync(file, 'toolUltra: "false"\n');
-  expect(() => loadConfig(file, {})).toThrow('toolUltra must be a boolean');
+it('takes plugin defaults from the manifest, overridden by YAML then the environment', () => {
+  const file = join(tmp(), 'plugins.yaml');
+  expect(loadConfig(undefined, {}).plugins).toEqual({});
+  writeFileSync(file, 'plugins: { tool-ultra: false, im: true }\n');
+  expect(loadConfig(file, {}).plugins).toEqual({ 'tool-ultra': false, im: true });
+  expect(loadConfig(file, { SWIFTNEST_PLUGINS: 'tool-ultra=true, im=false' }).plugins).toEqual({
+    'tool-ultra': true,
+    im: false,
+  });
+  expect(loadConfig(undefined, { SWIFTNEST_PLUGINS: 'vision-router' }).plugins).toEqual({ 'vision-router': true });
+});
+
+it.each([
+  ['plugins: { tool-ultra: "false" }', 'plugins must map'],
+  ['plugins: [im]', 'plugins must map'],
+  ['plugins: { imm: true }', 'Unknown plugin imm'],
+])('rejects plugin overrides %s', (yaml, error) => {
+  const file = join(tmp(), 'plugins.yaml');
+  writeFileSync(file, `${yaml}\n`);
+  expect(() => loadConfig(file, { SWIFTNEST_LANG: 'en' })).toThrow(error);
+});
+
+it('rejects an unknown plugin id from the environment', () => {
+  expect(() => loadConfig(undefined, { SWIFTNEST_LANG: 'en', SWIFTNEST_PLUGINS: 'typo' })).toThrow(
+    'Unknown plugin typo',
+  );
 });
 
 it.each(['42', 'false', '[]', '{}', 'null'])('rejects non-string assistantName: %s', (value) => {
@@ -104,3 +121,26 @@ it('defaults memory on, accepts explicit off, and rejects invalid memory configu
   const config = loadConfig(undefined, {});
   expect(() => validate({ ...config, memory: { enabled: 'false' as unknown as boolean } })).toThrow(/memory.enabled/);
 });
+
+it('keeps built-in memory independent of third-party plugin overrides, with environment precedence', () => {
+  const file = join(tmp(), 'memory.yaml');
+  writeFileSync(file, 'memory: { enabled: false }\nplugins: { tool-ultra: false, im: true }\n');
+  const fromFile = loadConfig(file, {});
+  expect(fromFile.memory).toEqual({ enabled: false });
+  expect(fromFile.plugins).toEqual({ 'tool-ultra': false, im: true });
+  const fromEnv = loadConfig(file, { SWIFTNEST_MEMORY: 'true', SWIFTNEST_PLUGINS: 'im=false' });
+  expect(fromEnv.memory).toEqual({ enabled: true });
+  expect(fromEnv.plugins).toEqual({ 'tool-ultra': false, im: false });
+  writeFileSync(file, 'memory: { enabled: true }\n');
+  expect(loadConfig(file, { SWIFTNEST_MEMORY: 'false' }).memory).toEqual({ enabled: false });
+  expect(loadConfig(undefined, { SWIFTNEST_PLUGINS: 'tool-ultra=false' }).memory).toEqual({ enabled: true });
+});
+
+it.each(['false', '[]', '{}', 'null', '{ enabled: "false" }'])(
+  'rejects malformed memory YAML even when the environment overrides it: %s',
+  (value) => {
+    const file = join(tmp(), 'memory.yaml');
+    writeFileSync(file, `memory: ${value}\n`);
+    expect(() => loadConfig(file, { SWIFTNEST_MEMORY: 'true' })).toThrow(/memory.enabled/);
+  },
+);

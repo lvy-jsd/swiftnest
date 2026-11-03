@@ -1,3 +1,4 @@
+use crate::i18n::text;
 use crate::{
     capability::*,
     paths::{realish, PathGuard},
@@ -36,8 +37,8 @@ impl Capability for Files {
                 if c.secret || !c.inside {
                     return Classification::new(
                         Risk::Sensitive,
-                        format!(
-                            "{} is {} and will be refused",
+                        text!(
+                            "willRefused",
                             c.path.display(),
                             if c.secret {
                                 "a protected location"
@@ -56,6 +57,7 @@ impl Capability for Files {
                 _ => Risk::Sensitive,
             },
             reason: None,
+            reason_text: None,
         }
     }
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult> {
@@ -70,7 +72,7 @@ impl Files {
     fn call(&self, tool: &str, args: &Value, ctx: InvokeContext) -> Result<ToolResult> {
         let cancelled = || {
             if ctx.cancel.is_cancelled() {
-                Err(Failure::new("CANCELLED", "Cancelled by request"))
+                Err(Failure::new("CANCELLED", text!("cancelledRequest")))
             } else {
                 Ok(())
             }
@@ -139,7 +141,7 @@ impl Files {
                 let path = allowed("path")?;
                 let info = fs::metadata(&path)?;
                 if !info.is_file() {
-                    return Err(Failure::new("NOT_A_FILE", "Use files.list for folders"));
+                    return Err(Failure::new("NOT_A_FILE", text!("useFilesListFolders")));
                 }
                 let mut bytes = vec![];
                 fs::File::open(&path)?
@@ -189,10 +191,10 @@ impl Files {
                 let path = allowed("path")?;
                 let content = args["content"]
                     .as_str()
-                    .ok_or_else(|| Failure::new("BAD_ARGS", "content must be a string"))?;
+                    .ok_or_else(|| Failure::new("BAD_ARGS", text!("contentMustString")))?;
                 fs::create_dir_all(
                     path.parent()
-                        .ok_or_else(|| Failure::new("BAD_ARGS", "Invalid parent"))?,
+                        .ok_or_else(|| Failure::new("BAD_ARGS", text!("invalidParent")))?,
                 )?;
                 cancelled()?;
                 let append = args["append"].as_bool().unwrap_or(false);
@@ -221,12 +223,12 @@ impl Files {
                 if fs::symlink_metadata(&to).is_ok() {
                     return Err(Failure::new(
                         "TARGET_EXISTS",
-                        "Target exists; choose another name",
+                        text!("targetExistsChooseAnotherName"),
                     ));
                 }
                 fs::create_dir_all(
                     to.parent()
-                        .ok_or_else(|| Failure::new("BAD_ARGS", "Invalid parent"))?,
+                        .ok_or_else(|| Failure::new("BAD_ARGS", text!("invalidParent")))?,
                 )?;
                 fs::rename(&from, &to)?;
                 Ok(ToolResult::text(format!(
@@ -241,7 +243,7 @@ impl Files {
                     if realish(root)? == path {
                         return Err(Failure::new(
                             "PATH_REFUSED",
-                            "Refusing to delete a shared root folder itself",
+                            text!("refusingDeleteSharedRootFolderItself"),
                         ));
                     }
                 }
@@ -249,7 +251,7 @@ impl Files {
                     if args["recursive"] != true {
                         return Err(Failure::new(
                             "IS_A_FOLDER",
-                            "Pass recursive: true to delete a folder",
+                            text!("passRecursiveTrueDeleteFolder"),
                         ));
                     }
                     fs::remove_dir_all(&path)?;
@@ -258,10 +260,7 @@ impl Files {
                 }
                 Ok(ToolResult::text(format!("deleted {}", path.display())))
             }
-            _ => Err(Failure::new(
-                "UNKNOWN_TOOL",
-                format!("files has no tool {tool}"),
-            )),
+            _ => Err(Failure::new("UNKNOWN_TOOL", text!("filesNoToolTool", tool))),
         }
     }
 }
