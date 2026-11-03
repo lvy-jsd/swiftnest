@@ -652,6 +652,8 @@
   "pluginsOwnerOnly": "Only the server owner can open this page.",
   "pluginsLoading": "Loading plugins…",
   "pluginsPreparing": "Getting plugins ready…",
+  "channelPairAgain": "This server could not be verified. Please ask the owner to pair again.",
+  "channelBrowserHttps": "Open the web App using HTTPS, or pair in the installed App.",
   "modelsInvalidUpdate": "Those model settings are not valid.",
   "modelsUnknownProvider": "Unknown model provider: {0}",
   "modelsInvalidKey": "That API key does not look right. Copy the whole key and try again.",

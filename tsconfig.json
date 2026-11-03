@@ -1,19 +1,50 @@
 {
   "files": [],
   "references": [
-    { "path": "client" },
-    { "path": "packages/protocol" },
-    { "path": "packages/core" },
-    { "path": "packages/sdk" },
-    { "path": "packages/api" },
-    { "path": "plugins/cap-shell" },
-    { "path": "plugins/surface-mcp" },
-    { "path": "plugins/link-lan" },
-    { "path": "plugins/cap-files" },
-    { "path": "packages/cli" },
-    { "path": "packages/create-swiftnest-plugin" },
-    { "path": "templates/capability" },
-    { "path": "server/bundle" },
-    { "path": "server" }
+    {
+      "path": "packages/channel"
+    },
+    {
+      "path": "client"
+    },
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/sdk"
+    },
+    {
+      "path": "packages/api"
+    },
+    {
+      "path": "plugins/cap-shell"
+    },
+    {
+      "path": "plugins/surface-mcp"
+    },
+    {
+      "path": "plugins/link-lan"
+    },
+    {
+      "path": "plugins/cap-files"
+    },
+    {
+      "path": "packages/cli"
+    },
+    {
+      "path": "packages/create-swiftnest-plugin"
+    },
+    {
+      "path": "templates/capability"
+    },
+    {
+      "path": "server/bundle"
+    },
+    {
+      "path": "server"
+    }
   ]
 }

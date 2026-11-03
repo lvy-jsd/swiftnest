@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ApiWebSocket, ClientOptions, Device, SwiftnestClient } from '@swiftnest/api';
 import { ConnectionStore, ROOT_KEY, clientOptions, serverRoot } from '../src/connection';
+import { ApiError, text } from '@swiftnest/api';
 
 afterEach(() => vi.unstubAllGlobals());
 function setup(connect = vi.fn(async (_url: string) => {})) {
@@ -68,6 +69,16 @@ describe('connection store', () => {
     expect(JSON.stringify(store.getSnapshot())).not.toContain('SECRET');
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(await store.newChat()).toBeUndefined();
+  });
+  it.each(['channelPairAgain', 'channelBrowserHttps'] as const)('shows the plain %s catalog message', async (key) => {
+    const { store } = setup(
+      vi.fn(async () => {
+        throw new ApiError('channel-key-mismatch', text(key));
+      }),
+    );
+    expect(await store.pair(url)).toBe(false);
+    expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: key });
+    expect(JSON.stringify(store.getSnapshot())).not.toContain('SECRET');
   });
   it('cancels a stale in-flight pairing without replacing the newer client', async () => {
     let finish!: () => void;

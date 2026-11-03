@@ -92,7 +92,7 @@ async function browserApproval(kernel: RunningKernel, offered: Offered) {
   try {
     const page = await browser.newPage();
     await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
-    await page.goto(webAppUrl(kernel.url, kernel.token));
+    await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
     for (const [prompt, answer] of [
       ['risk-browser-deny', 'Deny'],
       ['risk-browser-allow', 'Approve'],

@@ -148,14 +148,14 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
         (await fetch(route, { headers: { authorization: `Bearer ${kernel.devices.env.SWIFTNEST_DEVICES_MCP_TOKEN}` } }))
           .status,
       ).toBe(401);
-      const login = await fetch(pairingUrl(kernel.url, kernel.token), { redirect: 'manual' });
+      const login = await fetch(pairingUrl(kernel.url, kernel.token, kernel.channelPairing), { redirect: 'manual' });
       const cookie = login.headers
         .getSetCookie()
         .map((value) => value.split(';')[0])
         .join('; ');
       expect((await fetch(route, { headers: { cookie, origin: 'https://untrusted.test' } })).status).toBe(403);
       expect((await fetch(route, { headers: { cookie, 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
-      client = await connect(pairingUrl(kernel.url, kernel.token), {
+      client = await connect(pairingUrl(kernel.url, kernel.token, kernel.channelPairing), {
         createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
       });
       const session = await client.createSession();
@@ -202,7 +202,7 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       expect(
         toolNames('tools-after').some((n: string) => /approv|pair|revoke/.test(n) && n.startsWith('device__')),
       ).toBe(false);
-      const nativeClient = await connect(pairingUrl(kernel.url, kernel.token), {
+      const nativeClient = await connect(pairingUrl(kernel.url, kernel.token, kernel.channelPairing), {
         deviceSlug: 'node',
         createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
       });

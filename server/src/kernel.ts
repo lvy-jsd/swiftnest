@@ -1,3 +1,5 @@
+import { channelPublicKey, type ChannelPairing } from '@swiftnest/channel';
+import { loadChannelIdentity } from '@swiftnest/server-bundle/channel-identity';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
 /**
@@ -55,6 +57,7 @@ export interface RunningKernel {
   readonly url: string;
   /** Per-process launch token; trades for a session cookie at `/` or `/connect`. Changes on restart. */
   readonly token: string;
+  readonly channelPairing: ChannelPairing;
   readonly child: ChildProcess;
   devices: Devices;
   stop(): Promise<void>;
@@ -200,10 +203,15 @@ class Kernel implements RunningKernel {
   constructor(
     private current: DshProcess,
     readonly devices: Devices,
+    private readonly publicKey: string,
     private readonly relaunch: () => Promise<DshProcess>,
     private readonly ready: (kernel: RunningKernel) => void,
   ) {
     this.watch(current.child);
+  }
+
+  get channelPairing(): ChannelPairing {
+    return { v: 1, key: this.publicKey, addresses: { lan: [this.url], relay: [] } };
   }
 
   get url() {
@@ -253,6 +261,7 @@ class Kernel implements RunningKernel {
 }
 
 export async function startKernel(config: ServerConfig, opts: StartOptions = {}): Promise<RunningKernel> {
+  const publicKey = channelPublicKey(await loadChannelIdentity(config.home));
   const paths = resolveKernel();
   let kernel: Kernel | undefined;
   const devices = await startDevices(config, {
@@ -267,7 +276,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     throw error;
   }
   const ready = opts.onReady ?? (() => {});
-  kernel = new Kernel(first, devices, () => launch(paths, devices, opts), ready);
+  kernel = new Kernel(first, devices, publicKey, () => launch(paths, devices, opts), ready);
   ready(kernel);
   return kernel;
 }

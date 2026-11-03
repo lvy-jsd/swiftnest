@@ -1,3 +1,5 @@
+import { AppChannel, pairingChannel, type ChannelPairing } from './channel.js';
+export type { ChannelPairing } from './channel.js';
 export {
   message,
   localizedReason,
@@ -64,6 +66,7 @@ export interface Preferences {
 export class SwiftnestClient {
   private root?: URL;
   private cookie = '';
+  private channel?: AppChannel;
   private mux?: Mux;
   private connectingSocket?: import('./types.js').ApiWebSocket;
   private clientId?: string;
@@ -96,6 +99,21 @@ export class SwiftnestClient {
     this.root = new URL('./', url);
     this.state = 'connecting';
     try {
+      const pairing = pairingChannel(url);
+      if (pairing && !this.localBrowser()) {
+        await this.connectChannel(pairing, {
+          t: 'auth',
+          token: url.searchParams.get('token')!,
+          interactions: url.searchParams.get('interactions')!,
+          browser: !this.manualCookies,
+        });
+        await this.options.channelPairingStore?.save(this.root.href, pairing);
+        if (this.manualCookies && this.options.nativePairingStore) await this.issueNativePairing();
+        await this.openTransport();
+        return;
+      }
+      if (!this.localBrowser() && !this.localRoot() && this.root.protocol !== 'https:')
+        throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
       // API pairings own one ephemeral Peer; browser sessions have a durable owner cookie.
       const exchange = this.manualCookies ? url : new URL('./', url);
       if (!this.manualCookies) exchange.search = url.search;
@@ -132,18 +150,56 @@ export class SwiftnestClient {
     this.root = new URL(root);
     this.state = 'connecting';
     try {
+      const pairing = await this.options.channelPairingStore?.load(this.root.href);
       if (this.manualCookies) {
         const credential = await this.options.nativePairingStore?.load(this.root.href);
         if (!isNativePairingCredential(credential))
           throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'), undefined, undefined, 401);
         this.cookie = `${NATIVE_PAIRING_COOKIE}=${credential}`;
+        if (pairing) await this.connectChannel(pairing, { t: 'auth', cookie: this.cookie });
+        else if (!this.localRoot() && this.root.protocol !== 'https:')
+          throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
         await this.nativePairingRequest('resume');
       }
+      if (!this.manualCookies && pairing && !this.localBrowser()) {
+        const cookie = this.options.channelBrowserCookie?.load(this.root.href);
+        if (!cookie) throw new ApiError('pairing-failed', text('channelPairAgain'), undefined, undefined, 401);
+        await this.connectChannel(pairing, { t: 'auth', cookie });
+      } else if (!this.manualCookies && !this.localBrowser() && this.root.protocol !== 'https:')
+        throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
       await this.openTransport();
     } catch (error) {
       this.close();
       throw error;
     }
+  }
+
+  private localRoot(): boolean {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(this.root?.hostname ?? '');
+  }
+  private localBrowser(): boolean {
+    return (
+      !this.manualCookies &&
+      this.localRoot() &&
+      typeof location !== 'undefined' &&
+      location.origin === this.root?.origin
+    );
+  }
+  private async connectChannel(
+    pairing: ChannelPairing,
+    auth: import('@swiftnest/channel').ChannelFrame,
+  ): Promise<void> {
+    if (!this.manualCookies && !this.localRoot() && this.root!.protocol !== 'https:')
+      throw new ApiError('channel-key-mismatch', text('channelBrowserHttps'));
+    this.channel = await AppChannel.open(
+      this.root!,
+      pairing,
+      this.options,
+      auth,
+      AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(this.timeoutMs)]),
+    );
+    this.cookie = this.channel.cookie;
+    if (!this.manualCookies) this.options.channelBrowserCookie?.save(this.root!.href, this.cookie);
   }
 
   private async issueNativePairing(): Promise<void> {
@@ -211,9 +267,11 @@ export class SwiftnestClient {
     socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
     if (this.manualCookies && !this.options.createWebSocket)
       throw new ApiError('transport-required', text('nodeRequiresCreatewebsocketCookieHeaderSupport'));
-    const socket = this.options.createWebSocket
-      ? this.options.createWebSocket(socketUrl.href, { headers: this.headers() })
-      : new WebSocket(socketUrl.href);
+    const socket = this.channel
+      ? this.channel.socket(socketUrl.pathname, this.cookie)
+      : this.options.createWebSocket
+        ? this.options.createWebSocket(socketUrl.href, { headers: this.headers() })
+        : new WebSocket(socketUrl.href);
     this.connectingSocket = socket;
     this.mux = await Mux.open(socket, this.timeoutMs);
     this.connectingSocket = undefined;
@@ -303,9 +361,11 @@ export class SwiftnestClient {
     options.signal?.throwIfAborted();
     const url = this.url(`swiftnest/api/devices/live?id=${encodeURIComponent(offer.id)}`);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = this.options.createWebSocket
-      ? this.options.createWebSocket(url.href, { headers: this.headers() })
-      : new WebSocket(url.href);
+    const socket = this.channel
+      ? this.channel.socket(`${url.pathname}${url.search}`, this.cookie)
+      : this.options.createWebSocket
+        ? this.options.createWebSocket(url.href, { headers: this.headers() })
+        : new WebSocket(url.href);
     if ('binaryType' in socket) socket.binaryType = 'arraybuffer';
     const signal = AbortSignal.any([this.lifetime.signal, ...(options.signal ? [options.signal] : [])]);
     const close = () => socket.close();
@@ -353,7 +413,7 @@ export class SwiftnestClient {
     signal.addEventListener('abort', onAbort, { once: true });
     try {
       signal.throwIfAborted();
-      const response = await this.doFetch(this.url('swiftnest/api/devices/events'), {
+      const response = await this.streamRequest(this.url('swiftnest/api/devices/events'), {
         credentials: 'include',
         headers: this.headers(),
         signal,
@@ -592,6 +652,7 @@ export class SwiftnestClient {
     for (const pending of this.pending.values()) pending.wait?.close();
     this.pending.clear();
     this.mux?.close();
+    this.channel?.close();
     this.cookie = '';
     this.clientId = undefined;
   }
@@ -733,7 +794,7 @@ export class SwiftnestClient {
     return this.manualCookies && this.cookie ? { cookie: this.cookie } : {};
   }
   private request(url: URL, init: RequestInit = {}): Promise<Response> {
-    return this.doFetch(url, {
+    return this.streamRequest(url, {
       ...init,
       credentials: 'include',
       headers: { ...this.headers(), ...init.headers },
@@ -743,6 +804,9 @@ export class SwiftnestClient {
         ...(init.signal ? [init.signal] : []),
       ]),
     });
+  }
+  private streamRequest(url: URL, init: RequestInit): Promise<Response> {
+    return this.channel ? this.channel.fetch(url, init, this.cookie) : this.doFetch(url, init);
   }
   private async rpc<T>(endpoint: string, args: unknown): Promise<T> {
     this.assertConnected();
