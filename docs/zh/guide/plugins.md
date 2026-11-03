@@ -13,7 +13,7 @@ Swiftnest 服务器能加载的第三方 DSH 插件只有一个来源：[`server
 | id              | 插件                                                                           | 默认 | 作用                                        |
 | --------------- | ------------------------------------------------------------------------------ | ---- | ------------------------------------------- |
 | `tool-ultra`    | [Tool Ultra](./tool-ultra.md)                                                  | 开   | 按需加载工具、风险审批、设备工具            |
-| `market`        | DSH 自带的插件市场                                                            | 开   | 在“插件 → 发现”里浏览社区插件目录          |
+| `market`        | DSH 自带的插件市场                                                             | 开   | 在“插件 → 发现”里浏览社区插件目录           |
 | `safety-net`    | [cc-safety-net](https://github.com/kenryu42/cc-safety-net)                     | 开   | 拦截 `rm -rf`、强推、读取密钥等危险操作     |
 | `auto-continue` | [dsh-client-auto-continue](https://github.com/HsiangNianian/dsh-auto-continue) | 开   | 中断后可恢复时自动继续                      |
 | `smart-title`   | [dsh-smart-title](https://github.com/weibaohui/dsh-smart-title)                | 开   | 按对话内容自动起会话标题                    |
