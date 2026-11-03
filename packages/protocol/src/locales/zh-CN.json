@@ -651,5 +651,21 @@
   "pluginsRequestFailed": "未能保存或刷新更改，请重试。",
   "pluginsOwnerOnly": "只有服务器所有者可以打开此页面。",
   "pluginsLoading": "正在加载插件…",
-  "pluginsPreparing": "正在准备插件…"
+  "pluginsPreparing": "正在准备插件…",
+  "modelsInvalidUpdate": "模型设置不正确。",
+  "modelsUnknownProvider": "不认识的模型服务商：{0}",
+  "modelsInvalidKey": "这个 API key 看起来不对，请完整复制后再试。",
+  "modelsApplied": "已用新的模型重启 DSH。",
+  "modelsRolledBack": "DSH 用新的模型没能启动，正在恢复之前的模型。",
+  "modelsApplyBusy": "正在应用别的改动，请等它完成。",
+  "modelsUnknownRoute": "不认识的模型接口地址",
+  "modelsRequestTooLarge": "模型设置的请求太大。",
+  "routingGuidance": "你可以用 `{0}` 工具把难任务交给更强的专家模型（{1}）。日常请求自己处理。复杂编程、多步推理或分析、长文档，或你尝试过但失败的任务，交给专家。专家看不到这段对话，所以要给它完整、独立的任务说明和需要的信息。转述前先检查它的答案，并告诉用户这部分是专家完成的。",
+  "routingApprovalReason": "要把这个任务交给专家模型 {0} 吗？任务内容会发到这个云服务，并消耗你的 API 额度。",
+  "modelProviderDeepseek": "DeepSeek 深度求索",
+  "modelProviderMoonshotaiCn": "Kimi（月之暗面）",
+  "modelProviderGoogle": "Google Gemini",
+  "modelProviderAnthropic": "Anthropic Claude",
+  "modelProviderOpenai": "OpenAI",
+  "modelProviderOpenrouter": "OpenRouter（一个 key 用多家模型）"
 }

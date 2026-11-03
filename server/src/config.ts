@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parse } from 'yaml';
+import type { ExpertApproval, ModelRoute } from '@swiftnest/api';
 
 export interface ModelConfig {
   /** OpenAI-compatible base URL, including `/v1`. */
@@ -22,6 +23,14 @@ export interface ModelConfig {
   maxTokens: number;
   /** Environment variable holding the API key; local servers accept any value. */
   apiKeyEnv: string;
+}
+
+export interface CloudConfig {
+  /** The model every chat uses. */
+  main?: ModelRoute;
+  /** The stronger model the assistant hands hard tasks to. */
+  expert?: ModelRoute;
+  expertApproval: ExpertApproval;
 }
 
 export interface ServerConfig {
@@ -42,6 +51,8 @@ export interface ServerConfig {
   /** The subset set by SWIFTNEST_PLUGINS: the administrator's choice, which the App cannot change. */
   pluginLocks: Record<string, boolean>;
   model: ModelConfig;
+  /** Cloud models chosen in the App (see model-settings.ts); unset routes use `model`. */
+  cloud?: CloudConfig;
   files?: { quotaBytes: number };
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean };

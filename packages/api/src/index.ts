@@ -25,6 +25,8 @@ export type * from './devices.js';
 export type * from './memory.js';
 import type { PluginsView } from './plugins.js';
 export type * from './plugins.js';
+import type { ModelSettingsUpdate, ModelsView } from './models.js';
+export type * from './models.js';
 import type {
   SessionFollowFrame,
   SessionListValue,
@@ -265,6 +267,21 @@ export class SwiftnestClient {
   applyPlugins(): Promise<PluginsView> {
     return this.ownerRequest('plugins/apply', 'POST');
   }
+  listModels(): Promise<ModelsView> {
+    return this.ownerRequest('models');
+  }
+  /** Save which models do what; it takes effect at the next `applyModels`. */
+  updateModels(update: ModelSettingsUpdate): Promise<ModelsView> {
+    return this.ownerRequest('models/settings', 'POST', undefined, update);
+  }
+  /** Save a provider's API key; the server never sends it back. An empty key removes it. */
+  setModelKey(provider: string, key: string): Promise<ModelsView> {
+    return this.ownerRequest(`models/keys/${encodeURIComponent(provider)}`, 'POST', undefined, { key });
+  }
+  /** Restart the server's agent with the saved models; follow `apply.state` with `listModels`. */
+  applyModels(): Promise<ModelsView> {
+    return this.ownerRequest('models/apply', 'POST');
+  }
   listDevices(): Promise<Device[]> {
     return this.deviceRequest('');
   }
@@ -376,6 +393,7 @@ export class SwiftnestClient {
                   'pairing-changed',
                   'transfers-changed',
                   'plugins-changed',
+                  'models-changed',
                   'memory-changed',
                 ].includes(event.type)
               )

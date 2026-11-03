@@ -19,6 +19,10 @@
       "types": "./dist/memory.d.ts",
       "default": "./dist/memory.js"
     },
+    "./routing": {
+      "types": "./dist/routing.d.ts",
+      "default": "./dist/routing.js"
+    },
     "./native-pairings-store": {
       "types": "./dist/native-pairings-store.d.ts",
       "default": "./dist/native-pairings-store.js"

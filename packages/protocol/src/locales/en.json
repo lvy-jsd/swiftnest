@@ -651,5 +651,21 @@
   "pluginsRequestFailed": "Could not save or refresh the changes. Please try again.",
   "pluginsOwnerOnly": "Only the server owner can open this page.",
   "pluginsLoading": "Loading plugins…",
-  "pluginsPreparing": "Getting plugins ready…"
+  "pluginsPreparing": "Getting plugins ready…",
+  "modelsInvalidUpdate": "Those model settings are not valid.",
+  "modelsUnknownProvider": "Unknown model provider: {0}",
+  "modelsInvalidKey": "That API key does not look right. Copy the whole key and try again.",
+  "modelsApplied": "Restarted DSH with the new models.",
+  "modelsRolledBack": "DSH did not start with the new models; restoring the previous models.",
+  "modelsApplyBusy": "Changes are already being applied. Wait for them to finish.",
+  "modelsUnknownRoute": "Unknown model API route",
+  "modelsRequestTooLarge": "The model settings request is too large.",
+  "routingGuidance": "You can hand hard tasks to a stronger expert model ({1}) with the `{0}` tool. Handle everyday requests yourself. Use the expert for complex coding, multi-step reasoning or analysis, long documents, or when you tried and failed. The expert does not see this conversation, so give it a complete, self-contained task and the facts it needs. Check its answer before you relay it, and tell the user when the expert did the work.",
+  "routingApprovalReason": "Hand this task to the expert model {0}? The task is sent to that cloud service and uses your API credit.",
+  "modelProviderDeepseek": "DeepSeek",
+  "modelProviderMoonshotaiCn": "Kimi (Moonshot)",
+  "modelProviderGoogle": "Google Gemini",
+  "modelProviderAnthropic": "Anthropic Claude",
+  "modelProviderOpenai": "OpenAI",
+  "modelProviderOpenrouter": "OpenRouter (many models, one key)"
 }

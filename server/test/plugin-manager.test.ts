@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PluginsView } from '@swiftnest/api';
 import { loadConfig } from '../src/config.js';
+import { KernelApply, type KernelApplyDeps } from '../src/kernel-apply.js';
 import { ADMIN_TOKEN_ENV, ADMIN_URL_ENV, startDevices } from '../src/devices.js';
 import { PluginManager, type PluginManagerDeps, pluginText } from '../src/plugin-manager.js';
 import { pluginSettingsFile, readPluginSettings, withPluginSettings } from '../src/plugin-settings.js';
@@ -29,8 +30,11 @@ function setup(env: Record<string, string> = {}) {
   return { home, config };
 }
 
-function deps(overrides: Partial<PluginManagerDeps> = {}): PluginManagerDeps {
-  return {
+interface Hooks extends Omit<PluginManagerDeps, 'kernel'>, Pick<KernelApplyDeps, 'restart' | 'fail'> {}
+
+/** Manager dependencies whose kernel restarts through the given hooks. */
+function deps(overrides: Partial<Hooks> = {}): PluginManagerDeps & Hooks {
+  const hooks: Hooks = {
     install: vi.fn(async () => {}),
     restart: vi.fn(async () => {}),
     fail: vi.fn(),
@@ -38,6 +42,8 @@ function deps(overrides: Partial<PluginManagerDeps> = {}): PluginManagerDeps {
     log: vi.fn(),
     ...overrides,
   };
+  const kernel = new KernelApply({ restart: () => hooks.restart(), fail: hooks.fail, log: hooks.log, lang: 'en' });
+  return { ...hooks, kernel };
 }
 
 /** A manager whose kernel booted with the current switches, as `startKernel` does. */

@@ -128,6 +128,7 @@ function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, op
       ...process.env,
       ...opts.env,
       ...devices.env,
+      ...devices.models.env(),
       SWIFTNEST_LANG: config.lang ?? 'zh-CN',
       DSH_HOME: dshHome(config),
       SWIFTNEST_HOME: config.home,
@@ -184,9 +185,10 @@ function waitReady(child: ChildProcess, opts: StartOptions): Promise<DshProcess>
 
 /** Write the profile with the owner's current plugin switches, then start DSH on it. */
 function launch(paths: KernelPaths, devices: Devices, opts: StartOptions): Promise<DshProcess> {
-  const config = devices.plugins.config();
+  const config = devices.config();
   const { plugins } = writeProfile(config, { bundleDir: paths.bundleDir });
   devices.plugins.loaded(plugins);
+  devices.models.loaded();
   return waitReady(spawnDsh(config, paths, devices, opts), opts);
 }
 

@@ -19,7 +19,9 @@ import {
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { isMap, isScalar, isSeq, parseDocument, stringify } from 'yaml';
+import type { ModelRoute } from '@swiftnest/api';
 import type { ServerConfig } from './config.js';
+import { LOCAL_PROVIDER, modelKeyEnv } from './model-settings.js';
 
 export const PROFILE_NAME = 'swiftnest';
 export const BUNDLE_PACKAGE = '@swiftnest/server-bundle';
@@ -35,27 +37,66 @@ export function profileDir(config: ServerConfig): string {
   return join(dshHome(config), 'profiles', PROFILE_NAME);
 }
 
-/** The patch rows Swiftnest owns: the model provider and the default model. */
+/** The patch rows Swiftnest owns: model providers, the default model and the expert. */
 export function modelPatch(config: ServerConfig): unknown[] {
+  const main = dshRoute(config, config.cloud?.main);
+  return [
+    { id: 'llm-pi-ai', config: { providers: { [PROVIDER_ID]: localProvider(config), ...cloudProviders(config) } } },
+    { id: 'agent-default-model', config: main },
+    ...expertRows(config),
+  ];
+}
+
+function localProvider(config: ServerConfig) {
   const m = config.model;
+  return {
+    displayName: m.name,
+    api: 'openai-completions',
+    apiKeyEnv: m.apiKeyEnv,
+    baseURL: m.baseUrl,
+    models: [{ id: m.id, name: m.name, contextWindow: m.contextWindow, maxTokens: m.maxTokens, input: ['text'] }],
+  };
+}
+
+/** A route as DSH names it: the local model is the `swiftnest-local` provider. */
+function dshRoute(config: ServerConfig, route: ModelRoute | undefined): ModelRoute {
+  return !route || route.provider === LOCAL_PROVIDER ? { provider: PROVIDER_ID, model: config.model.id } : route;
+}
+
+/** Catalog providers need only their key and the models in use; the catalog supplies the rest. */
+function cloudProviders(config: ServerConfig): Record<string, unknown> {
+  const providers: Record<string, { apiKeyEnv: string; models: { id: string }[] }> = {};
+  for (const route of [config.cloud?.main, config.cloud?.expert]) {
+    if (!route || route.provider === LOCAL_PROVIDER) continue;
+    providers[route.provider] ??= { apiKeyEnv: modelKeyEnv(route.provider), models: [] };
+    const provider = providers[route.provider]!;
+    if (!provider.models.some((model) => model.id === route.model)) provider.models.push({ id: route.model });
+  }
+  return providers;
+}
+
+export const EXPERT_TOOL = 'ask_expert';
+
+/** The expert is DSH's own subagent tool pinned to the expert model, plus Swiftnest's routing rules. */
+function expertRows(config: ServerConfig): unknown[] {
+  const cloud = config.cloud;
+  if (!cloud?.expert) return [];
+  const expert = dshRoute(config, cloud.expert);
   return [
     {
-      id: 'llm-pi-ai',
-      config: {
-        providers: {
-          [PROVIDER_ID]: {
-            displayName: m.name,
-            api: 'openai-completions',
-            apiKeyEnv: m.apiKeyEnv,
-            baseURL: m.baseUrl,
-            models: [
-              { id: m.id, name: m.name, contextWindow: m.contextWindow, maxTokens: m.maxTokens, input: ['text'] },
-            ],
-          },
+      insert: [
+        {
+          id: 'swiftnest-expert',
+          name: '@deepseek-ai/dsh-tool-subagent',
+          config: { provider: 'spawn', toolName: EXPERT_TOOL, agentOptions: expert },
         },
-      },
+        {
+          id: 'swiftnest-routing',
+          name: `${BUNDLE_PACKAGE}/routing`,
+          config: { tool: EXPERT_TOOL, model: expert.model, approval: cloud.expertApproval },
+        },
+      ],
     },
-    { id: 'agent-default-model', config: { provider: PROVIDER_ID, model: m.id } },
   ];
 }
 

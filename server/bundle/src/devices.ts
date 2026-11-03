@@ -21,8 +21,9 @@ export function liveTransportAllowed(req: Pick<IncomingMessage, 'socket'>): bool
 
 export const DEVICES_PREFIX = '/swiftnest/api/devices';
 export const PLUGINS_PREFIX = '/swiftnest/api/plugins';
+export const MODELS_PREFIX = '/swiftnest/api/models';
 /** The owner-only parts of the loopback admin API this proxy forwards. */
-export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX];
+export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX, MODELS_PREFIX];
 
 export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string, invalidate?: () => void) {
   const target = new URL(endpoint);
@@ -62,7 +63,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
     res.once('close', closed);
     try {
       let body: string | undefined;
-      if (req.method === 'POST' && [`${prefix}/transfers`, `${prefix}/preferences`].includes(path.pathname)) {
+      if (req.method === 'POST' && forwardsBody(path.pathname)) {
         body = '';
         for await (const chunk of req) {
           body += chunk;
@@ -74,7 +75,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
       }
       const upstream = await fetch(new URL(path.pathname + path.search, target), {
         method: req.method,
-        // Only the bounded transfer JSON body is forwarded, after owner admission.
+        // Only the bounded JSON bodies of `forwardsBody` routes are forwarded, after owner admission.
         headers: {
           authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -101,6 +102,14 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
       res.off('close', closed);
     }
   };
+}
+
+/** Owner routes whose small JSON body the proxy forwards; every other request goes without one. */
+function forwardsBody(pathname: string): boolean {
+  return (
+    [`${DEVICES_PREFIX}/transfers`, `${DEVICES_PREFIX}/preferences`, `${MODELS_PREFIX}/settings`].includes(pathname) ||
+    /^\/swiftnest\/api\/models\/keys\/[^/]+$/.test(pathname)
+  );
 }
 
 /** Both admission and the parent admin bearer are required. No public stream ticket bypasses owner admission. */
