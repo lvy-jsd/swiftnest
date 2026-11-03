@@ -1,4 +1,5 @@
 /** Device hub contracts; no DSH types or device execution code in the App. */
+import type { SwiftnestError } from '@swiftnest/protocol';
 export type { TaskSnapshot as DeviceApproval, AuditEntry as DeviceAuditEntry } from '@swiftnest/protocol';
 export interface Device {
   device: string;
@@ -51,6 +52,7 @@ export interface Transfer extends TransferRequest {
   updatedAt: number;
   approvalId?: string;
   error?: string;
-  failure?: { code: string; message: string; hint: string };
+  /** Localized for the owner; `text` and `hintText` let a reader localize it again. */
+  failure?: { code: string; message: string; hint: string } & Pick<SwiftnestError, 'text' | 'hintText'>;
   hash?: string;
 }

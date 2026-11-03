@@ -1,3 +1,4 @@
+import { SwiftnestFailure, text } from '@swiftnest/core';
 import { localizedError, ServerFailure } from './i18n.js';
 /** Durable, nonblocking transfer coordinator. Approval grants one immutable identity/path/metadata binding. */
 import { randomBytes } from 'node:crypto';
@@ -29,6 +30,12 @@ interface Saved extends Transfer {
   approved?: boolean;
 }
 const SERVER = 'server-files';
+/** A transfer's failure as stored: English for the log, catalog text so each reader can localize it. */
+function failureOf(error: unknown): Transfer['failure'] {
+  const wire = SwiftnestFailure.from(error);
+  return { ...localizedError(wire, 'en'), text: wire.text, hintText: wire.hintText };
+}
+
 export class Transfers {
   private records = new Map<string, Saved>();
   private jobs = new Map<string, { stop: AbortController; streams: string[]; done: Promise<void> }>();
@@ -79,7 +86,7 @@ export class Transfers {
   private resolve(ref: TransferRequest['source']) {
     if (ref.device === 'server') return { device: SERVER, identity: this.nest.identity.publicKey };
     const d = this.nest.devicesStore.list().find((d) => d.slug === ref.device);
-    if (!d) throw new ServerFailure(`Unknown paired device ${ref.device}`);
+    if (!d) throw new ServerFailure(text('unknownPairedDevice', ref.device));
     return { device: d.device, identity: d.publicKey };
   }
   private async call(device: string, tool: string, args: Record<string, unknown>, r?: Saved, signal?: AbortSignal) {
@@ -100,24 +107,22 @@ export class Transfers {
         result = await this.nest.tasks.wait(task.id, 1000);
       }
       if (result.state !== 'succeeded')
-        throw new ServerFailure(
-          result.error?.message ?? result.state,
-          result.error?.code,
-          result.error?.hint ?? result.error?.suggestion,
-        );
+        throw result.error
+          ? SwiftnestFailure.fromWire(result.error)
+          : new ServerFailure(text('taskEndedAs', result.state));
       return result.result!.data;
     } finally {
       if (signal?.aborted) await this.nest.tasks.cancel(task.id);
     }
   }
   async start(request: TransferRequest): Promise<Transfer> {
-    if (this.closed) throw new ServerFailure('Transfers stopped');
+    if (this.closed) throw new ServerFailure(text('transfersStopped'));
     for (const ref of [request.source, request.destination])
       if (!ref || typeof ref.device !== 'string' || typeof ref.path !== 'string' || !ref.path || ref.path.length > 4096)
-        throw new ServerFailure('Expected source and destination device/path');
+        throw new ServerFailure(text('expectedSourceDestinationDevicePath'));
     if (request.source.device === 'server' && request.destination.device === 'server')
-      throw new ServerFailure('Choose a device endpoint');
-    if (!['auto', 'relay'].includes(request.routing ?? 'auto')) throw new ServerFailure('Invalid routing');
+      throw new ServerFailure(text('chooseDeviceEndpoint'));
+    if (!['auto', 'relay'].includes(request.routing ?? 'auto')) throw new ServerFailure(text('invalidRouting'));
     const source = this.resolve(request.source),
       destination = this.resolve(request.destination);
     const meta = (await this.call(source.device, 'inspect', {
@@ -134,7 +139,7 @@ export class Transfers {
     const existing = this.records.get(id);
     if (existing) return this.list().find((r) => r.id === id)!;
     if ([...this.records.values()].filter((r) => !['complete', 'cancelled', 'failed'].includes(r.state)).length >= 32)
-      throw new ServerFailure('Too many transfers');
+      throw new ServerFailure(text('tooManyTransfers'));
     const r: Saved = {
       id,
       source: request.source,
@@ -157,7 +162,7 @@ export class Transfers {
   }
   async action(id: string, action: 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Transfer> {
     const r = this.records.get(id);
-    if (!r) throw new ServerFailure('Unknown transfer');
+    if (!r) throw new ServerFailure(text('unknownTransfer'));
     if (r.state === 'complete') return this.list().find((t) => t.id === id)!;
     if (action === 'pause' || action === 'cancel') {
       r.state = action === 'pause' ? 'paused' : 'cancelled';
@@ -170,7 +175,7 @@ export class Transfers {
       r.eta = null;
       await this.save();
     } else {
-      if (r.state === 'cancelled') throw new ServerFailure('Cancelled transfer cannot resume');
+      if (r.state === 'cancelled') throw new ServerFailure(text('cancelledTransferCannotResume'));
       r.state = 'waiting';
       r.error = undefined;
       r.failure = undefined;
@@ -189,7 +194,7 @@ export class Transfers {
         if (!stop.signal.aborted) {
           r.state = 'failed';
           r.error = e instanceof Error ? e.message : String(e);
-          r.failure = localizedError(e, 'en');
+          r.failure = failureOf(e);
           r.speed = 0;
           r.eta = null;
           await this.save();
@@ -206,7 +211,7 @@ export class Transfers {
       const source = this.resolve(r.source),
         destination = this.resolve(r.destination);
       if (source.identity !== r.binding.source || destination.identity !== r.binding.destination)
-        throw new ServerFailure('Paired identity changed; start a new transfer');
+        throw new ServerFailure(text('pairedIdentityChangedStartNewTransfer'));
       if (
         [source.device, destination.device].some(
           (d) => d !== SERVER && !this.nest.devices().some((l) => l.device === d),
@@ -220,7 +225,7 @@ export class Transfers {
       }
       const currentMeta = await this.call(source.device, 'inspect', { path: r.source.path }, undefined, signal);
       if (JSON.stringify(currentMeta) !== JSON.stringify(r.binding.meta))
-        throw new ServerFailure('Source changed; start a new transfer');
+        throw new ServerFailure(text('sourceChangedStartNewTransfer'));
       if (!r.approved) {
         const receipt = (await this.nest.readTransferStatus(destination.device, r.id).catch(() => undefined)) as
           | Journal
@@ -357,8 +362,8 @@ export class Transfers {
             break;
           }
           // Detect dead relay attempts quickly; direct attempts report progress through their durable receiver journal.
-          if (job.streams.some((id) => !this.nest.streams.has(id))) throw new ServerFailure('Link dropped');
-          if (Date.now() - lastProgress > 1800000) throw new ServerFailure('Transfer stalled');
+          if (job.streams.some((id) => !this.nest.streams.has(id))) throw new ServerFailure(text('linkDropped'));
+          if (Date.now() - lastProgress > 1800000) throw new ServerFailure(text('transferStalled'));
           await delay(1000, undefined, { signal });
         }
         if (this.records.get(r.id)?.state === 'complete') return;
@@ -367,7 +372,7 @@ export class Transfers {
         if (/Source changed|identity|denied|Not approved|quota|protected|outside|exists/i.test(String(e))) throw e;
         r.state = 'waiting';
         r.error = e instanceof Error ? e.message : String(e);
-        r.failure = localizedError(e, 'en');
+        r.failure = failureOf(e);
         r.speed = 0;
         r.eta = null;
         await this.save();

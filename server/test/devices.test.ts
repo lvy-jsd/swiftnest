@@ -49,7 +49,14 @@ describe('server device hub', () => {
       fingerprint: hub.nest.identity.fingerprint,
     });
     expect(new Date(pairing.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(300_000);
-    expect((await api('/audit?limit=-1')).status).toBe(400);
+    const badLimit = await api('/audit?limit=-1');
+    expect(badLimit.status).toBe(400);
+    // Failures carry their catalog key beside the message in the owner's language (English here).
+    expect(await badLimit.json()).toMatchObject({
+      code: 'BAD_LIMIT',
+      error: 'limit must be 1-1000',
+      text: { key: 'auditLimitOutOfRange' },
+    });
     expect((await api('/approve', 'POST')).status).toBe(404);
     expect((await api('/preferences', 'DELETE')).status).toBe(405);
     const call = (body: string) =>

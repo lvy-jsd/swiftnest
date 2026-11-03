@@ -1,3 +1,4 @@
+import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
 /**
  * Runs the pinned DSH kernel as a child process on the `swiftnest` profile and
@@ -143,7 +144,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     let settled = false;
     const tail: string[] = [];
     const timer = setTimeout(
-      () => fail(new ServerFailure('DSH kernel did not report ready in time')),
+      () => fail(new ServerFailure(text('dshKernelDidNotReportReady'))),
       opts.readyTimeoutMs ?? 60_000,
     );
     const fail = (err: Error) => {
@@ -153,9 +154,7 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
       const hint = tail.some((l) => l.includes('node-addon-require-builtin'))
         ? '\nHint: DSH needs Node from nodejs.org; point SWIFTNEST_KERNEL_NODE at that node binary.'
         : '';
-      void stop().then(() =>
-        rejectStart(new ServerFailure(`${err.message}${hint}\n--- kernel output ---\n${tail.join('\n')}`)),
-      );
+      void stop().then(() => rejectStart(new ServerFailure(text('kernelOutput', err.message, hint, tail.join('\n')))));
     };
     const onData = (chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split(/\r?\n/)) {
@@ -174,6 +173,6 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     child.stdout?.on('data', onData);
     child.stderr?.on('data', onData);
     child.once('error', fail);
-    child.once('exit', (code, signal) => fail(new ServerFailure(`DSH kernel exited (${signal ?? code})`)));
+    child.once('exit', (code, signal) => fail(new ServerFailure(text('dshKernelExited', String(signal ?? code)))));
   });
 }
