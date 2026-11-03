@@ -194,7 +194,7 @@ function startPairing({ hub }: Request) {
 async function decideApproval({ hub, params }: Request) {
   const [id, action] = params as [string, 'approve' | 'deny'];
   if (hub.nest.tasks.get(id)?.state !== 'pending_approval') throw new HttpError(409, text('approvalNoLongerPending'));
-  return action === 'approve' ? hub.nest.tasks.approve(id, 'App owner') : hub.nest.tasks.deny(id, 'denied by owner');
+  return action === 'approve' ? hub.nest.tasks.approve(id, text('appOwner')) : hub.nest.tasks.deny(id);
 }
 
 // ---------------------------------------------------------------- table

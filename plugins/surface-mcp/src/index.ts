@@ -16,7 +16,7 @@ import { definePlugin, SwiftnestFailure, text, type Nest } from '@swiftnest/core
 import {
   localize,
   translateMessage,
-  translateReason,
+  localizedReason,
   localizedError,
   defaultLanguage,
   type Language,
@@ -107,9 +107,8 @@ export function describeTask(s: TaskSnapshot, lang: Language = defaultLanguage()
     }
     case 'pending_approval':
       return textResult(
-        tr(
-          `Waiting for the owner's approval (${s.reason ? translateReason(s.reason, lang) : 'policy'}). Task id: ${s.id}. `,
-        ) + tr(`Continue with other work, or call ${META.wait} with this task id. Do not retry the same call.`),
+        tr(`Waiting for the owner's approval (${s.reason ? localizedReason(s, lang) : 'policy'}). Task id: ${s.id}. `) +
+          tr(`Continue with other work, or call ${META.wait} with this task id. Do not retry the same call.`),
         false,
         structured,
       );

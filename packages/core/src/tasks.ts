@@ -8,17 +8,19 @@ import { EventEmitter } from 'node:events';
 import {
   TERMINAL_STATES,
   type ClientRef,
-  type Risk,
   type SwiftnestError,
   type TaskSnapshot,
   type TaskState,
+  isText,
+  render,
   text,
+  type Text,
 } from '@swiftnest/protocol';
 import type { AuditLog } from './audit.js';
 import { SwiftnestFailure } from './errors.js';
 import type { PerchConnection } from './link.js';
 import type { Logger } from './log.js';
-import type { Policy } from './policy.js';
+import type { Classification, Policy } from './policy.js';
 
 export interface CallRequest {
   client: ClientRef;
@@ -88,30 +90,30 @@ export class TaskManager {
       });
       return this.snapshot(snap.id);
     }
-    let risk: Risk;
-    let riskReason: string | undefined;
+    let rating: Classification;
     try {
-      ({ risk, reason: riskReason } = await conn.classify(req.capability, req.tool, args));
+      rating = await conn.classify(req.capability, req.tool, args);
     } catch (e) {
       await this.finish(t, 'failed', { error: SwiftnestFailure.from(e, 'CLASSIFY_FAILED') });
       return this.snapshot(snap.id);
     }
-    snap.risk = risk;
-    const decision = await this.o.policy.decide({ ...req, args, risk, reason: riskReason });
+    snap.risk = rating.risk;
+    const decision = await this.o.policy.decide({ ...req, args, ...rating });
     snap.reason = decision.reason;
+    snap.reasonText = decision.reasonText;
     await this.record(t);
     if (decision.action === 'deny') {
       await this.finish(t, 'denied', {
         error: new SwiftnestFailure(
           'DENIED',
-          text('policyDenied', req.capability, req.tool, req.device, decision.reason),
+          text('policyDenied', req.capability, req.tool, req.device, decision.reasonText ?? decision.reason),
           text('hintAskOwnerForPermission'),
         ).toJSON(),
       });
     } else if (decision.action === 'ask') {
       await this.transition(t, 'pending_approval');
       t.approvalTimer = setTimeout(() => {
-        void this.deny(snap.id, 'approval expired');
+        void this.deny(snap.id, text('approvalExpired'));
       }, this.o.approvalTimeoutMs ?? 600_000);
     } else {
       void this.run(t);
@@ -120,17 +122,20 @@ export class TaskManager {
   }
 
   /** A person approved a pending call. */
-  async approve(taskId: string, by = 'owner'): Promise<TaskSnapshot> {
+  async approve(taskId: string, by: string | Text = 'owner'): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval')
       throw new SwiftnestFailure('NOT_PENDING', text('taskNotWaitingApproval', taskId, t.snap.state));
     clearTimeout(t.approvalTimer);
-    t.snap.reason = `${t.snap.reason ?? ''}; approved by ${by}`.replace(/^; /, '');
+    const before = isText(t.snap.reasonText) ? t.snap.reasonText : (t.snap.reason ?? '');
+    const approval = text('approvedBy', before, by);
+    t.snap.reason = render(approval, 'en');
+    t.snap.reasonText = approval;
     void this.run(t);
     return this.snapshot(taskId);
   }
 
-  async deny(taskId: string, why = 'denied by owner'): Promise<TaskSnapshot> {
+  async deny(taskId: string, why: string | Text = text('deniedByOwner')): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval') return this.snapshot(taskId);
     clearTimeout(t.approvalTimer);
@@ -268,6 +273,7 @@ export class TaskManager {
         args: s.args,
         state: s.state,
         reason: s.reason,
+        reasonText: s.reasonText,
         error: s.error,
       });
     } catch (e) {

@@ -1,4 +1,4 @@
-import { translateReason } from '@swiftnest/api';
+import { localizedReason } from '@swiftnest/api';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import type { Device, DeviceApproval, DevicePairing, DevicePairingCandidate, Transfer } from '@swiftnest/api';
@@ -125,7 +125,7 @@ export function DeviceApprovals({ compact = false }: { compact?: boolean }) {
         {t('requestedBy')}: {a.client.name ?? a.client.id}
       </p>
       <p>
-        {t('risk')}: {t(a.risk)} · {a.reason && translateReason(a.reason, locale)}
+        {t('risk')}: {t(a.risk)} · {a.reason && localizedReason(a, locale)}
       </p>
       <pre>{JSON.stringify(a.args, null, 2)}</pre>
     </>

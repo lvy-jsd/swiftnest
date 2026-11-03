@@ -1,5 +1,5 @@
 import { createTestNest, type TestNest } from '@swiftnest/sdk';
-import { PathGuard, translateMessage } from '@swiftnest/core';
+import { messageEn, PathGuard, render } from '@swiftnest/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import cases from './classification-cases.json' with { type: 'json' };
 import rules from '../src/shell-rules.json' with { type: 'json' };
@@ -16,7 +16,8 @@ describe('classifyCommand', () => {
   it('escalates a read-only command that reads a protected location', () => {
     const r = classifyCommand('cat .ssh/id_rsa', DEFAULT_READ_ONLY, guard);
     expect(r.risk).toBe('sensitive');
-    expect(r.reason).toMatch(/protected/);
+    expect(r.reason).toMatchObject({ key: 'readsProtectedLocation' });
+    expect(render(r.reason, 'en')).toMatch(/protected/);
   });
 
   it('honours extra read-only programs from config', () => {
@@ -24,9 +25,9 @@ describe('classifyCommand', () => {
     expect(classifyCommand('git status', ['git'], guard).risk).toBe('read');
   });
 
-  it('has a Chinese translation for every writing reason', () => {
-    for (const { reason } of Object.values(rules.writingInvocations))
-      expect(translateMessage(reason, 'zh-CN'), reason).not.toBe(reason);
+  it('names a catalog entry with the same English for every writing reason', () => {
+    for (const { reason, reasonKey } of Object.values(rules.writingInvocations))
+      expect(messageEn[reasonKey as keyof typeof messageEn], reasonKey).toBe(reason);
   });
 
   it('tokenizes quotes', () => {

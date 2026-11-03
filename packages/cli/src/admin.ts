@@ -34,8 +34,8 @@ export function adminHandlers(nest: Nest): Record<string, Handler> {
     },
     revoke: async (p) => ({ ok: await nest.revoke(String(p.device)) }),
     'tasks.pending': () => nest.tasks.list({ state: 'pending_approval' }),
-    'tasks.approve': async (p) => nest.tasks.approve(String(p.id), 'admin socket'),
-    'tasks.deny': async (p) => nest.tasks.deny(String(p.id), 'denied with swiftnest deny'),
+    'tasks.approve': async (p) => nest.tasks.approve(String(p.id), text('approverAdminSocket')),
+    'tasks.deny': async (p) => nest.tasks.deny(String(p.id), text('deniedWithCli')),
     'audit.tail': async (p) =>
       nest.audit.query({
         limit: typeof p.limit === 'number' ? p.limit : 20,

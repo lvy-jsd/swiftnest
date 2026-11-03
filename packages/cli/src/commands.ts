@@ -1,7 +1,7 @@
 /** Owner commands against the running Nest (through its admin socket). */
 import { createInterface } from 'node:readline/promises';
 import type { AuditEntry, TaskSnapshot } from '@swiftnest/protocol';
-import { translateMessage, translateReason } from '@swiftnest/core';
+import { language, localizedReason, render, riskText, stateText } from '@swiftnest/core';
 import type { PairingCandidate } from '@swiftnest/core';
 import { adminCall } from './admin.js';
 import { adminSocket } from './daemons.js';
@@ -99,8 +99,8 @@ export async function pending(lang: Lang) {
         s.device,
         `${s.capability}.${s.tool}`,
         JSON.stringify(s.args),
-        translateMessage(s.risk, lang === 'en' ? 'en' : 'zh-CN'),
-        translateReason(s.reason ?? '', lang === 'en' ? 'en' : 'zh-CN'),
+        render(riskText(s.risk), language(lang)),
+        localizedReason(s, language(lang)),
       )}\n`,
     );
 }
@@ -110,7 +110,7 @@ export async function decide(lang: Lang, id: string | undefined, approve: boolea
     return void process.stdout.write(`${t(lang, 'needArg')(`swiftnest ${approve ? 'approve' : 'deny'} <task-id>`)}\n`);
   const s = await call<TaskSnapshot>(approve ? 'tasks.approve' : 'tasks.deny', { id });
   process.stdout.write(
-    `${approve ? t(lang, 'approved') : t(lang, 'denied')} ${s.id} → ${translateMessage(s.state, lang === 'en' ? 'en' : 'zh-CN')}\n`,
+    `${approve ? t(lang, 'approved') : t(lang, 'denied')} ${s.id} → ${render(stateText(s.state), language(lang))}\n`,
   );
 }
 
@@ -119,7 +119,7 @@ export async function audit(lang: Lang, limit: number, device?: string) {
   if (!rows.length) return void process.stdout.write(`${t(lang, 'auditNone')}\n`);
   for (const e of rows) {
     process.stdout.write(
-      `${e.at}  ${translateMessage(e.state, lang === 'en' ? 'en' : 'zh-CN').padEnd(16)} ${e.device}__${e.capability}__${e.tool} ${JSON.stringify(e.args)}  ← ${e.client.name ?? e.client.id}${e.reason ? `  (${translateReason(e.reason, lang === 'en' ? 'en' : 'zh-CN')})` : ''}${e.error ? `  [${e.error.code}]` : ''}\n`,
+      `${e.at}  ${render(stateText(e.state), language(lang)).padEnd(16)} ${e.device}__${e.capability}__${e.tool} ${JSON.stringify(e.args)}  ← ${e.client.name ?? e.client.id}${e.reason ? `  (${localizedReason(e, language(lang))})` : ''}${e.error ? `  [${e.error.code}]` : ''}\n`,
     );
   }
 }

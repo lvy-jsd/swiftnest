@@ -9,7 +9,7 @@ import {
   PROTOCOL_VERSION,
   type CapabilityManifest,
   type InvokeResult,
-  type Risk,
+  isText,
   text,
 } from '@swiftnest/protocol';
 import type { z } from 'zod';
@@ -21,6 +21,7 @@ import { createLogger, type Logger } from './log.js';
 import type { Nest } from './nest.js';
 import { pairingProof, type DeviceStore, type PairingManager } from './pairing.js';
 import type { Perch } from './perch.js';
+import { classification, type Classification } from './policy.js';
 
 type Msg = z.infer<typeof LinkMessage>;
 type Result = z.infer<typeof InvokeResult>;
@@ -240,7 +241,7 @@ function remoteConnection(
   let seq = 0;
   let closed = false;
   const results = new Map<string, (r: Result) => void>();
-  const classifications = new Map<string, (r: { risk: Risk; reason?: string } | Error) => void>();
+  const classifications = new Map<string, (r: Classification | Error) => void>();
   const capListeners = new Set<() => void>();
   const closeListeners = new Set<() => void>();
 
@@ -256,10 +257,12 @@ function remoteConnection(
         results.get(m.taskId)?.(m);
         results.delete(m.taskId);
         return;
-      case 'classified':
-        classifications.get(m.requestId)?.({ risk: m.risk, reason: m.reason });
+      case 'classified': {
+        const reasonText = isText(m.reasonText) ? m.reasonText : undefined;
+        classifications.get(m.requestId)?.({ risk: m.risk, reason: m.reason, reasonText });
         classifications.delete(m.requestId);
         return;
+      }
       case 'capabilities':
         caps = m.capabilities;
         for (const fn of capListeners) fn();
@@ -437,15 +440,16 @@ export async function connectToNest(perch: Perch, t: FrameTransport, o: ConnectO
         perch.cancel(m.taskId);
         return;
       case 'classify': {
-        let r: { risk: Risk; reason?: string };
+        let r: Classification;
         try {
           r = perch.classify(m.capability, m.tool, m.args);
         } catch (e) {
           // Unknown tool or a broken classifier: never report it as harmless.
-          r = {
-            risk: 'sensitive',
-            reason: `could not classify: ${SwiftnestFailure.from(e, 'CLASSIFY_FAILED').message}`,
-          };
+          const failure = SwiftnestFailure.from(e, 'CLASSIFY_FAILED');
+          r = classification(
+            'sensitive',
+            text('couldNotClassify', isText(failure.text) ? failure.text : failure.message),
+          );
         }
         channel.send({ type: 'classified', requestId: m.requestId, ...r });
         return;
