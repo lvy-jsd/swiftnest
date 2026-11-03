@@ -10,6 +10,7 @@ import {
   type CapabilityManifest,
   type InvokeResult,
   type Risk,
+  text,
 } from '@swiftnest/protocol';
 import type { z } from 'zod';
 import { acceptChannel, initiateChannel, type FrameTransport, type SecureChannel } from './channel.js';
@@ -58,21 +59,19 @@ function mailbox(channel: SecureChannel) {
           if (!(types as string[]).includes(m.type)) {
             channel.close('protocol error');
             return reject(
-              new SwiftnestFailure('PROTOCOL_ERROR', `Expected ${types.join(' or ')} during ${what}, got ${m.type}.`),
+              new SwiftnestFailure('PROTOCOL_ERROR', text('expectedDuringGot', types.join(' or '), what, m.type)),
             );
           }
           resolve(m as Extract<Msg, { type: T }>);
         };
         const onClose = (reason: string) => {
           clearTimeout(timer);
-          reject(
-            new SwiftnestFailure('CHANNEL_CLOSED', `Connection closed during ${what} (${reason}).`, undefined, true),
-          );
+          reject(new SwiftnestFailure('CHANNEL_CLOSED', text('connectionClosedDuring', what, reason), undefined, true));
         };
         const timer = setTimeout(() => {
           closers.delete(onClose);
           waiter = undefined;
-          reject(new SwiftnestFailure('TIMEOUT', `No answer during ${what}.`, undefined, true));
+          reject(new SwiftnestFailure('TIMEOUT', text('noAnswerDuring', what), undefined, true));
         }, timeoutMs);
         if (queue.length) return settle(queue.shift()!);
         if (closedWith !== undefined) return onClose(closedWith);
@@ -131,17 +130,9 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
     timeoutMs,
     screen(h) {
       if (h.pairing && !o.pairing?.active)
-        throw new SwiftnestFailure(
-          'PAIRING_CLOSED',
-          'This Nest is not pairing right now.',
-          'Run `swiftnest pair` on the Nest first, then use the code it shows within 5 minutes.',
-        );
+        throw new SwiftnestFailure('PAIRING_CLOSED', text('nestNotPairingRightNow'), text('hintRunPairOnNestFirst'));
       if (!h.pairing && o.devices.get(h.device)?.publicKey !== h.id)
-        throw new SwiftnestFailure(
-          'NOT_PAIRED',
-          `"${h.device}" is not paired with this Nest.`,
-          'Pair it first: `swiftnest pair` on the Nest, then `swiftnest perch --pair <code>` on the device.',
-        );
+        throw new SwiftnestFailure('NOT_PAIRED', text('notPairedNest', h.device), text('hintPairDeviceFirst'));
     },
   });
   const box = mailbox(channel);
@@ -154,18 +145,14 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
     if (!pairing.verify(req.proof, channel.transcriptHash)) {
       channel.send({ type: 'pair_status', status: 'rejected', message: 'Wrong or expired pairing code.' });
       bye(channel, 'PAIRING_REJECTED', 'Wrong or expired pairing code.');
-      throw new SwiftnestFailure('PAIRING_REJECTED', `Pairing attempt from "${device}" used a wrong or expired code.`);
+      throw new SwiftnestFailure('PAIRING_REJECTED', text('pairingAttemptUsedWrongExpiredCode', device));
     }
     const taken = o.devices.get(device);
     if (taken && taken.publicKey !== key) {
       const message = `The name "${device}" is already used by another paired device.`;
       channel.send({ type: 'pair_status', status: 'rejected', message });
       bye(channel, 'DEVICE_NAME_TAKEN', message);
-      throw new SwiftnestFailure(
-        'DEVICE_NAME_TAKEN',
-        message,
-        'Pick another name with --name, or revoke the old device first.',
-      );
+      throw new SwiftnestFailure('DEVICE_NAME_TAKEN', message, text('hintPickAnotherName'));
     }
     channel.send({ type: 'pair_status', status: 'code_ok' });
     const { candidate, answer } = pairing.offer(device, key, o.confirmTimeoutMs);
@@ -199,7 +186,7 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
         : 'The device did not confirm the Nest fingerprint.';
       channel.send({ type: 'pair_status', status: 'rejected', message });
       bye(channel, 'PAIRING_REJECTED', message);
-      throw new SwiftnestFailure('PAIRING_REJECTED', `Pairing with "${device}" was not confirmed: ${message}`);
+      throw new SwiftnestFailure('PAIRING_REJECTED', text('pairingNotConfirmed', device, message));
     }
     await o.devices.add({ device, publicKey: key, pairedAt: new Date().toISOString() });
     channel.send({ type: 'pair_status', status: 'paired' });
@@ -209,7 +196,7 @@ export async function acceptPerch(nest: Nest, t: FrameTransport, opts: AcceptPer
   const h = await box.expect(['hello'], timeoutMs, 'hello');
   if (h.device !== device || h.publicKey !== key || h.protocol !== PROTOCOL_VERSION) {
     bye(channel, 'PROTOCOL_ERROR', 'The hello does not match the handshake or the protocol version.');
-    throw new SwiftnestFailure('PROTOCOL_ERROR', `Device "${device}" sent a hello that does not match its handshake.`);
+    throw new SwiftnestFailure('PROTOCOL_ERROR', text('deviceSentHelloNotMatchHandshake', device));
   }
 
   const record = o.devices.get(device);
@@ -291,20 +278,20 @@ function remoteConnection(
     o.nest.streams.closeParent(channel);
     const offline = new SwiftnestFailure(
       'DEVICE_OFFLINE',
-      `${o.device} went offline.`,
-      'Check that the device is running and on the network, then retry.',
+      text('wentOffline', o.device),
+      text('hintCheckDeviceOnNetwork'),
       true,
     ).toJSON();
     for (const [taskId, done] of results) done({ type: 'result', taskId, ok: false, error: offline });
     results.clear();
     for (const done of classifications.values())
-      done(new SwiftnestFailure('DEVICE_OFFLINE', `${o.device} went offline.`, undefined, true));
+      done(new SwiftnestFailure('DEVICE_OFFLINE', text('wentOffline', o.device), undefined, true));
     classifications.clear();
     for (const fn of closeListeners) fn();
   });
 
   const send = (m: Msg) => {
-    if (closed) throw new SwiftnestFailure('DEVICE_OFFLINE', `${o.device} is offline.`, undefined, true);
+    if (closed) throw new SwiftnestFailure('DEVICE_OFFLINE', text('offline', o.device), undefined, true);
     channel.send(m);
   };
 
@@ -326,7 +313,7 @@ function remoteConnection(
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           classifications.delete(requestId);
-          reject(new SwiftnestFailure('TIMEOUT', `${o.device} did not classify the call in time.`, undefined, true));
+          reject(new SwiftnestFailure('TIMEOUT', text('didNotClassifyCallTime', o.device), undefined, true));
         }, 10_000);
         classifications.set(requestId, (r) => {
           clearTimeout(timer);
@@ -397,11 +384,7 @@ export interface NestSession {
 export async function connectToNest(perch: Perch, t: FrameTransport, o: ConnectOptions): Promise<NestSession> {
   const timeoutMs = o.timeoutMs ?? 10_000;
   if (!o.pairing && !o.nestKey)
-    throw new SwiftnestFailure(
-      'NOT_PAIRED',
-      'This device is not paired with a Nest yet.',
-      'Run `swiftnest pair` on the Nest and start this device with --pair <code>.',
-    );
+    throw new SwiftnestFailure('NOT_PAIRED', text('deviceNotPairedNestYet'), text('hintStartWithPairCode'));
   const channel = await initiateChannel(t, {
     identity: o.identity,
     device: perch.device,
@@ -419,7 +402,7 @@ export async function connectToNest(perch: Perch, t: FrameTransport, o: ConnectO
       throw new SwiftnestFailure(
         'PAIRING_REJECTED',
         status.message ?? 'The Nest refused the pairing code.',
-        'Check the code, or run `swiftnest pair` again for a new one.',
+        text('hintCheckPairingCode'),
       );
     const accept = await o.pairing.confirm(fingerprintOf(channel.peerPublicKey));
     channel.send({ type: 'pair_confirm', accept });

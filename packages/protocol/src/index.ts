@@ -116,12 +116,25 @@ export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set([
 export const ClientRef = z.object({ id: z.string(), name: z.string().optional() });
 export type ClientRef = z.infer<typeof ClientRef>;
 
-/** Uniform error: what went wrong, how to fix it, and whether retrying can help. */
+/**
+ * Catalog text on the wire. Keys are not checked here: a newer peer may send keys this build
+ * lacks, and readers then fall back to the English `message` beside it.
+ */
+export const WireText: z.ZodType<{ key: string; args?: unknown[] }> = z.lazy(() =>
+  z.object({ key: z.string(), args: z.array(z.union([z.string(), z.number(), WireText])).optional() }),
+);
+
+/**
+ * Uniform error: what went wrong, how to fix it, and whether retrying can help. `message` and
+ * `hint` are English for logs and models; `text` and `hintText` let each reader localize.
+ */
 export const SwiftnestError = z.object({
   code: z.string(),
   message: z.string(),
   hint: z.string().optional(),
   suggestion: z.string().optional(),
+  text: WireText.optional(),
+  hintText: WireText.optional(),
   retryable: z.boolean().default(false),
 });
 export type SwiftnestError = z.infer<typeof SwiftnestError>;

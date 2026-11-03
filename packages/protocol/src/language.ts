@@ -41,7 +41,38 @@ export function message(
 ): string {
   return (lang === 'en' ? messageEn : messageZh)[key].replace(/\{(\d+)\}/g, (_, n) => String(args[Number(n)] ?? ''));
 }
-/** Match only full catalog messages. User content and technical output are never translated. */
+export type MessageKey = keyof typeof messageEn;
+/** An argument of catalog text: a value shown as is, or more catalog text. */
+export type TextArg = string | number | Text;
+/**
+ * Catalog text: a key and its arguments. Producers send this instead of finished prose, and
+ * each reader renders it in their own language.
+ */
+export interface Text {
+  key: MessageKey;
+  args?: TextArg[];
+}
+
+export function text(key: MessageKey, ...args: TextArg[]): Text {
+  return args.length ? { key, args } : { key };
+}
+
+/** True for catalog text whose key this build knows; text from a newer peer is not. */
+export function isText(value: unknown): value is Text {
+  const key = (value as { key?: unknown } | null)?.key;
+  return typeof key === 'string' && Object.hasOwn(messageEn, key);
+}
+
+/** Render catalog text, and any text in its arguments, in `lang`. */
+export function render(value: Text, lang: Language = defaultLanguage()): string {
+  const args = (value.args ?? []).map((arg) => (typeof arg === 'object' ? render(arg, lang) : arg));
+  return message(value.key, lang, args);
+}
+
+/**
+ * Legacy: find the catalog entry a finished English or Chinese sentence came from. Only for
+ * producers that still send prose; new code sends `Text`.
+ */
 export function translateMessage(text: string, lang: Language = defaultLanguage()): string {
   const source = lang === 'en' ? chinesePatterns : patterns;
   for (const item of source) {
@@ -83,18 +114,38 @@ export function errorCode(text: string): string {
   };
   return item ? (codes[item.key] ?? `SWIFTNEST_${item.key.toUpperCase()}`) : 'SWIFTNEST_FAILED';
 }
+interface ErrorLike {
+  code?: string;
+  message?: string;
+  hint?: string;
+  suggestion?: string;
+  text?: unknown;
+  hintText?: unknown;
+}
+
+/** Localize a failure: catalog text when the producer sent it, else (legacy) the English sentence. */
 export function localizedError(error: unknown, lang: Language = defaultLanguage()) {
-  const source = error as { code?: string; message?: string; hint?: string; suggestion?: string };
-  const original = source?.message ?? String(error),
-    code = source?.code ?? errorCode(original);
-  let translated = translateMessage(original, lang);
+  const source = error as ErrorLike | undefined;
+  const original = source?.message ?? String(error);
+  const code = source?.code ?? (isText(source?.text) ? 'SWIFTNEST_FAILED' : errorCode(original));
+  return { code, message: localizedMessage(source, original, code, lang), hint: localizedHint(source, lang) };
+}
+
+function localizedMessage(source: ErrorLike | undefined, original: string, code: string, lang: Language): string {
+  if (isText(source?.text)) return render(source.text, lang);
+  const translated = translateMessage(original, lang);
   // Third-party failures have an unbounded vocabulary. Keep their stable code and offer a localized action.
   if (lang === 'zh-CN' && translated === original && /^\p{ASCII}*[a-z]{2} [a-z]/iu.test(original))
-    translated = message('genericError', lang, [code]);
-  const rawHint = source?.hint ?? source?.suggestion ?? messageEn.retryHint;
-  let hint = translateMessage(rawHint, lang);
-  if (lang === 'zh-CN' && hint === rawHint && !/[\u4e00-\u9fff]/.test(hint)) hint = message('retryHint', lang);
-  return { code, message: translated, hint };
+    return message('genericError', lang, [code]);
+  return translated;
+}
+
+function localizedHint(source: ErrorLike | undefined, lang: Language): string {
+  if (isText(source?.hintText)) return render(source.hintText, lang);
+  const raw = source?.hint ?? source?.suggestion ?? messageEn.retryHint;
+  const hint = translateMessage(raw, lang);
+  if (lang === 'zh-CN' && hint === raw && !/[\u4e00-\u9fff]/.test(hint)) return message('retryHint', lang);
+  return hint;
 }
 
 /** Localize policy explanations without changing client names, paths, arguments or rule identifiers. */
