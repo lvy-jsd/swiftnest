@@ -1,4 +1,4 @@
-import { translateMessage } from './language.js';
+import { type MessageKey, type Text, text, translateMessage } from './language.js';
 export * from './language.js';
 /**
  * @swiftnest/protocol — the data shapes every Swiftnest component agrees on.
@@ -63,6 +63,15 @@ export function parseQualifiedToolName(name: string): { device: string; capabili
 export const Risk = z.enum(['read', 'write', 'exec', 'sensitive']);
 export type Risk = z.infer<typeof Risk>;
 
+const RISK_KEYS: Record<Risk, MessageKey> = {
+  read: 'policyRead',
+  write: 'policyWrite',
+  exec: 'policyExec',
+  sensitive: 'policySensitive',
+};
+/** A risk level as catalog text, for showing it to a person. */
+export const riskText = (risk: Risk): Text => text(RISK_KEYS[risk]);
+
 export const ToolDescriptor = z.object({
   name: ToolName,
   title: LocalizedText.optional(),
@@ -103,6 +112,19 @@ export const TaskState = z.enum([
   'cancelled',
 ]);
 export type TaskState = z.infer<typeof TaskState>;
+
+const STATE_KEYS: Record<TaskState, MessageKey> = {
+  queued: 'stateQueued',
+  pending_approval: 'statePending',
+  running: 'stateRunning',
+  succeeded: 'stateSucceeded',
+  failed: 'stateFailed',
+  denied: 'stateDenied',
+  timed_out: 'stateTimedOut',
+  cancelled: 'stateCancelled',
+};
+/** A task state as catalog text, for showing it to a person. */
+export const stateText = (state: TaskState): Text => text(STATE_KEYS[state]);
 
 export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set([
   'succeeded',
@@ -156,8 +178,10 @@ export const TaskSnapshot = z.object({
   client: ClientRef,
   state: TaskState,
   risk: Risk,
-  /** Why the policy decided what it did (shown in approvals and the audit log). */
+  /** Why the policy decided what it did (shown in approvals and the audit log), in English. */
   reason: z.string().optional(),
+  /** The same reason as catalog text, so each reader can localize it. */
+  reasonText: WireText.optional(),
   result: ToolResult.optional(),
   error: SwiftnestError.optional(),
   createdAt: z.string(),
@@ -178,6 +202,7 @@ export const AuditEntry = z.object({
   args: z.record(z.string(), z.unknown()),
   state: TaskState,
   reason: z.string().optional(),
+  reasonText: WireText.optional(),
   error: SwiftnestError.optional(),
 });
 export type AuditEntry = z.infer<typeof AuditEntry>;
@@ -224,6 +249,7 @@ export const ClassifyResult = z.object({
   requestId: z.string(),
   risk: Risk,
   reason: z.string().optional(),
+  reasonText: WireText.optional(),
 });
 /** The Perch's capabilities changed (a plugin was added or removed). */
 export const CapabilitiesUpdate = z.object({

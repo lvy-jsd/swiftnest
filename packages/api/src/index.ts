@@ -2,6 +2,7 @@ export {
   message,
   translateMessage,
   translateReason,
+  localizedReason,
   localizedError,
   errorCode,
   language,

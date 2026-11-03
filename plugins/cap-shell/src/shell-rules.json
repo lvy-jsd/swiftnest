@@ -20,30 +20,35 @@
     "sort": {
       "shortFlags": "o",
       "longFlags": ["--output", "--compress-program"],
-      "reason": "sort -o/--output writes a file and --compress-program runs a program"
+      "reason": "sort -o/--output writes a file and --compress-program runs a program",
+      "reasonKey": "shellSortWrites"
     },
     "date": {
       "shortFlags": "s",
       "longFlags": ["--set"],
       "valueFlags": ["-d", "--date", "-r", "--reference", "-f", "--file"],
       "positionalPrefix": "+",
-      "reason": "date -s/--set or a time argument changes the system clock"
+      "reason": "date -s/--set or a time argument changes the system clock",
+      "reasonKey": "shellDateSetsClock"
     },
     "uniq": {
       "valueFlags": ["-f", "--skip-fields", "-s", "--skip-chars", "-w", "--check-chars"],
       "maxPositionals": 1,
-      "reason": "uniq with a second file writes its output there"
+      "reason": "uniq with a second file writes its output there",
+      "reasonKey": "shellUniqWritesFile"
     },
     "hostname": {
       "shortFlags": "Fb",
       "longFlags": ["--file", "--boot"],
       "maxPositionals": 0,
-      "reason": "hostname with an argument changes the host name"
+      "reason": "hostname with an argument changes the host name",
+      "reasonKey": "shellHostnameRenames"
     },
     "file": {
       "shortFlags": "C",
       "longFlags": ["--compile"],
-      "reason": "file -C compiles and writes a magic file"
+      "reason": "file -C compiles and writes a magic file",
+      "reasonKey": "shellFileCompilesMagic"
     }
   }
 }

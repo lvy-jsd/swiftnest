@@ -2,6 +2,7 @@ export {
   message,
   translateMessage,
   translateReason,
+  localizedReason,
   localizedError,
   errorCode,
   errorCodeFor,
@@ -12,6 +13,8 @@ export {
   text,
   isText,
   render,
+  riskText,
+  stateText,
 } from '@swiftnest/protocol';
 export type { Language, MessageKey, SwiftnestError, Text, TextArg } from '@swiftnest/protocol';
 export * from './audit.js';

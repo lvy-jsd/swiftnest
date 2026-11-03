@@ -156,7 +156,12 @@ function localizedHint(source: ErrorLike | undefined, lang: Language): string {
   return hint;
 }
 
-/** Localize policy explanations without changing client names, paths, arguments or rule identifiers. */
+/** Why the policy decided as it did, from its catalog text, or (legacy) from its English. */
+export function localizedReason(item: { reason?: string; reasonText?: unknown }, lang: Language = defaultLanguage()) {
+  return isText(item.reasonText) ? render(item.reasonText, lang) : translateReason(item.reason ?? '', lang);
+}
+
+/** Legacy: localize policy explanations without changing client names, paths, arguments or rule identifiers. */
 export function translateReason(text: string, lang: Language = defaultLanguage()): string {
   const approval = /^(.*?)(?:; approved by |；批准人：)(.*)$/s.exec(text);
   if (approval) return message('approvedBy', lang, [translateReason(approval[1]!, lang), approval[2]]);
