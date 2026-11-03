@@ -1,15 +1,19 @@
 /** Small HTTP helpers shared by the loopback device API. */
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { errorCodeFor, isText, SwiftnestFailure, text, type SwiftnestError, type Text } from '@swiftnest/core';
 
-/** A failure the router answers with `{ error }` and this status. */
+/** A failure the router answers with this status and the failure's wire form. */
 export class HttpError extends Error {
+  readonly failure: SwiftnestError;
+
   constructor(
     readonly status: number,
-    message: string,
-    readonly code?: string,
+    failure: Text | SwiftnestError,
   ) {
-    super(message);
+    const wire = isText(failure) ? new SwiftnestFailure(errorCodeFor(failure.key), failure).toJSON() : failure;
+    super(wire.message);
+    this.failure = wire;
   }
 }
 
@@ -24,7 +28,7 @@ export function hasBearer(req: IncomingMessage, token: string): boolean {
  * Read the body as UTF-8, stopping at `limit` bytes. Chunks are joined before decoding, so a
  * multi-byte character split across two chunks stays intact.
  */
-export async function readBody(req: IncomingMessage, limit: number, tooLarge: string): Promise<string> {
+export async function readBody(req: IncomingMessage, limit: number, tooLarge: Text): Promise<string> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req as AsyncIterable<Buffer>) {
@@ -39,16 +43,16 @@ export async function readBody(req: IncomingMessage, limit: number, tooLarge: st
 export async function readJsonObject(
   req: IncomingMessage,
   limit: number,
-  tooLarge: string,
+  tooLarge: Text,
 ): Promise<Record<string, unknown>> {
   const body = await readBody(req, limit, tooLarge);
   let value: unknown;
   try {
     value = JSON.parse(body);
   } catch {
-    throw new HttpError(400, 'Invalid JSON body');
+    throw new HttpError(400, text('invalidJsonBody'));
   }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'Invalid JSON body');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, text('invalidJsonBody'));
   return value as Record<string, unknown>;
 }
 

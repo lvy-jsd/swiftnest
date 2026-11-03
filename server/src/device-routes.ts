@@ -5,7 +5,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { networkInterfaces } from 'node:os';
-import type { Nest } from '@swiftnest/core';
+import { SwiftnestFailure, text, type Nest } from '@swiftnest/core';
 import type { TransferRequest } from '@swiftnest/api';
 import type { ServerConfig } from './config.js';
 import type { DeviceRegistry } from './device-registry.js';
@@ -64,14 +64,14 @@ const TRANSFER_ID = '([a-f0-9]{64})';
 // ---------------------------------------------------------------- preferences
 
 async function setLanguage({ hub, req }: Request) {
-  const body = await readBody(req, KiB, 'Language request too large');
+  const body = await readBody(req, KiB, text('languageRequestTooLarge'));
   let lang: unknown;
   try {
     lang = (JSON.parse(body) as { lang?: unknown } | null)?.lang;
   } catch {
-    throw new HttpError(400, 'Invalid language');
+    throw new HttpError(400, text('invalidLanguage'));
   }
-  if (!isLanguage(lang)) throw new HttpError(400, 'Invalid language');
+  if (!isLanguage(lang)) throw new HttpError(400, text('invalidLanguage'));
   await hub.preferences.setLanguage(lang);
   hub.publish('devices-changed');
   return { lang };
@@ -81,13 +81,14 @@ async function setLanguage({ hub, req }: Request) {
 
 /** Run a device tool for DSH. If DSH hangs up first, the task is cancelled rather than left running. */
 async function callTool({ hub, req, res }: Request) {
-  const { name, args, sessionId } = await readJsonObject(req, 1024 * KiB, 'Device arguments too large');
+  const { name, args, sessionId } = await readJsonObject(req, 1024 * KiB, text('deviceArgumentsTooLarge'));
   const target = typeof name === 'string' ? hub.registry.resolve(name) : undefined;
-  if (!target) throw new HttpError(404, `Unknown device tool ${String(name)}`);
-  if (!args || typeof args !== 'object' || Array.isArray(args)) throw new HttpError(400, 'Expected object arguments');
+  if (!target) throw new HttpError(404, text('unknownDeviceTool', String(name)));
+  if (!args || typeof args !== 'object' || Array.isArray(args))
+    throw new HttpError(400, text('expectedObjectArguments'));
   const { device, tool } = target;
   if (!device.online) {
-    throw new HttpError(409, `device ${device.slug} is offline (last seen ${device.lastSeen ?? 'unknown'})`);
+    throw new HttpError(409, text('deviceOfflineLastSeen', device.slug ?? device.device, device.lastSeen ?? 'unknown'));
   }
   let taskId: string | undefined;
   let abandoned = res.destroyed;
@@ -114,7 +115,7 @@ async function callTool({ hub, req, res }: Request) {
 
 function existingTask({ hub, params }: Request): string {
   const id = params[0]!;
-  if (!hub.nest.tasks.get(id)) throw new HttpError(404, 'Not found');
+  if (!hub.nest.tasks.get(id)) throw new HttpError(404, text('notFound'));
   return id;
 }
 
@@ -126,8 +127,7 @@ async function asConflict(run: () => Promise<unknown> | unknown): Promise<unknow
     return await run();
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
-    throw new HttpError(409, message, (error as { code?: string }).code);
+    throw new HttpError(409, SwiftnestFailure.from(error));
   }
 }
 
@@ -136,14 +136,14 @@ function transferRoutes(base: string): Route[] {
     route('GET', `${base}/transfers`, ({ hub }) => hub.transfers.list()),
     route('POST', `${base}/transfers`, async (r) => {
       // Transfers.start validates the request's shape itself.
-      const request = await readJsonObject(r.req, 32 * KiB, 'Transfer request too large');
+      const request = await readJsonObject(r.req, 32 * KiB, text('transferRequestTooLarge'));
       return withStatus(202, await asConflict(() => r.hub.transfers.start(request as unknown as TransferRequest)));
     }),
     route('POST', `${base}/transfers/${TRANSFER_ID}/(pause|resume|cancel|retry)`, (r) =>
       asConflict(() => r.hub.transfers.action(r.params[0]!, r.params[1] as 'pause' | 'resume' | 'cancel' | 'retry')),
     ),
     route('*', `${base}/transfers(?:/.*)?`, () => {
-      throw new HttpError(404, 'Unknown transfer route');
+      throw new HttpError(404, text('unknownTransferRoute'));
     }),
   ];
 }
@@ -152,20 +152,19 @@ function transferRoutes(base: string): Route[] {
 
 function auditLimit(url: URL): number {
   const limit = Number(url.searchParams.get('limit') ?? 100);
-  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new HttpError(400, 'limit must be 1-1000');
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new HttpError(400, text('auditLimitOutOfRange'));
   return limit;
 }
 
 async function openLive({ hub, url }: Request) {
   const device = hub.registry.list().find((d) => d.device === url.searchParams.get('device'));
-  if (!device?.paired || !device.online) throw new HttpError(409, 'Device is offline');
+  if (!device?.paired || !device.online) throw new HttpError(409, text('deviceOffline'));
   const maxDimension = Number(url.searchParams.get('maxDimension') ?? 1280);
   const displayId = url.searchParams.get('displayId') ?? '';
   try {
     return await hub.nest.openOwnerStream(device.device, { maxDimension, displayId });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new HttpError(409, message, (error as { code?: string }).code);
+    throw new HttpError(409, SwiftnestFailure.from(error));
   }
 }
 
@@ -194,7 +193,7 @@ function startPairing({ hub }: Request) {
 
 async function decideApproval({ hub, params }: Request) {
   const [id, action] = params as [string, 'approve' | 'deny'];
-  if (hub.nest.tasks.get(id)?.state !== 'pending_approval') throw new HttpError(409, 'Approval is no longer pending');
+  if (hub.nest.tasks.get(id)?.state !== 'pending_approval') throw new HttpError(409, text('approvalNoLongerPending'));
   return action === 'approve' ? hub.nest.tasks.approve(id, 'App owner') : hub.nest.tasks.deny(id, 'denied by owner');
 }
 
@@ -207,7 +206,7 @@ const routes: Route[] = [
   })),
   route('POST', `${PREFIX}/preferences`, setLanguage),
   route('*', `${PREFIX}/preferences`, () => {
-    throw new HttpError(405, 'Method not allowed');
+    throw new HttpError(405, text('methodNotAllowed'));
   }),
 
   route('GET', CONTROL, ({ hub }) => hub.registry.snapshot()),
@@ -260,7 +259,6 @@ export async function handleDeviceRequest(hub: DeviceHub, req: IncomingMessage, 
     reply(request, 404, { error: 'Not found' });
   } catch (error) {
     if (!(error instanceof HttpError)) throw error;
-    if (!res.headersSent)
-      reply(request, error.status, { error: error.message, ...(error.code ? { code: error.code } : {}) });
+    if (!res.headersSent) reply(request, error.status, { ...error.failure, error: error.failure.message });
   }
 }

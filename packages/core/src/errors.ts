@@ -1,4 +1,4 @@
-import { localizedError, render, type SwiftnestError, type Text } from '@swiftnest/protocol';
+import { isText, localizedError, render, type SwiftnestError, type Text } from '@swiftnest/protocol';
 
 /** What a failure says: catalog text, or (legacy) a finished English sentence. */
 type Words = string | Text;
@@ -39,6 +39,13 @@ export class SwiftnestFailure extends Error {
       ...(this.hintText ? { hintText: this.hintText } : {}),
       retryable: this.retryable,
     };
+  }
+
+  /** Rebuild a failure received on the wire, keeping its catalog text. */
+  static fromWire(e: SwiftnestError): SwiftnestFailure {
+    const message = isText(e.text) ? e.text : e.message;
+    const hint = isText(e.hintText) ? e.hintText : (e.hint ?? e.suggestion);
+    return new SwiftnestFailure(e.code, message, hint, e.retryable);
   }
 
   static from(e: unknown, fallbackCode = 'INTERNAL'): SwiftnestError {

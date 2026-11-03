@@ -4,6 +4,7 @@ export {
   translateReason,
   localizedError,
   errorCode,
+  errorCodeFor,
   language,
   defaultLanguage,
   messageEn,
@@ -12,7 +13,7 @@ export {
   isText,
   render,
 } from '@swiftnest/protocol';
-export type { Language, MessageKey, Text, TextArg } from '@swiftnest/protocol';
+export type { Language, MessageKey, SwiftnestError, Text, TextArg } from '@swiftnest/protocol';
 export * from './audit.js';
 export * from './channel.js';
 export * from './errors.js';

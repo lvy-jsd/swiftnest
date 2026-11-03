@@ -1,3 +1,4 @@
+import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
 /**
  * Swiftnest Server configuration: one YAML file, every field optional, with
@@ -63,7 +64,7 @@ type Partial2<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K]
 export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env): ServerConfig {
   let fromFile: Partial2<ServerConfig> = {};
   if (file) {
-    if (!existsSync(file)) throw new ServerFailure(`config file not found: ${file}`);
+    if (!existsSync(file)) throw new ServerFailure(text('configFileNotFound', file));
     fromFile = (parse(readFileSync(file, 'utf8')) ?? {}) as Partial2<ServerConfig>;
   }
   const num = (v: string | undefined) => (v === undefined || v === '' ? undefined : Number(v));
@@ -104,25 +105,25 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 
 export function validate(config: ServerConfig): void {
   if (config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0))
-    throw new ServerFailure('files.quotaBytes must be a nonnegative safe integer');
+    throw new ServerFailure(text('filesQuotabytesMustNonnegativeSafeInteger'));
   if (!Number.isInteger(config.devices.port) || config.devices.port < 0 || config.devices.port > 65535)
-    throw new ServerFailure('devices.port must be an integer 0-65535');
+    throw new ServerFailure(text('devicesPortMustInteger065535'));
   if (typeof config.devices.host !== 'string' || !config.devices.host)
-    throw new ServerFailure('devices.host must be an address');
-  if (typeof config.devices.mdns !== 'boolean') throw new ServerFailure('devices.mdns must be a boolean');
-  if (typeof config.persona !== 'string') throw new ServerFailure('persona must be a string');
+    throw new ServerFailure(text('devicesHostMustAddress'));
+  if (typeof config.devices.mdns !== 'boolean') throw new ServerFailure(text('devicesMdnsMustBoolean'));
+  if (typeof config.persona !== 'string') throw new ServerFailure(text('personaMustString'));
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) {
-    throw new ServerFailure(`port must be an integer 0-65535, got ${config.port}`);
+    throw new ServerFailure(text('portMustInteger065535Got', config.port));
   }
   if (config.host === '0.0.0.0' || config.host === '::') {
-    throw new ServerFailure('host must be one concrete address (for example your LAN IP), not a wildcard');
+    throw new ServerFailure(text('hostMustOneConcreteAddressExample'));
   }
   try {
     new URL(config.model.baseUrl);
   } catch {
-    throw new ServerFailure(`model.baseUrl is not a URL: ${config.model.baseUrl}`);
+    throw new ServerFailure(text('modelBaseurlNotUrl', config.model.baseUrl));
   }
   if (!/^[A-Z_][A-Z0-9_]*$/.test(config.model.apiKeyEnv)) {
-    throw new ServerFailure(`model.apiKeyEnv must be an environment variable name, got ${config.model.apiKeyEnv}`);
+    throw new ServerFailure(text('modelApikeyenvMustEnvironmentVariableName', config.model.apiKeyEnv));
   }
 }
