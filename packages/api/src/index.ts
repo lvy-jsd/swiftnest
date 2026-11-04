@@ -25,6 +25,8 @@ import type {
 } from './devices.js';
 export type * from './devices.js';
 export type * from './memory.js';
+export { ChatSearchSettingsSchema } from '@swiftnest/protocol';
+export type { ChatSearchResult, ChatSearchSettings, ChatSearchStatus } from '@swiftnest/protocol';
 import type { PluginsView } from './plugins.js';
 export type * from './plugins.js';
 import type { ModelSettingsUpdate, ModelsView } from './models.js';
@@ -563,6 +565,24 @@ export class SwiftnestClient {
       abort.abort();
       throw error;
     }
+  }
+  searchChats(
+    query: string,
+    limit = 20,
+    signal?: AbortSignal,
+  ): Promise<import('@swiftnest/protocol').ChatSearchResult[]> {
+    return this.ownerRequest(`search?${new URLSearchParams({ query, limit: String(limit) })}`, 'GET', signal);
+  }
+  chatSearchStatus(): Promise<import('@swiftnest/protocol').ChatSearchStatus> {
+    return this.ownerRequest('search/status');
+  }
+  configureChatSearch(
+    settings: import('@swiftnest/protocol').ChatSearchSettings,
+  ): Promise<import('@swiftnest/protocol').ChatSearchStatus> {
+    return this.ownerRequest('search/settings', 'POST', undefined, settings);
+  }
+  rebuildChatSearch(): Promise<import('@swiftnest/protocol').ChatSearchStatus> {
+    return this.ownerRequest('search/rebuild', 'POST', undefined, {});
   }
   listMemory(): Promise<import('./memory.js').MemoryView> {
     return this.memoryRequest('');

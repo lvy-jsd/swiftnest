@@ -379,6 +379,12 @@
     "pill__dot",
     "preferences-group",
     "sheet",
-    "soft"
+    "soft",
+    "chat-search-snippet",
+    "chat-search-settings",
+    "load",
+    "rebuild",
+    "local",
+    "cloud"
   ]
 }

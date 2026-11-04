@@ -335,3 +335,5 @@ export type LinkMessage = z.infer<typeof LinkMessage>;
 export type * from './memory.js';
 
 export * from './native-pairing.js';
+
+export * from './chat-search.js';

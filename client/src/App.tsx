@@ -1,3 +1,5 @@
+import { ChatSearchResults } from './chatSearch';
+import { ChatSearchAdvanced } from './chatSearchSettings';
 import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
 import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
@@ -111,6 +113,7 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
             onChange={(event) => theme.setReduceTransparency(event.target.checked)}
           />
         </label>
+        <ChatSearchAdvanced />
         <RelaySettings />
       </div>
     </Sheet>
@@ -673,7 +676,9 @@ function AppContent() {
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
-              {visibleChats.length ? (
+              {query.trim() && owner && status === 'connected' ? (
+                <ChatSearchResults query={query} />
+              ) : visibleChats.length ? (
                 <VirtualList
                   items={visibleChats}
                   itemKey={(s) => s.sessionId}

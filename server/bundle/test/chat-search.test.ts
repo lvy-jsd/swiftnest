@@ -1,0 +1,216 @@
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, expect, it, vi } from 'vitest';
+import { ChatIndex, type SearchEvent } from '../src/chat-search/store.js';
+import { chunkText, fullTextQuery, fuseRanks, snippet } from '../src/chat-search/text.js';
+import { ChatSearch, type SearchSources } from '../src/chat-search/service.js';
+import { SqliteVectors, cosine } from '../src/chat-search/vectors.js';
+
+const cleanups: (() => void | Promise<void>)[] = [];
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
+function home() {
+  const directory = mkdtempSync(join(tmpdir(), 'swiftnest-search-'));
+  cleanups.push(() => rmSync(directory, { recursive: true, force: true }));
+  return directory;
+}
+function index() {
+  const store = new ChatIndex(home());
+  cleanups.push(() => store.close());
+  return store;
+}
+function user(seq: number, content: string, kind = 'user'): SearchEvent {
+  return { seq, time: 1700000000000 + seq, type: 'user/message', data: { content, source: { kind } } };
+}
+function sources(events: SearchEvent[]): SearchSources {
+  return {
+    sessions: { list: () => [] },
+    sessionPersistence: {
+      list: async () => [{ header: { id: 'old' } }, { header: { id: 'child', origin: 'subagent' } }],
+      open: vi.fn(async () => ({
+        read: vi.fn(async (offset, length) => ({ events: events.slice(offset, offset + length) })),
+        close: vi.fn(async () => {}),
+      })),
+    },
+  };
+}
+
+it('chunks Unicode without splitting surrogate pairs and retains boundary phrases', () => {
+  const chunks = chunkText('一🙂二三四五六', 4, 2);
+  expect(chunks).toEqual(['一🙂二三', '二三四五', '四五六']);
+  expect(chunkText('')).toEqual([]);
+  expect(() => chunkText('x', 3, 3)).toThrow();
+  const long = chunkText(`${'a'.repeat(1500)}跨边界词组${'b'.repeat(1700)}`);
+  expect(long.some((chunk) => chunk.includes('跨边界词组'))).toBe(true);
+});
+it('quotes FTS syntax and uses escaped LIKE for short Chinese, English and wildcard literals', () => {
+  expect(fullTextQuery('杭州旅行 BICYCLE 中 a % _ \\')).toEqual({
+    match: '"杭州旅行" AND "bicycle"',
+    short: ['%中%', '%a%', '%\\%%', '%\\_%', '%\\\\%'],
+  });
+  const store = index();
+  store.consume({ id: 'one' }, [user(0, '杭州旅行 bicycle ab 100% a_b "quoted" NEAR(x) OR -test * 斜\\杠')]);
+  for (const query of [
+    '杭州旅行',
+    '杭州',
+    '中',
+    'ab',
+    '%',
+    '_',
+    '\\',
+    '"quoted"',
+    'NEAR(x)',
+    'OR',
+    '-test',
+    '*',
+    '"',
+    '"""',
+  ]) {
+    expect(() => store.results(query, 20)).not.toThrow();
+  }
+  expect(store.results('杭州', 20)).toHaveLength(1);
+  expect(store.results('%', 20)).toHaveLength(1);
+  expect(store.results('x_y', 20)).toEqual([]);
+  expect(store.results('bicycle 杭', 20)).toHaveLength(1);
+  expect(store.results('missing', 20)).toEqual([]);
+});
+it('uses BM25 ordering, title changes, text-only human/assistant messages, and message-level deduplication', () => {
+  const store = index();
+  store.consume({ id: 'verbose' }, [user(0, `bicycle ${'unrelated '.repeat(300)}`)]);
+  store.consume({ id: 'concise' }, [
+    user(0, 'bicycle bicycle bicycle'),
+    { seq: 1, time: 10, type: 'session/title', data: { title: 'A trip' } },
+    user(2, 'hidden bicycle runtime context', 'runtime'),
+    {
+      seq: 3,
+      time: 20,
+      type: 'assistant/message',
+      data: {
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'hidden reasoning' },
+            { type: 'text', text: 'A lovely orchard' },
+          ],
+        },
+      },
+    },
+    user(4, 'x'.repeat(2000) + ' bicycle '.repeat(300)),
+  ]);
+  const results = store.results('bicycle', 20);
+  expect(results[0]!.sessionId).toBe('concise');
+  expect(results.every((row) => !row.snippet.includes('runtime'))).toBe(true);
+  expect(results).toHaveLength(3);
+  expect(store.results('orchard', 20)[0]).toMatchObject({ title: 'A trip', role: 'assistant', time: 20 });
+  expect(store.results('reasoning', 20)).toEqual([]);
+  expect(store.count()).toBe(4);
+});
+it('fuses ranks with k=60, does not count duplicate ids twice, and keeps deterministic ties', () => {
+  expect(fuseRanks([1, 2, 3], [4, 2, 1])).toEqual([1, 2, 4, 3]);
+  expect(fuseRanks([1, 1, 2], [2])).toEqual([2, 1]);
+  const value = snippet(`${'x'.repeat(300)}杭州旅行 <script> bicycle`, '杭州 旅行 bicycle');
+  expect(value.snippet.startsWith('…')).toBe(true);
+  expect(value.highlights.map(([start, end]) => value.snippet.slice(start, end))).toEqual(['杭州旅行', 'bicycle']);
+});
+it('persists checkpoints, reads only missing events, handles duplicates, pruning, deletion and rebuild', async () => {
+  const directory = home();
+  const events = [user(0, '杭州旅行 bicycle'), user(1, 'orchard')];
+  const source = sources(events);
+  let service = new ChatSearch(source, { home: directory, localBaseUrl: 'http://127.0.0.1:9/v1', localModel: 'fake' });
+  cleanups.push(() => service.close());
+  await service.start();
+  service.event({ id: 'old', header: { id: 'old' } }, events[1]!);
+  expect(await service.search('orchard')).toHaveLength(1);
+  expect(service.status().indexedMessages).toBe(2);
+  const open = vi.mocked(source.sessionPersistence.open);
+  expect(open.mock.calls.map(([id]) => id)).toEqual(['old']);
+  await service.close();
+  events.push(user(2, 'later message'));
+  service = new ChatSearch(source, { home: directory, localBaseUrl: 'http://127.0.0.1:9/v1', localModel: 'fake' });
+  await service.start();
+  const handle = await open.mock.results.at(-1)!.value;
+  expect(handle.read).toHaveBeenNthCalledWith(1, 2, 256);
+  expect(service.status().indexedMessages).toBe(3);
+  await service.rebuild();
+  expect(service.status().indexedMessages).toBe(3);
+  service.dispose({ id: 'old', header: { id: 'old' } });
+  expect(await service.search('bicycle')).toEqual([]);
+  await service.rebuild();
+  expect(service.status().indexedMessages).toBe(0);
+  expect(statSync(join(directory, 'search/chats.db')).mode & 0o777).toBe(0o600);
+});
+it('does not checkpoint gaps or index subagents and removes orphan vectors on deletion', () => {
+  const store = index();
+  store.consume({ id: 'one' }, [user(2, 'gap')]);
+  expect(store.through('one')).toBe(-1);
+  store.consume({ id: 'one' }, [user(0, 'first'), user(1, 'second')]);
+  store.consume({ id: 'child', origin: 'subagent' }, [user(0, 'secret')]);
+  expect(store.count()).toBe(2);
+  const vectors = new SqliteVectors(store.db);
+  const id = vectors.pending('model')[0]!.id;
+  vectors.put(id, 'model', [1, 0]);
+  expect(vectors.search('model', [1, 0])).toEqual([id]);
+  expect(vectors.search('other', [1, 0])).toEqual([]);
+  store.deleteSession('one');
+  expect(vectors.search('model', [1, 0])).toEqual([]);
+  vectors.put(id, 'model', [1, 0]);
+  expect(vectors.search('model', [1, 0])).toEqual([]);
+  expect(cosine([0, 0], [1, 0])).toBe(0);
+  expect(cosine([1, 2], [1])).toBe(0);
+});
+
+it('does not resurrect a session deleted during a catch-up read, and continues past unreadable sessions', async () => {
+  const directory = home();
+  let release!: (value: { events: SearchEvent[] }) => void;
+  const read = new Promise<{ events: SearchEvent[] }>((resolve) => {
+    release = resolve;
+  });
+  const source = sources([]);
+  source.sessionPersistence.list = async () => [{ header: { id: 'broken' } }, { header: { id: 'old' } }];
+  source.sessionPersistence.open = vi.fn(async (id) => {
+    if (id === 'broken') throw new Error('Cannot read this session');
+    return { read: async () => read, close: async () => {} };
+  });
+  const service = new ChatSearch(source, {
+    home: directory,
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+  });
+  cleanups.push(() => service.close());
+  const starting = service.start();
+  await expect.poll(() => vi.mocked(source.sessionPersistence.open).mock.calls.length).toBe(2);
+  service.dispose({ id: 'old', header: { id: 'old' } });
+  release({ events: [user(0, 'deleted text')] });
+  await starting;
+  expect(await service.search('deleted')).toEqual([]);
+  expect(service.status().indexingFailed).toBe(true);
+  expect(service.status().indexedMessages).toBe(0);
+  source.sessionPersistence.list = async () => [];
+  await service.rebuild();
+  expect(service.status().indexingFailed).toBe(false);
+});
+it('preserves App choices across restarts and applies a changed server configuration', async () => {
+  const directory = home();
+  const source = sources([user(0, 'retained conversation')]);
+  const config = {
+    home: directory,
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+    settings: { semantic: false },
+  };
+  let service = new ChatSearch(source, config);
+  cleanups.push(() => service.close());
+  await service.start();
+  await service.configure({ enabled: false, semantic: false });
+  await service.close();
+  service = new ChatSearch(source, config);
+  expect(service.status().settings.enabled).toBe(false);
+  await service.close();
+  service = new ChatSearch(source, { ...config, settings: { enabled: true, semantic: true } });
+  expect(service.status().settings.enabled).toBe(true);
+  expect(service.status().settings.semantic).toBe(true);
+  source.sessionPersistence.list = async () => [];
+  await service.start();
+  expect(service.status().indexedMessages).toBe(0);
+});
