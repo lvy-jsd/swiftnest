@@ -1,6 +1,7 @@
 import { ModelsPage } from './models';
 import { MessagePhotos, PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
 import { isPhoto } from './photoState';
+import { RelaySettings } from './relaySettings';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
@@ -135,6 +136,7 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
             onChange={(event) => theme.setReduceTransparency(event.target.checked)}
           />
         </label>
+        <RelaySettings />
       </div>
     </SheetPage>
   );

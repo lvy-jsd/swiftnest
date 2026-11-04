@@ -103,41 +103,22 @@ export class SwiftnestClient {
     try {
       const pairing = pairingChannel(url);
       if (pairing && !this.localBrowser()) {
+        this.requireBrowserTls();
+        if (!this.manualCookies) await this.browserSignIn(url);
         await this.connectChannel(pairing, {
           t: 'auth',
-          token: url.searchParams.get('token')!,
+          ...(this.manualCookies ? { token: url.searchParams.get('token')! } : { ticket: await this.browserTicket() }),
           interactions: url.searchParams.get('interactions')!,
           browser: !this.manualCookies,
         });
-        await this.options.channelPairingStore?.save(this.root.href, pairing);
+        if (!this.channel?.pairing) await this.options.channelPairingStore?.save(this.root.href, pairing);
         if (this.manualCookies && this.options.nativePairingStore) await this.issueNativePairing();
         await this.openTransport();
         return;
       }
       if (!this.localBrowser() && !this.localRoot() && this.root.protocol !== 'https:')
         throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
-      // API pairings own one ephemeral Peer; browser sessions have a durable owner cookie.
-      const exchange = this.manualCookies ? url : new URL('./', url);
-      if (!this.manualCookies) exchange.search = url.search;
-      const response = await this.request(exchange, { redirect: 'manual' });
-      // Browser fetch deliberately hides redirect status/headers; its cookie jar
-      // still processes Set-Cookie. Socket authentication verifies the exchange.
-      if (response.status !== 302 && !(response.type === 'opaqueredirect' && !this.manualCookies))
-        throw new ApiError(
-          'pairing-failed',
-          text('pairingReturnedHttp', response.status),
-          undefined,
-          undefined,
-          response.status,
-        );
-      if (this.manualCookies) {
-        const cookies =
-          typeof response.headers.getSetCookie === 'function'
-            ? response.headers.getSetCookie()
-            : (response.headers.get('set-cookie') ?? '').split(/,(?=\s*[^;,=\s]+=)/).filter(Boolean);
-        this.cookie = cookies.map((value) => value.split(';', 1)[0]!.trim()).join('; ');
-        if (!this.cookie) throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
-      }
+      await this.exchangeCookie(url);
       if (this.manualCookies && this.options.nativePairingStore) await this.issueNativePairing();
       await this.openTransport();
     } catch (error) {
@@ -164,9 +145,7 @@ export class SwiftnestClient {
         await this.nativePairingRequest('resume');
       }
       if (!this.manualCookies && pairing && !this.localBrowser()) {
-        const cookie = this.options.channelBrowserCookie?.load(this.root.href);
-        if (!cookie) throw new ApiError('pairing-failed', text('channelPairAgain'), undefined, undefined, 401);
-        await this.connectChannel(pairing, { t: 'auth', cookie });
+        await this.connectChannel(pairing, { t: 'auth', browser: true, ticket: await this.browserTicket() });
       } else if (!this.manualCookies && !this.localBrowser() && this.root.protocol !== 'https:')
         throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
       await this.openTransport();
@@ -174,6 +153,60 @@ export class SwiftnestClient {
       this.close();
       throw error;
     }
+  }
+
+  private async exchangeCookie(url: URL): Promise<void> {
+    // API pairings own one ephemeral Peer; browser sessions have a durable owner cookie.
+    const exchange = this.manualCookies ? url : new URL('./', url);
+    if (!this.manualCookies) exchange.search = url.search;
+    const response = await this.request(exchange, { redirect: 'manual' });
+    // Browser fetch deliberately hides redirect status/headers; its cookie jar
+    // still processes Set-Cookie. Socket authentication verifies the exchange.
+    if (response.status !== 302 && !(response.type === 'opaqueredirect' && !this.manualCookies))
+      throw new ApiError(
+        'pairing-failed',
+        text('pairingReturnedHttp', response.status),
+        undefined,
+        undefined,
+        response.status,
+      );
+    if (this.manualCookies) {
+      const cookies =
+        typeof response.headers.getSetCookie === 'function'
+          ? response.headers.getSetCookie()
+          : (response.headers.get('set-cookie') ?? '').split(/,(?=\s*[^;,=\s]+=)/).filter(Boolean);
+      this.cookie = cookies.map((value) => value.split(';', 1)[0]!.trim()).join('; ');
+      if (!this.cookie) throw new ApiError('pairing-failed', text('pairingDidNotIssueApiCookie'));
+    }
+  }
+
+  private requireBrowserTls() {
+    if (!this.manualCookies && !this.localRoot() && this.root!.protocol !== 'https:')
+      throw new ApiError('channel-key-mismatch', text('channelBrowserHttps'));
+  }
+  private async browserSignIn(pairing: URL) {
+    const response = await this.doFetch(new URL('swiftnest/channel/sign-in', this.root!), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: pairing.searchParams.get('token') }),
+      credentials: 'same-origin',
+      signal: this.lifetime.signal,
+    });
+    if (!response.ok)
+      throw new ApiError('pairing-failed', text('channelPairAgain'), undefined, undefined, response.status);
+  }
+  private async browserTicket(): Promise<string> {
+    if (typeof location === 'undefined' || location.origin !== this.root!.origin)
+      throw new ApiError('pairing-failed', text('channelPairAgain'), undefined, undefined, 401);
+    const response = await this.doFetch(new URL('swiftnest/channel/bootstrap', this.root!), {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal: this.lifetime.signal,
+    });
+    if (!response.ok)
+      throw new ApiError('pairing-failed', text('channelPairAgain'), undefined, undefined, response.status);
+    const value = (await response.json()) as { ticket: string };
+    return value.ticket;
   }
 
   private localRoot(): boolean {
@@ -191,9 +224,8 @@ export class SwiftnestClient {
     pairing: ChannelPairing,
     auth: import('@swiftnest/channel').ChannelFrame,
   ): Promise<void> {
-    if (!this.manualCookies && !this.localRoot() && this.root!.protocol !== 'https:')
-      throw new ApiError('channel-key-mismatch', text('channelBrowserHttps'));
-    this.channel = await AppChannel.open(
+    this.requireBrowserTls();
+    this.channel = await AppChannel.preferred(
       this.root!,
       pairing,
       this.options,
@@ -201,7 +233,51 @@ export class SwiftnestClient {
       AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(this.timeoutMs)]),
     );
     this.cookie = this.channel.cookie;
-    if (!this.manualCookies) this.options.channelBrowserCookie?.save(this.root!.href, this.cookie);
+    if (this.channel.pairing) await this.rememberChannel(this.channel.pairing, this.channel.relaySecret, pairing.key);
+  }
+
+  get connectionPath(): 'lan' | 'relay' {
+    return this.channel?.viaRelay ? 'relay' : 'lan';
+  }
+  private async rememberChannel(pairing: ChannelPairing, secret?: string, expectedKey?: string) {
+    const old = await this.options.channelPairingStore?.load(this.root!.href);
+    // An explicit new pairing link can replace an old pin. Resume and passive
+    // metadata updates still have to match the key that authenticated this channel.
+    const key = expectedKey ?? old?.key;
+    if (key && key !== pairing.key) throw new ApiError('channel-key-mismatch', text('channelPairAgain'));
+    await this.options.channelPairingStore?.save(this.root!.href, pairing);
+    await this.options.relaySecretStore?.save(this.root!.href, secret);
+  }
+  getRelay(): Promise<{ address: string; connected: boolean }> {
+    return this.relayRequest('GET');
+  }
+  async setRelay(config: { address: string; secret: string } | null): Promise<{ address: string; connected: boolean }> {
+    const result = await this.relayRequest('POST', config);
+    const response = await this.request(new URL('swiftnest/relay/connection', this.root!), {});
+    if (response.ok) {
+      const metadata = (await response.json()) as { pairing: ChannelPairing; relaySecret?: string };
+      await this.rememberChannel(metadata.pairing, metadata.relaySecret);
+    }
+    return result;
+  }
+  private async relayRequest(
+    method: string,
+    config?: { address: string; secret: string } | null,
+  ): Promise<{ address: string; connected: boolean }> {
+    this.assertConnected();
+    const response = await this.request(new URL('swiftnest/relay', this.root!), {
+      method,
+      headers: { 'content-type': 'application/json' },
+      ...(method === 'POST' ? { body: JSON.stringify(config) } : {}),
+    });
+    if (!response.ok)
+      throw ApiError.fromServer(
+        'relay-settings',
+        await response.json().catch(() => undefined),
+        text('relayInvalidSettings'),
+        response.status,
+      );
+    return response.json();
   }
 
   private async issueNativePairing(): Promise<void> {

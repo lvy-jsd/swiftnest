@@ -1,6 +1,7 @@
 import type { ApiWebSocket, ClientOptions, SocketEventMap } from '@swiftnest/api';
 import { fetch as nativeFetch } from '@tauri-apps/plugin-http';
 import NativeWebSocket from '@tauri-apps/plugin-websocket';
+import { privatePairingStores } from './privatePairing';
 import { invoke } from '@tauri-apps/api/core';
 
 /** Adapt the async plugin to the synchronous WebSocket factory expected by the API. */
@@ -77,10 +78,10 @@ export function nativeOptions(): ClientOptions {
       name: 'Swiftnest',
       kind: typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent) ? 'android' : 'desktop',
     },
-    nativePairingStore: {
+    ...privatePairingStores({
       load: async (root) => (await invoke<string | null>('app_pairing_load', { root })) ?? undefined,
       save: async (root, credential) => invoke('app_pairing_save', { root, credential: credential ?? null }),
-    },
+    }),
     // redirect:'manual' alone does not configure reqwest. Never forward an API
     // cookie to a redirect target, including for unary requests.
     fetch: (input, init) => {

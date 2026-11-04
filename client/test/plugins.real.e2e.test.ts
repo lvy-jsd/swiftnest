@@ -255,16 +255,17 @@ async function exerciseApply(
   await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
   await page.waitForURL((url) => url.hash === '#/');
   await page.getByRole('main').getByRole('link', { name: 'Memory', exact: true }).waitFor();
+  const initialExchanges = [...observed.exchanges];
   const route = await createChat(page);
   await applyAndReconnect(page, kernel, native, readyCount);
   expect(observed.sockets()).toBeGreaterThan(1);
-  expect(observed.exchanges).toEqual([]);
+  expect(observed.exchanges).toEqual(initialExchanges);
   await chatAfterRestart(page, route);
   // Both carriers see the same single chat; the native App used no fresh launch token.
   expect(await native.client!.listSessions()).toMatchObject([{ sessionId: route.split('/').at(-1) }]);
   await nativeChatAfterRestart(native, route.split('/').at(-1)!);
   await rotateAndRestart(kernel, native, credentials);
-  // Ordinary browser loss still asks to pair; the native App resumed without a token.
+  // A browser reload restores its HttpOnly session; native resume needs no launch token.
   await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
   await page.waitForURL((url) => url.hash === '#/');
   await revokeNative(page, kernel, native, credentials);

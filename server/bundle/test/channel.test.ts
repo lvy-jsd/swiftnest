@@ -246,7 +246,7 @@ it('pins the server before sending a credential; wrong and revoked credentials a
       { t: 'auth', token: 'PAIR', browser: true },
       AbortSignal.timeout(1000),
     );
-    expect(browser.cookie).toBe(credential);
+    expect(browser.cookie).toBe('');
     browser.close();
     credential = 'owner=REVOKED';
     expect((await client.fetch(new URL('swiftnest/health', root), {}, client.cookie)).status).toBe(401);

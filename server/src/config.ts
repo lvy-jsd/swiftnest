@@ -1,3 +1,4 @@
+import { relayConfig, type RelayConfig } from '@swiftnest/channel';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
 import { checkOverrides, fileOverrides, parsePluginsEnv } from './plugins.js';
@@ -54,6 +55,7 @@ export const FREE_VISION: FreeVisionService = {
 };
 
 export interface ServerConfig {
+  relay?: RelayConfig;
   lang?: 'zh-CN' | 'en';
   /** Everything Swiftnest owns lives here; DSH's home is `<home>/dsh`. */
   home: string;
@@ -79,6 +81,14 @@ export interface ServerConfig {
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean };
   devices: { host: string; port: number; mdns: boolean };
+}
+
+function checkedRelayConfig(value: unknown): RelayConfig | undefined {
+  try {
+    return relayConfig(value);
+  } catch {
+    throw new ServerFailure(text('relayInvalidSettings'));
+  }
 }
 
 export const DEFAULT_PORT = 3077;
@@ -140,6 +150,14 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   const pluginLocks = parsePluginsEnv(env.SWIFTNEST_PLUGINS);
   const config: ServerConfig = {
+    relay: checkedRelayConfig(
+      env.SWIFTNEST_RELAY_ADDRESS
+        ? {
+            address: env.SWIFTNEST_RELAY_ADDRESS,
+            secret: env.SWIFTNEST_RELAY_SECRET,
+          }
+        : fromFile.relay,
+    ),
     lang: (env.SWIFTNEST_LANG ?? fromFile.lang) === 'en' ? 'en' : 'zh-CN',
     home: resolve(env.SWIFTNEST_HOME ?? fromFile.home ?? defaultHome(env)),
     host: env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
@@ -188,6 +206,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  checkedRelayConfig(config.relay);
   if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')

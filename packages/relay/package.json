@@ -1,0 +1,12 @@
+{
+  "name": "@swiftnest/relay",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "swiftnest-relay": "./dist/cli.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b", "start": "node dist/cli.js" },
+  "dependencies": { "@swiftnest/channel": "workspace:*", "@swiftnest/protocol": "workspace:*", "ws": "^8.22.0" },
+  "devDependencies": { "@types/ws": "^8.18.2" }
+}

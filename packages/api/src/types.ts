@@ -105,14 +105,16 @@ export interface ApiWebSocket {
   removeEventListener<K extends keyof SocketEventMap>(type: K, listener: (event: SocketEventMap[K]) => void): void;
 }
 export interface ClientOptions {
+  /** Relay access belongs in private native storage or session memory, never Web storage. */
+  relaySecretStore?: {
+    load(root: string): Promise<string | undefined>;
+    save(root: string, secret: string | undefined): Promise<void>;
+  };
   /** Public key/address pin only; credentials stay in their existing private store. */
   channelPairingStore?: {
     load(root: string): Promise<import('./channel.js').ChannelPairing | undefined>;
     save(root: string, pairing: import('./channel.js').ChannelPairing): Promise<void>;
   };
-  /** LAN browser owner cookie, retained in memory across an agent restart. */
-  channelBrowserCookie?: { load(root: string): string | undefined; save(root: string, cookie: string): void };
-
   /** Paired device this native App connection belongs to. Omit for the server's web App.
    * Owner-reported context hint; does not grant device permissions. */
   deviceSlug?: string;

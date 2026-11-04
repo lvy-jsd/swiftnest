@@ -45,6 +45,7 @@ export default defineConfig({
             text: 'Guide',
             items: [
               { text: 'Quick start', link: '/en/guide/quickstart' },
+              { text: 'Access away from home', link: '/en/guide/relay' },
               { text: 'Two machines', link: '/en/guide/two-machines' },
               { text: 'Devices', link: '/en/guide/devices' },
               { text: 'Plugins', link: '/en/guide/plugins' },
@@ -90,6 +91,7 @@ export default defineConfig({
             text: '指南',
             items: [
               { text: '快速开始', link: '/zh/guide/quickstart' },
+              { text: '在外访问', link: '/zh/guide/relay' },
               { text: '两台机器', link: '/zh/guide/two-machines' },
               { text: '设备', link: '/zh/guide/devices' },
               { text: '插件', link: '/zh/guide/plugins' },

@@ -20,6 +20,8 @@
       { "url": "http://*:*/swiftnest/api/devices/transfers" }, { "url": "https://*:*/swiftnest/api/devices/transfers" },
       { "url": "http://*:*/swiftnest/api/devices/revoke/*" }, { "url": "https://*:*/swiftnest/api/devices/revoke/*" },
       { "url": "http://*:*/api/*" }, { "url": "https://*:*/api/*" },
+      { "url": "http://*:*/swiftnest/relay" }, { "url": "https://*:*/swiftnest/relay" },
+      { "url": "http://*:*/swiftnest/relay/connection" }, { "url": "https://*:*/swiftnest/relay/connection" },
       { "url": "http://*:*/swiftnest/health" }, { "url": "https://*:*/swiftnest/health" },
       { "url": "http://*:*/swiftnest/api/plugins" }, { "url": "https://*:*/swiftnest/api/plugins" },
       { "url": "http://*:*/swiftnest/api/plugins/*" }, { "url": "https://*:*/swiftnest/api/plugins/*" },

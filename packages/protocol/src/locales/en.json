@@ -672,5 +672,20 @@
   "modelProviderGoogle": "Google Gemini",
   "modelProviderAnthropic": "Anthropic Claude",
   "modelProviderOpenai": "OpenAI",
-  "modelProviderOpenrouter": "OpenRouter (many models, one key)"
+  "modelProviderOpenrouter": "OpenRouter (many models, one key)",
+  "relayStarted": "Relay is running.",
+  "relayStartFailed": "Could not start the relay. Check the secret (32–128 letters, digits, _ or -) and port.",
+  "relayInvalidSettings": "Enter an HTTPS address and the 32–128 character secret shown by the installer.",
+  "relayLanOnly": "Live view and file transfers need your home Wi-Fi. Chat and approvals work away from home.",
+  "relayAdvanced": "Advanced: access away from home",
+  "relayHelp": "Optional. Run your own relay using the guide, then paste its address and secret here while at home. There is no default relay.",
+  "relayAddress": "Relay address",
+  "relaySecret": "Relay secret",
+  "relayCheck": "Check connection",
+  "relayDisable": "Turn off remote access",
+  "relayConnected": "Your server is connected to the relay. Try a chat using mobile data.",
+  "relayDisconnected": "Not connected yet. Check the address and secret, and that your server and VPS are on.",
+  "relaySaved": "Saved. Other paired Apps learn this the next time they connect at home. Check the connection in a few seconds.",
+  "relayUsingRemote": "This App is using your relay.",
+  "relayUsingLan": "This App is using your home network."
 }

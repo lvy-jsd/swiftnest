@@ -13,8 +13,9 @@ function printLinks(kernel: RunningKernel, config: ServerConfig): void {
   console.log(message('ready', config.lang, [kernel.url]));
   console.log(message('links', config.lang));
   console.log(`  ${message('browser', config.lang)}: ${kernel.url}?token=${kernel.token}`);
-  console.log(`  Swiftnest App:        ${pairingUrl(kernel.url, kernel.token, kernel.channelPairing)}`);
-  console.log(`  ${message('webApp', config.lang)}: ${webAppUrl(kernel.url, kernel.token, kernel.channelPairing)}`);
+  const root = kernel.channelPairing.addresses.lan[0] ?? kernel.url;
+  console.log(`  Swiftnest App:        ${pairingUrl(root, kernel.token, kernel.channelPairing)}`);
+  console.log(`  ${message('webApp', config.lang)}: ${webAppUrl(root, kernel.token, kernel.channelPairing)}`);
 }
 
 async function main(argv: string[]): Promise<number> {

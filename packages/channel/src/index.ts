@@ -50,6 +50,7 @@ export interface ChannelSocket {
   close(): void;
   addEventListener(type: 'message', listener: (event: { readonly data: unknown }) => void): void;
   addEventListener(type: 'close' | 'error' | 'open', listener: () => void): void;
+  removeEventListener(type: 'message', listener: (event: { readonly data: unknown }) => void): void;
   removeEventListener(type: 'open' | 'error' | 'close', listener: () => void): void;
 }
 
@@ -232,3 +233,7 @@ export class EncryptedChannel {
   }
 }
 export * from './routes.js';
+
+export * from './relay.js';
+export * from './admission.js';
+export * from './proxy.js';

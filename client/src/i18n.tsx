@@ -275,6 +275,21 @@ export const en = {
     'May a free photo reading service look at them and describe them to it? Photos go without your name or any account to OVHcloud in France. You can change this any time under Models.',
   photoConsentAgree: 'Allow',
   photoConsentDecline: 'Not now',
+  relayStarted: messageEn.relayStarted,
+  relayStartFailed: messageEn.relayStartFailed,
+  relayInvalidSettings: messageEn.relayInvalidSettings,
+  relayLanOnly: messageEn.relayLanOnly,
+  relayAdvanced: messageEn.relayAdvanced,
+  relayHelp: messageEn.relayHelp,
+  relayAddress: messageEn.relayAddress,
+  relaySecret: messageEn.relaySecret,
+  relayCheck: messageEn.relayCheck,
+  relayDisable: messageEn.relayDisable,
+  relayConnected: messageEn.relayConnected,
+  relayDisconnected: messageEn.relayDisconnected,
+  relaySaved: messageEn.relaySaved,
+  relayUsingRemote: messageEn.relayUsingRemote,
+  relayUsingLan: messageEn.relayUsingLan,
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -539,6 +554,21 @@ export const zhCN: Record<StringKey, string> = {
     '要不要让免费识图服务看一下图片，再把内容讲给它？图片会匿名发送到 OVHcloud（法国），不需要账号。之后随时可以在"模型"页修改。',
   photoConsentAgree: '允许',
   photoConsentDecline: '暂不',
+  relayStarted: messageZh.relayStarted,
+  relayStartFailed: messageZh.relayStartFailed,
+  relayInvalidSettings: messageZh.relayInvalidSettings,
+  relayLanOnly: messageZh.relayLanOnly,
+  relayAdvanced: messageZh.relayAdvanced,
+  relayHelp: messageZh.relayHelp,
+  relayAddress: messageZh.relayAddress,
+  relaySecret: messageZh.relaySecret,
+  relayCheck: messageZh.relayCheck,
+  relayDisable: messageZh.relayDisable,
+  relayConnected: messageZh.relayConnected,
+  relayDisconnected: messageZh.relayDisconnected,
+  relaySaved: messageZh.relaySaved,
+  relayUsingRemote: messageZh.relayUsingRemote,
+  relayUsingLan: messageZh.relayUsingLan,
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];
