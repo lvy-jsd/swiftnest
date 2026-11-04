@@ -83,8 +83,8 @@ function fakeCommands(fail?: string, omitBuild = false) {
 describe('Tool Ultra', () => {
   it('pins the unpublished source and detects only a matching successful build marker', () => {
     const { dir } = setup();
-    expect(TOOL_ULTRA_SOURCE.commit).toBe('8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9');
-    expect(dir).toContain('/vendor/dsh-tool-ultra-8ccfefa1a922');
+    expect(TOOL_ULTRA_SOURCE.commit).toBe('27df9c25a97016bed9bbd5f0d905747b14c6c278');
+    expect(dir).toContain('/vendor/dsh-tool-ultra-27df9c25a970');
     fixture(dir);
     expect(isBuilt(dir)).toBe(false);
     writeFileSync(join(dir, TOOL_ULTRA_MARKER), 'wrong commit');
@@ -93,11 +93,21 @@ describe('Tool Ultra', () => {
     expect(isBuilt(dir)).toBe(true);
   });
 
+  it('locks sherpa CPU bindings and drops the old Transformers/ONNX npm installers', () => {
+    const lock = JSON.parse(readFileSync(new URL('../vendor/tool-ultra.package-lock.json', import.meta.url), 'utf8'));
+    expect(lock.packages['node_modules/sherpa-onnx-node'].version).toBe('2.0.1');
+    expect(lock.packages['node_modules/sherpa-onnx-linux-x64'].version).toBe('2.0.1');
+    expect(lock.packages['node_modules/mathjs'].version).toBe('15.2.0');
+    for (const name of ['@huggingface/transformers', 'onnxruntime-node', 'onnxruntime-web']) {
+      expect(lock.packages).not.toHaveProperty(`node_modules/${name}`);
+    }
+  });
+
   it("uses each package's patch defaults and absolute module paths, without editing its source", () => {
     const { dir } = setup();
     fixture(dir);
     const rows = toolUltraPatch(dir) as { insert: { name: string; config: unknown }[] }[];
-    expect(rows).toHaveLength(7);
+    expect(rows).toHaveLength(8);
     rows.forEach((row, i) => {
       const pkg = TOOL_ULTRA_PACKAGES[i];
       const file = join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'cordis.patch.yml');
@@ -121,6 +131,7 @@ describe('Tool Ultra', () => {
       ['npm', ['run', 'build']],
     ]);
     expect(spawn.mock.calls[0]![2].env.DSH_APP).toContain('.swiftnest-host');
+    expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('ONNXRUNTIME_NODE_INSTALL');
     expect(log).toHaveBeenCalledWith('progress');
     expect(log).toHaveBeenCalledWith('last line');
     expect(isBuilt(dir)).toBe(true);

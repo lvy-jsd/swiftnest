@@ -376,6 +376,14 @@ export class SwiftnestClient {
   setLanguage(lang: 'zh-CN' | 'en'): Promise<Preferences> {
     return this.deviceRequest('/preferences', 'POST', undefined, { lang });
   }
+  /** Authenticated file retrieval reuses the same owner credentials as transfers. */
+  async downloadFile(path: string, signal?: AbortSignal): Promise<Blob> {
+    this.assertConnected();
+    const query = new URLSearchParams({ path });
+    const response = await this.request(this.url(`swiftnest/api/devices/files?${query}`), { signal });
+    if (!response.ok) throw new ApiError('http-error', text('deviceApiReturnedHttp', response.status));
+    return response.blob();
+  }
   listTransfers(): Promise<import('./devices.js').Transfer[]> {
     return this.deviceRequest('/transfers');
   }

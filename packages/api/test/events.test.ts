@@ -106,3 +106,23 @@ describe('DSH 0.2.1-rc.5 → Swiftnest events', () => {
     ).toEqual([]);
   });
 });
+
+it('replays media attachment metadata separately from model text and drops untrusted paths', () => {
+  const event = structuredClone(tools.find((item) => item.type === 'tool/result')!);
+  (event.data as any).meta = {
+    mediaFiles: [
+      { path: 'media/图表.png', name: '图表.png' },
+      { path: 'media/animation.gif', name: 'animation.gif' },
+      { path: '../../private.png', name: 'private' },
+      { path: 'media/link.svg', name: 'active.svg' },
+    ],
+  };
+  const mapped = mapEvent('chat', event)[0]!;
+  expect(mapped).toMatchObject({
+    attachments: [
+      { path: 'media/图表.png', name: '图表.png' },
+      { path: 'media/animation.gif', name: 'animation.gif' },
+    ],
+  });
+  expect(mapFrame('chat', { type: 'snapshot', records: [{ event }] } as any)[0]).toEqual(mapped);
+});

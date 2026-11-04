@@ -1,11 +1,15 @@
 import { createServer } from 'vite';
 import { launchChromium } from './browser';
-import { expect, it } from 'vitest';
-import { resolve } from 'node:path';
+import { expect, it, onTestFinished } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
   'Transfers: phone width, en/zh, progress, pause/resume/cancel/retry and send form',
   async () => {
+    const home = await mkdtemp(join(tmpdir(), 'swiftnest-transfers-browser-'));
+    onTestFinished(() => rm(home, { recursive: true, force: true }));
     const fixture = `
     import React from 'react';import{createRoot}from'react-dom/client';import{TransfersPage}from'/src/transfers.tsx';import{DeviceHubProvider}from'/src/devices.tsx';import{ConnectionProvider,ConnectionStore}from'/src/connection.tsx';import{I18nProvider}from'/src/i18n.tsx';import{ThemeProvider}from'/src/design/theme.tsx';import'/src/styles.css';
     let notify;const calls=window.calls=[];let rows=[{id:'a'.repeat(64),name:'Very long video filename with spaces 视频.mp4',source:{device:'computer',path:'video.mp4'},destination:{device:'phone',path:'video.mp4'},size:10737418240,offset:5368709120,state:'running',route:'direct',speed:10485760,eta:512,updatedAt:Date.now()}];
@@ -15,7 +19,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
   `;
     const server = await createServer({
       root: resolve('client'),
-      cacheDir: resolve('node_modules/.cache/swiftnest/transfer-fixture'),
+      cacheDir: join(home, 'vite-cache'),
       server: { host: '127.0.0.1', port: 0 },
       plugins: [
         {
@@ -83,7 +87,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         expect(errors).toEqual([]);
         await page.screenshot({
-          path: resolve(`client/test/screenshots/transfers-${lang}-390.png`),
+          path: join(home, `transfers-${lang}-390.png`),
           fullPage: true,
         });
         await page.getByRole('button', { name: zh ? '取消' : 'Cancel', exact: true }).click();

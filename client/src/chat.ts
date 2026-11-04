@@ -1,4 +1,4 @@
-import type { DisplayReason, MessageImage, SwiftnestEvent } from '@swiftnest/api';
+import type { ChatAttachment, DisplayReason, MessageImage, SwiftnestEvent } from '@swiftnest/api';
 
 export type ChatRow =
   | {
@@ -16,7 +16,10 @@ export type ChatRow =
   | {
       kind: 'tools';
       id: string;
-      calls: Record<string, { name?: string; arguments?: string; text?: string; isError?: boolean }>;
+      calls: Record<
+        string,
+        { name?: string; arguments?: string; text?: string; isError?: boolean; attachments?: ChatAttachment[] }
+      >;
       finished: boolean;
     }
   | {
@@ -159,7 +162,7 @@ export function chatReducer(
         ...row.calls[event.callId],
         ...(event.type === 'tool-start'
           ? { name: event.name, arguments: event.arguments }
-          : { text: event.text, isError: event.isError }),
+          : { text: event.text, isError: event.isError, attachments: event.attachments }),
       };
       if (index >= 0) next.rows[index] = row;
       else next.rows.push(row);

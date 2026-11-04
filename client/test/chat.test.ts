@@ -75,6 +75,53 @@ describe('chat transcript reducer', () => {
   });
 });
 
+it('replays sent photos and generated media together without duplicating transcript rows', () => {
+  const images = [{ attachmentId: 'sha256:photo', mediaType: 'image/png', name: 'sent.png' }];
+  const attachments = [{ path: 'media/chart.png', name: 'chart.png' }];
+  const records: { event: Parameters<typeof mapEvent>[1] }[] = [
+    {
+      event: {
+        type: 'user/message',
+        seq: 1,
+        time: 100,
+        data: { id: 'photo', source: { kind: 'user' }, content: [{ type: 'image', attachment: images[0]! }] },
+      },
+    },
+    {
+      event: {
+        type: 'tool/call',
+        seq: 2,
+        time: 101,
+        data: { callId: 'chart', name: 'chart_render', arguments: '{}' },
+      },
+    },
+    {
+      event: {
+        type: 'tool/result',
+        seq: 3,
+        time: 102,
+        data: { message: { toolCallId: 'chart', content: 'done' }, meta: { mediaFiles: attachments } },
+      },
+    },
+    { event: { type: 'turn/end', seq: 4, time: 103, data: { turn: 1, reason: { kind: 'completed' } } } },
+  ];
+  const snapshot = structuredClone(frames.find((frame) => frame.type === 'snapshot')!);
+  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot');
+  const events = mapFrame('chat', {
+    ...snapshot,
+    records: records.map((entry) => ({ type: 'event' as const, ...entry })),
+  });
+  const state = [...events, ...events].reduce(chatReducer, emptyChat());
+  expect(state.rows).toHaveLength(2);
+  expect(state.rows[0]).toMatchObject({ kind: 'message', text: '', images });
+  expect(state.rows[1]).toMatchObject({
+    kind: 'tools',
+    finished: true,
+    calls: { chart: { attachments, text: 'done' } },
+  });
+  expect(state.waiting).toBe(false);
+});
+
 it('keeps risk-gate approvals actionable until answered or cancelled', () => {
   const event = {
     sessionId: 'chat',

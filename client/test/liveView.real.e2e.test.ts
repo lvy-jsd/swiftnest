@@ -4,7 +4,6 @@
 import type { Browser } from '@playwright/test';
 import { launchChromium } from './browser';
 import { createServer, type ViteDevServer } from 'vite';
-import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
 import { startScreenFixture } from './fixtures/screenHost.js';
@@ -39,7 +38,7 @@ it
       `;
       server = await createServer({
         root: resolve('client'),
-        cacheDir: resolve('node_modules/.cache/swiftnest/real-live'),
+        cacheDir: resolve(host.home, 'vite-cache'),
         server: {
           host: '127.0.0.1',
           port: 0,
@@ -111,8 +110,7 @@ it
       expect((await panel.boundingBox())!.width).toBe(390);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await panel.getByText(zh ? '小艾正在控制' : 'Ivy is in control', { exact: true }).waitFor();
-      const screenshots = resolve('client/test/screenshots');
-      await mkdir(screenshots, { recursive: true });
+      const screenshots = host.home;
       await page.screenshot({ path: resolve(screenshots, `live-view-${locale}-390-ivy.png`), animations: 'disabled' });
       await panel.getByRole('button', { name: zh ? '我来接管' : 'Take over', exact: true }).click();
       await panel.getByText(zh ? '你正在控制' : 'You are in control', { exact: true }).waitFor();

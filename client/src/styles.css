@@ -1212,6 +1212,20 @@ input[role="switch"]:disabled {
   gap: var(--space-md);
 }
 
+.media-attachment {
+  display: grid;
+  gap: var(--space-md);
+  max-width: 100%;
+  padding: var(--space-lg);
+  overflow-wrap: anywhere;
+}
+.media-attachment img,
+.media-attachment video,
+.media-attachment audio {
+  max-width: 100%;
+  max-height: calc(6 * var(--space-max));
+}
+
 .model-actions {
   display: flex;
   flex-wrap: wrap;
