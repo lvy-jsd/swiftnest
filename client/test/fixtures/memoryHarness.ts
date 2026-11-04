@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -28,13 +28,16 @@ export class MemoryHarness {
   });
   requests: { prompt: string; request: ModelRequest }[] = [];
   logs: string[] = [];
+  autoReviews: { entries: { id: string; text: string }[]; messages: { role: string; text: string }[] }[] = [];
+  autoProposal: (input: MemoryHarness['autoReviews'][number]) => unknown = () => [{ op: 'none' }];
   private rounds = new Map<string, number>();
   private model = createServer((req, res) => {
     void this.respond(req, res);
   });
-  async start() {
+  async start(reviewDelay?: number) {
     await new Promise<void>((resolve) => this.model.listen(0, '127.0.0.1', resolve));
     this.home = await mkdtemp(join(tmpdir(), 'swiftnest-memory-e2e-'));
+    if (reviewDelay !== undefined) await this.installReviewDelay(reviewDelay);
     this.kernel = await startKernel(
       loadConfig(undefined, {
         SWIFTNEST_LANG: 'en',
@@ -50,6 +53,31 @@ export class MemoryHarness {
       { readyTimeoutMs: 90_000, onLine: (line) => this.logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) },
     );
     await this.client.connect(pairingUrl(this.kernel.url, this.kernel.token));
+  }
+  private async installReviewDelay(delay: number): Promise<void> {
+    // The real module accepts a test injection; production config/env expose no delay setting.
+    const module = new URL('../../../server/bundle/dist/memory.js', import.meta.url).href;
+    const fixture = join(this.home, 'test-memory.mjs');
+    await writeFile(
+      fixture,
+      `import { apply as memory, inject, name } from ${JSON.stringify(module)};
+export { inject, name };
+export function apply(ctx) {
+  return memory(ctx, {
+    home: process.env.SWIFTNEST_HOME,
+    auto: process.env.SWIFTNEST_MEMORY_AUTO !== 'false',
+    devicesAdminUrl: process.env.SWIFTNEST_DEVICES_ADMIN_URL,
+    devicesAdminToken: process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN,
+  }, ${delay});
+}
+`,
+    );
+    const profile = join(this.home, 'dsh/profiles/swiftnest');
+    await mkdir(profile, { recursive: true });
+    await writeFile(
+      join(profile, 'user.patch.yml'),
+      JSON.stringify([{ id: 'swiftnest-memory', disabled: true }, { insert: [{ id: 'test-memory', name: fixture }] }]),
+    );
   }
   async close() {
     this.client.close();
@@ -100,6 +128,18 @@ export class MemoryHarness {
       );
       return;
     }
+    if (
+      request.messages.some(
+        (item) => item.role === 'system' && String(item.content).includes('Review new conversation messages'),
+      )
+    ) {
+      const user = request.messages.find((item) => item.role === 'user')!;
+      const content = typeof user.content === 'string' ? user.content : (user.content as { text: string }[])[0]!.text;
+      const input = JSON.parse(content) as MemoryHarness['autoReviews'][number];
+      this.autoReviews.push(input);
+      respond(res, undefined, JSON.stringify(this.autoProposal(input)));
+      return;
+    }
     const prompt = [...request.messages]
       .reverse()
       .find(
@@ -138,7 +178,7 @@ export class MemoryHarness {
   }
 }
 
-function respond(res: ServerResponse, tool?: { name: string; arguments: object }) {
+function respond(res: ServerResponse, tool?: { name: string; arguments: object }, text = 'Done.') {
   res.writeHead(200, { 'content-type': 'text/event-stream' });
   const chunk = (delta: object, finish_reason: string | null = null) =>
     res.write(
@@ -158,7 +198,7 @@ function respond(res: ServerResponse, tool?: { name: string; arguments: object }
     });
     chunk({}, 'tool_calls');
   } else {
-    chunk({ content: 'Done.' });
+    chunk({ content: text });
     chunk({}, 'stop');
   }
   res.end('data: [DONE]\n\n');

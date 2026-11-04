@@ -293,6 +293,11 @@ export const en = {
   relaySaved: messageEn.relaySaved,
   relayUsingRemote: messageEn.relayUsingRemote,
   relayUsingLan: messageEn.relayUsingLan,
+  memoryAutoSwitch: messageEn.memoryAutoSwitch,
+  memoryAutoHelp: messageEn.memoryAutoHelp,
+  memoryAutoRecent: messageEn.memoryAutoRecent,
+  memoryAutoEmpty: messageEn.memoryAutoEmpty,
+  memoryAdvanced: messageEn.memoryAdvanced,
 
   devicesDetails: 'Device details',
   devicesPhone: 'Android phone',
@@ -588,6 +593,11 @@ export const zhCN: Record<StringKey, string> = {
   relaySaved: messageZh.relaySaved,
   relayUsingRemote: messageZh.relayUsingRemote,
   relayUsingLan: messageZh.relayUsingLan,
+  memoryAutoSwitch: messageZh.memoryAutoSwitch,
+  memoryAutoHelp: messageZh.memoryAutoHelp,
+  memoryAutoRecent: messageZh.memoryAutoRecent,
+  memoryAutoEmpty: messageZh.memoryAutoEmpty,
+  memoryAdvanced: messageZh.memoryAdvanced,
 
   devicesDetails: '设备详情',
   devicesPhone: 'Android 手机',

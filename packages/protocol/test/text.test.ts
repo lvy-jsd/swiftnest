@@ -26,6 +26,12 @@ it.each([
   ['memoryTopicLimit', 16000, 'A memory topic must be at most 16000 characters.', '每个记忆主题最多 16000 个字符。'],
   ['memoryTopicsLimit', 40, 'Memory supports at most 40 topics.', '最多保存 40 个记忆主题。'],
   ['memoryApiReturnedHttp', 503, 'Memory API returned HTTP 503', '记忆 API 返回 HTTP 503'],
+  [
+    'memoryAutoSkippedLog',
+    2,
+    'Automatic memory review skipped 2 invalid operations.',
+    '自动记忆审阅已跳过 2 条无效操作。',
+  ],
 ] as const)('renders migrated memory message %s in both reader languages', (key, value, en, zh) => {
   const content = text(key, value);
   expect(render(content, 'en')).toBe(en);

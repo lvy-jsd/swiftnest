@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { MemoryEntry, SwiftnestClient } from '@swiftnest/api';
+import type { MemoryEntry, MemoryView, SwiftnestClient } from '@swiftnest/api';
 import { localizedError } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { memoryReducer, initialMemoryState, watchMemoryChanges } from './memoryState';
 import { HubPage } from './components/pages';
 import { Button } from './components/Button';
+import { Card } from './components/Card';
 
 type Perform = (action: (client: SwiftnestClient) => Promise<unknown>) => Promise<boolean>;
 
@@ -15,6 +16,42 @@ function useMemory() {
   const [state, dispatch] = useReducer(memoryReducer, initialMemoryState);
   const active = useRef(client);
   active.current = client;
+  const [automatic, setAutomatic] = useState<{ enabled: boolean; entries: MemoryEntry[] }>();
+  const read = useCallback(async (target: SwiftnestClient) => {
+    const [view, settings, entries] = await Promise.all([
+      target.listMemory(),
+      target.memoryAutoSettings(),
+      target.recentAutoMemory(),
+    ]);
+    if (active.current === target) setAutomatic({ ...settings, entries });
+    return view;
+  }, []);
+  useMemorySubscription(client, read, dispatch);
+  const perform: Perform = useCallback(
+    async (action) => {
+      if (!client) return false;
+      dispatch({ type: 'start' });
+      try {
+        await action(client);
+        const view = await read(client);
+        if (active.current !== client) return false;
+        dispatch({ type: 'loaded', view });
+        return true;
+      } catch (error) {
+        if (active.current === client) dispatch({ type: 'failed', error });
+        return false;
+      }
+    },
+    [client, read],
+  );
+  return { ...state, automatic, perform, connected: !!client };
+}
+
+function useMemorySubscription(
+  client: SwiftnestClient | undefined,
+  read: (target: SwiftnestClient) => Promise<MemoryView>,
+  dispatch: (action: Parameters<typeof memoryReducer>[1]) => void,
+) {
   useEffect(() => {
     let disposed = false;
     let stop: (() => void) | undefined;
@@ -22,7 +59,7 @@ function useMemory() {
       dispatch({ type: 'start' });
       const refresh = async () => {
         try {
-          const view = await client.listMemory();
+          const view = await read(client);
           if (!disposed) dispatch({ type: 'loaded', view });
         } catch (error) {
           if (!disposed) dispatch({ type: 'failed', error });
@@ -35,31 +72,12 @@ function useMemory() {
       disposed = true;
       stop?.();
     };
-  }, [client]);
-  const perform: Perform = useCallback(
-    async (action) => {
-      if (!client) return false;
-      dispatch({ type: 'start' });
-      try {
-        await action(client);
-        const view = await client.listMemory();
-        if (active.current !== client) return false;
-        dispatch({ type: 'loaded', view });
-        return true;
-      } catch (error) {
-        if (active.current === client) dispatch({ type: 'failed', error });
-        return false;
-      }
-    },
-    [client],
-  );
-  return { ...state, perform, connected: !!client };
+  }, [client, read, dispatch]);
 }
 
 export function MemoryPage({ onBack }: { onBack: () => void }) {
   const { t, locale } = useI18n();
-  const { view, busy, error, perform, connected } = useMemory();
-  const [topic, setTopic] = useState('');
+  const { view, automatic, busy, error, perform, connected } = useMemory();
   return (
     <HubPage title={t('memory')} subtitle={t('memoryHelp')} onBack={onBack}>
       {error !== undefined && <p role="alert">{localizedError(error, locale).message}</p>}
@@ -67,6 +85,14 @@ export function MemoryPage({ onBack }: { onBack: () => void }) {
         <p>{t('pairHelp')}</p>
       ) : (
         <>
+          {automatic && (
+            <AutomaticMemorySettings
+              enabled={automatic.enabled}
+              entries={automatic.entries}
+              disabled={busy}
+              perform={perform}
+            />
+          )}
           <MemoryAdd disabled={busy} perform={perform} />
           <h2>{t('memoryEntries')}</h2>
           {!view.entries.length && <p>{t('memoryEmpty')}</p>}
@@ -75,19 +101,73 @@ export function MemoryPage({ onBack }: { onBack: () => void }) {
               <MemoryItem key={entry.id} entry={entry} disabled={busy} perform={perform} />
             ))}
           </ul>
-          <h2>{t('memoryTopics')}</h2>
-          <div className="memory-actions">
-            <Button onClick={() => setTopic('')}>{t('memoryNewTopic')}</Button>
-            {view.topics.map((item) => (
-              <Button key={item.name} onClick={() => setTopic(item.name)}>
-                {item.name}
-              </Button>
-            ))}
-          </div>
-          <TopicEditor key={topic} topic={topic} disabled={busy} perform={perform} />
+          <MemoryTopics view={view} disabled={busy} perform={perform} />
         </>
       )}
     </HubPage>
+  );
+}
+
+function MemoryTopics({ view, disabled, perform }: { view: MemoryView; disabled: boolean; perform: Perform }) {
+  const { t } = useI18n();
+  const [topic, setTopic] = useState('');
+  return (
+    <details>
+      <summary>{t('memoryAdvanced')}</summary>
+      <h2>{t('memoryTopics')}</h2>
+      <div className="memory-actions">
+        <Button onClick={() => setTopic('')}>{t('memoryNewTopic')}</Button>
+        {view.topics.map((item) => (
+          <Button key={item.name} onClick={() => setTopic(item.name)}>
+            {item.name}
+          </Button>
+        ))}
+      </div>
+      <TopicEditor key={topic} topic={topic} disabled={disabled} perform={perform} />
+    </details>
+  );
+}
+
+export function AutomaticMemorySettings({
+  enabled,
+  entries,
+  disabled,
+  perform,
+}: {
+  enabled: boolean;
+  entries: MemoryEntry[];
+  disabled: boolean;
+  perform: Perform;
+}) {
+  const { t, locale } = useI18n();
+  return (
+    <Card className="memory-auto-settings" role="region" aria-label={t('memoryAutoRecent')}>
+      <label className="memory-auto-switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={enabled}
+          checked={enabled}
+          disabled={disabled}
+          onChange={(event) => void perform((client) => client.setMemoryAuto(event.target.checked))}
+        />
+        {t('memoryAutoSwitch')}
+      </label>
+      <p>{t('memoryAutoHelp')}</p>
+      <h2>{t('memoryAutoRecent')}</h2>
+      {!entries.length && <p>{t('memoryAutoEmpty')}</p>}
+      <ul className="memory-entries">
+        {entries.map((entry) => (
+          <li key={entry.id} className="memory-item">
+            <p>{entry.text}</p>
+            <time dateTime={entry.added}>{new Date(entry.added).toLocaleString(locale)}</time>
+            <Button disabled={disabled} onClick={() => void perform((client) => client.deleteMemory(entry.id))}>
+              {t('memoryDelete')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

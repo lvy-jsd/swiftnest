@@ -81,7 +81,7 @@ export interface ServerConfig {
   /** Optional download mirrors and an administrator-owned local instrument library. */
   media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string };
   /** Built-in central memory: on without installing or configuring a plugin. */
-  memory?: { enabled: boolean };
+  memory?: { enabled: boolean; auto?: boolean };
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -147,9 +147,15 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (
     fromFile.memory !== undefined &&
-    (!fromFile.memory || typeof fromFile.memory !== 'object' || typeof fromFile.memory.enabled !== 'boolean')
+    (!fromFile.memory ||
+      typeof fromFile.memory !== 'object' ||
+      Array.isArray(fromFile.memory) ||
+      (fromFile.memory.enabled === undefined
+        ? fromFile.memory.auto === undefined
+        : typeof fromFile.memory.enabled !== 'boolean'))
   )
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
+  validateMemoryAuto(fromFile.memory?.auto, env.SWIFTNEST_MEMORY_AUTO);
   const pluginLocks = parsePluginsEnv(env.SWIFTNEST_PLUGINS);
   const config: ServerConfig = {
     relay: checkedRelayConfig(
@@ -175,6 +181,10 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     memory: {
       enabled:
         env.SWIFTNEST_MEMORY === undefined ? (fromFile.memory?.enabled ?? true) : env.SWIFTNEST_MEMORY === 'true',
+      auto:
+        env.SWIFTNEST_MEMORY_AUTO === undefined
+          ? (fromFile.memory?.auto ?? true)
+          : env.SWIFTNEST_MEMORY_AUTO === 'true',
     },
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
@@ -210,6 +220,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 
 export function validate(config: ServerConfig): void {
   checkedRelayConfig(config.relay);
+  validateMemoryAuto(config.memory?.auto);
   if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
@@ -256,6 +267,14 @@ function validateFreeVision(service: FreeVisionService): void {
   }
   if (!Array.isArray(service.models) || !service.models.length || service.models.some((m) => typeof m !== 'string'))
     throw new ServerFailure(text('freeVisionInvalid'));
+}
+
+function validateMemoryAuto(value: unknown, environment?: string): void {
+  if (
+    (value !== undefined && typeof value !== 'boolean') ||
+    (environment !== undefined && !['true', 'false'].includes(environment))
+  )
+    throw new ServerFailure(text('memoryAutoMustBoolean'));
 }
 
 function validateMediaUrl(

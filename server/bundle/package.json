@@ -62,7 +62,8 @@
     "ws": "^8.22.0",
     "@swiftnest/protocol": "workspace:*",
     "@swiftnest/core": "workspace:*",
-    "@swiftnest/channel": "workspace:*"
+    "@swiftnest/channel": "workspace:*",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2"

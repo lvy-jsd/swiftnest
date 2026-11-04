@@ -4,12 +4,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DeviceConnection } from './devices.js';
 import { ServerFailure } from './memory/failure.js';
 import { MemoryStore } from './memory/store.js';
+import { AUTO_DELAY_MS, registerAutomaticMemory, type AutoContext } from './memory/auto.js';
 import { memoryHandler } from './memory/http.js';
 
 export const name = 'swiftnest-memory';
-export const inject = ['tools', 'systemPrompt', 'webServer', 'connection'];
+export const inject = ['tools', 'systemPrompt', 'webServer', 'connection', 'llm', 'sessions', 'sessionPersistence'];
 
-interface MemoryContext {
+interface MemoryContext extends AutoContext {
   connection: DeviceConnection;
   webServer: {
     register(route: {
@@ -38,26 +39,27 @@ interface MemoryContext {
       execute(args: Record<string, string>, exec: { agent?: { id: string } }): Promise<{ text: string }>;
     }): () => void;
   };
-  on(event: 'session/disposed', listener: (session: { id: string }) => void): () => void;
   effect(fn: () => () => void, label?: string): void;
 }
 
 interface MemoryConfig {
   home: string;
   enabled?: boolean;
+  auto?: boolean;
   devicesAdminUrl?: string;
   devicesAdminToken?: string;
 }
 
-export function apply(ctx: MemoryContext, config: MemoryConfig) {
+export function apply(ctx: MemoryContext, config: MemoryConfig, reviewDelay = AUTO_DELAY_MS) {
   const changed = memoryChanged(config);
   const store = config.enabled === false ? undefined : new MemoryStore(config.home, undefined, changed);
+  const automatic = store ? registerAutomaticMemory(ctx, store, config.auto, reviewDelay) : undefined;
   ctx.effect(
     () =>
       ctx.webServer.register({
         kind: 'prefix',
         path: '/swiftnest/api/memory',
-        handler: memoryHandler(ctx.connection, store),
+        handler: memoryHandler(ctx.connection, store, config.auto, () => automatic?.settingsChanged()),
       }),
     'swiftnest-memory: api',
   );

@@ -37,6 +37,18 @@ it('requires owner admission and routes all owner edits through validated, journ
   try {
     expect((await fetch(root)).status).toBe(401);
     expect((await fetch(root, { headers: { authorization: 'guest' } })).status).toBe(403);
+    expect(await (await request('/auto')).json()).toEqual({ enabled: true });
+    expect((await request('/auto', { enabled: 'false' })).status).toBe(400);
+    expect((await request('/auto', { enabled: false, extra: true })).status).toBe(400);
+    expect(await (await request('/auto', { enabled: false })).json()).toEqual({ enabled: false });
+    expect(new MemoryStore(home).autoSettings()).toEqual({ enabled: false });
+    const baseline = (await store.list()).entries;
+    await store.applyAuto('chat', 4, [{ op: 'add', text: 'Auto fact' }], baseline, () => true);
+    const recent = await (await request('/auto/recent')).json();
+    expect(recent).toMatchObject([{ text: 'Auto fact', source: 'auto', added: expect.any(String) }]);
+    await request('/delete', { id: recent[0].id });
+    expect(await (await request('/auto/recent')).json()).toEqual([]);
+    events.length = 0;
     const saved = await (await request('/add', { text: 'Owner fact' })).json();
     expect(saved.saved).toBe(true);
     expect(events).toEqual(['memory-changed']);

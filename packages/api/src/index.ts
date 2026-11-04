@@ -564,6 +564,15 @@ export class SwiftnestClient {
       throw error;
     }
   }
+  memoryAutoSettings(): Promise<{ enabled: boolean }> {
+    return this.memoryRequest('/auto');
+  }
+  setMemoryAuto(enabled: boolean): Promise<{ enabled: boolean }> {
+    return this.memoryRequest('/auto', { enabled });
+  }
+  recentAutoMemory(): Promise<import('./memory.js').MemoryEntry[]> {
+    return this.memoryRequest('/auto/recent');
+  }
   listMemory(): Promise<import('./memory.js').MemoryView> {
     return this.memoryRequest('');
   }

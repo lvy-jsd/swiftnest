@@ -140,6 +140,7 @@ function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, op
       DSH_HOME: dshHome(config),
       SWIFTNEST_HOME: config.home,
       SWIFTNEST_MEMORY: String(config.memory?.enabled ?? true),
+      SWIFTNEST_MEMORY_AUTO: String(config.memory?.auto ?? true),
       SWIFTNEST_VERSION: paths.swiftnestVersion,
       SWIFTNEST_DSH_VERSION: paths.dshVersion,
       SWIFTNEST_MODEL_BASE_URL: config.model.baseUrl,
