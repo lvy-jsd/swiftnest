@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
@@ -15,18 +15,23 @@ it('runs TLS with an exact Caddy version and digest', async () => {
     'relay_dir=/opt/swiftnest-relay',
     'relay_dir="$RELAY_TEST_DIR/relay"',
   );
-  const stubs = `
-id() { echo 0; }
-apt-get() { :; }
-systemctl() { :; }
-git() { :; }
-openssl() { echo test-secret; }
-docker() { printf '%s\\n' "$@"; }
-`;
+  const bin = join(home, 'bin');
+  const stubs = {
+    id: 'echo 0',
+    'apt-get': ':',
+    systemctl: ':',
+    git: ':',
+    openssl: 'echo test-secret',
+    docker: 'printf \'%s\\n\' "$@"',
+  };
   try {
-    const result = spawnSync('sh', ['-c', `${stubs}\n${script}`, installer, 'relay.example.com'], {
+    await mkdir(bin);
+    await Promise.all(
+      Object.entries(stubs).map(([name, body]) => writeFile(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 })),
+    );
+    const result = spawnSync('sh', ['-c', script, installer, 'relay.example.com'], {
       encoding: 'utf8',
-      env: { ...process.env, RELAY_TEST_DIR: home },
+      env: { ...process.env, RELAY_TEST_DIR: home, PATH: `${bin}${delimiter}${process.env.PATH}` },
       timeout: 1000,
     });
     expect(result.error).toBeUndefined();
