@@ -1,3 +1,4 @@
+import { openNavigation } from './navigation';
 import { expect, it } from 'vitest';
 import type { Page } from '@playwright/test';
 import { launchChromium } from './browser';
@@ -19,8 +20,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         const errors: string[] = [];
         page.on('pageerror', (error) => errors.push(error.message));
         await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
-        await page
-          .getByRole('main')
+        await (await openNavigation(page, locale))
           .getByRole('link', { name: translate(locale, 'memory'), exact: true })
           .click();
         await exerciseMemory(page, locale);
@@ -32,8 +32,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         await expect.poll(() => page.getByText(`External update ${locale}`, { exact: true }).count()).toBe(0);
         // The App requires pairing again after a reload; memory still comes from the server.
         await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
-        await page
-          .getByRole('main')
+        await (await openNavigation(page, locale))
           .getByRole('link', { name: translate(locale, 'memory'), exact: true })
           .click();
         await page.getByText(`Updated topic fact ${locale}`, { exact: true }).waitFor();

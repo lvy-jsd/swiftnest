@@ -19,7 +19,8 @@ describe('web shell and translations', () => {
           </I18nProvider>
         </ThemeProvider>,
       );
-      expect(html).toContain(translate(locale, 'chats'));
+      expect(html).toContain(translate(locale, 'shell.openNavigation'));
+      expect(html).toContain(translate(locale, 'home.plan'));
       expect(html).toContain(translate(locale, 'pair'));
       expect(html).not.toContain('fresh-start');
     }

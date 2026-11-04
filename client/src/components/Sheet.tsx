@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { useI18n } from '../i18n';
 import { icons } from '../design/icons';
 import { IconButton } from './IconButton';
+import { trapDialogFocus } from './dialogFocus';
 
 export type SheetProps = {
   open: boolean;
@@ -10,6 +11,7 @@ export type SheetProps = {
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  presentation?: 'sheet' | 'drawer';
 };
 
 function closeOnBackdrop(event: MouseEvent<HTMLDialogElement>, onClose: () => void) {
@@ -25,7 +27,7 @@ function closeOnBackdrop(event: MouseEvent<HTMLDialogElement>, onClose: () => vo
 }
 
 /** Native modal gives focus trapping, Escape dismissal and an inert background. */
-export function Sheet({ open, onClose, title, children, actions }: SheetProps) {
+export function Sheet({ open, onClose, title, children, actions, presentation = 'sheet' }: SheetProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const { t } = useI18n();
@@ -36,17 +38,17 @@ export function Sheet({ open, onClose, title, children, actions }: SheetProps) {
     else if (!open && element?.open) element.close();
   }, [open]);
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the click closes on the backdrop; Escape closes natively via onClose
     <dialog
       ref={dialog}
-      className="sheet"
+      className={presentation}
       aria-labelledby={titleId}
       onClose={() => {
         if (open) onClose();
       }}
       onClick={(event) => closeOnBackdrop(event, onClose)}
+      onKeyDown={trapDialogFocus}
     >
-      <div className="sheet__grabber" aria-hidden="true" />
+      {presentation === 'sheet' && <div className="sheet__grabber" aria-hidden="true" />}
       <header className="sheet__header">
         <h1 id={titleId}>{title}</h1>
         <IconButton variant="ghost" aria-label={t('close')} onClick={onClose}>

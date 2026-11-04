@@ -1,3 +1,4 @@
+import { openSettingsPage } from './navigation';
 /** Real App + authenticated kernel; only plugin HTTP state and restart downtime are stubbed. */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -118,10 +119,7 @@ async function exercisePlugins(page: Page, locale: Locale, url: string, screensh
   });
   await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale);
   await page.goto(url);
-  await page
-    .getByRole('link', { name: t('pluginsTitle'), exact: true })
-    .last()
-    .click();
+  await openSettingsPage(page, 'shell.plugins', locale);
   const pluginSwitch = page.getByRole('switch', { name: locale === 'en' ? 'Understand images' : '看懂图片' });
   const cards = page.locator('main .plugin-card');
   expect(await cards.first().textContent()).toContain(locale === 'en' ? 'Safety protection' : '安全保护');
@@ -152,7 +150,7 @@ async function exercisePlugins(page: Page, locale: Locale, url: string, screensh
   await sheet.getByText(t('pluginsMarketWarning'), { exact: true }).waitFor();
   await sheet.getByRole('button', { name: t('pluginsCancel'), exact: true }).click();
   mock.deny();
-  await expect.poll(() => page.getByRole('link', { name: t('pluginsTitle'), exact: true }).count()).toBe(0);
+  expect(await page.locator('.primary-navigation a[href="#/plugins"]').count()).toBe(0);
   await page.getByText(t('pluginsOwnerOnly'), { exact: true }).waitFor();
 }
 it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(

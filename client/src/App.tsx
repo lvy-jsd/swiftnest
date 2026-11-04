@@ -1,9 +1,13 @@
+import { useShellNavigation, useChatSwipe, goHome, type ShellNavigation } from './shellNavigation';
+import { useTheme } from './design/theme';
+import { Preferences } from './preferences';
+import { Sidebar } from './shell';
+import { Home } from './home';
 import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
 import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
 import { isPhoto } from './photoState';
-import { RelaySettings } from './relaySettings';
-import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
+import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
@@ -12,32 +16,20 @@ import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { CSSProperties, FormEvent, PointerEvent } from 'react';
-import type { SessionSummary } from '@swiftnest/api';
-import { Button } from './components/Button';
+import type { CSSProperties, FormEvent } from 'react';
 import { IconButton } from './components/IconButton';
-import { AppearanceSettings } from './components/AppearanceSettings';
 import { Sheet } from './components/Sheet';
-import { DetailPage, FormPage, HubPage } from './components/pages';
+import { DetailPage, FormPage } from './components/pages';
 import { VirtualList } from './components/VirtualList';
 import { icons } from './design/icons';
-import { useTheme } from './design/theme';
-import { breakpoints } from './design/tokens';
 import { useI18n } from './i18n';
-import type { Locale } from './i18n';
-import { hasPrecisePointer, isTauriRuntime } from './runtime';
+import { hasPrecisePointer } from './runtime';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
 import type { ChatRow } from './chat';
 
-export function chatFromHash(hash: string): string | undefined {
-  const match = /^#\/chats\/([^/?#]+)$/.exec(hash);
-  try {
-    return match ? decodeURIComponent(match[1]!) : undefined;
-  } catch {
-    return undefined;
-  }
-}
+export { chatFromHash } from './shellNavigation';
+
 export function pairingFromLocation(): string {
   if (typeof window === 'undefined') return '';
   const hash = window.location.hash;
@@ -52,89 +44,6 @@ function clearPairingLocation() {
   url.searchParams.delete('url');
   url.hash = '/pair';
   window.history.replaceState(null, '', url);
-}
-function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t, locale, setLocale } = useI18n();
-  const theme = useTheme();
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={t('preferences')}
-      actions={
-        <Button variant="primary" onClick={onClose}>
-          {t('done')}
-        </Button>
-      }
-    >
-      <div className="field-groups">
-        <label className="field">
-          <span>{t('language')}</span>
-          <select
-            aria-label={t('language')}
-            value={locale}
-            onChange={(event) => setLocale(event.target.value as Locale)}
-          >
-            <option value="zh-CN">{t('chinese')}</option>
-            <option value="en">{t('english')}</option>
-          </select>
-        </label>
-        <AppearanceSettings />
-        <label className="field">
-          <span>{t('customHue')}</span>
-          <input
-            type="range"
-            min={0}
-            max={359}
-            step={1}
-            value={theme.accentHue}
-            onChange={(event) => theme.setAccentHue(Number(event.target.value))}
-          />
-        </label>
-        <label className="switch-field">
-          <span>{t('reduceMotion')}</span>
-          <input
-            type="checkbox"
-            role="switch"
-            checked={theme.reduceMotion}
-            aria-checked={theme.reduceMotion}
-            onChange={(event) => theme.setReduceMotion(event.target.checked)}
-          />
-        </label>
-        <label className="switch-field">
-          <span>{t('reduceTransparency')}</span>
-          <input
-            type="checkbox"
-            role="switch"
-            checked={theme.reduceTransparency}
-            aria-checked={theme.reduceTransparency}
-            onChange={(event) => theme.setReduceTransparency(event.target.checked)}
-          />
-        </label>
-        <RelaySettings />
-      </div>
-    </Sheet>
-  );
-}
-
-function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?: boolean }) {
-  const { t, locale } = useI18n();
-  const ChatIcon = icons.chat;
-  return (
-    <a
-      className="chat-link"
-      href={`#/chats/${encodeURIComponent(chat.sessionId)}`}
-      aria-current={selected ? 'page' : undefined}
-    >
-      <span className="avatar">
-        <ChatIcon size={24} weight="regular" aria-hidden="true" />
-      </span>
-      <span className="chat-link__copy">
-        <strong>{chat.title || t('untitledChat')}</strong>
-        <time dateTime={new Date(chat.updatedAt).toISOString()}>{new Date(chat.updatedAt).toLocaleString(locale)}</time>
-      </span>
-    </a>
-  );
 }
 /** `quiet` hides the row while all is well (the chat header already shows the server). */
 function ConnectionStatus({ quiet = false }: { quiet?: boolean }) {
@@ -279,26 +188,12 @@ function TranscriptRow({
     </details>
   );
 }
-function ChatDetail({
-  sessionId,
-  onBack,
-  onOptions,
-}: {
-  sessionId: string;
-  onBack: () => void;
-  onOptions: () => void;
-}) {
+function useChatSession(sessionId: string) {
   const { t } = useI18n();
-  const { store, status, root, sessions } = useConnection();
-  const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
-  const [draft, setDraft] = useState('');
-  const photos = usePhotoDrafts();
-  const consent = usePhotoConsent(photos.drafts.length > 0);
-  const [hasKeyboard] = useState(hasPrecisePointer);
-  const [ready, setReady] = useState(false);
+  const { store, status } = useConnection();
   const { client } = store;
-  const Send = icons.send,
-    Options = icons.settings;
+  const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
+  const [ready, setReady] = useState(false);
   // A language switch must not drop and re-follow the chat, so `t` is read but not a dependency.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
@@ -316,7 +211,7 @@ function ChatDetail({
         for await (const event of subscription) {
           if (ended) break;
           dispatch(event);
-          if (event.type === 'turn-end') void store.refresh();
+          if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
         }
         if (!ended) setReady(false);
       } catch {
@@ -332,6 +227,32 @@ function ChatDetail({
       controller.abort();
     };
   }, [client, sessionId, status, store]);
+  return { state, dispatch, ready };
+}
+
+type ChatSession = ReturnType<typeof useChatSession>;
+type InitialMessage = { initialMessage?: string; onInitialMessageConsumed: () => void };
+type ChatDraftProps = InitialMessage & { sessionId: string; ready: boolean; dispatch: ChatSession['dispatch'] };
+
+function useChatDraft({ sessionId, ready, dispatch, initialMessage, onInitialMessageConsumed }: ChatDraftProps) {
+  const { t } = useI18n();
+  const { store } = useConnection();
+  const { client } = store;
+  const [draft, setDraft] = useState(initialMessage ?? '');
+  const pendingMessage = useRef(initialMessage);
+  const photos = usePhotoDrafts();
+  useEffect(() => {
+    if (!ready || !client || !pendingMessage.current) return;
+    const text = pendingMessage.current;
+    pendingMessage.current = undefined;
+    onInitialMessageConsumed();
+    setDraft('');
+    dispatch({ type: 'waiting' });
+    void client.sendMessage(sessionId, text).catch(() => {
+      setDraft(text);
+      dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') });
+    });
+  }, [ready, client, sessionId, t, onInitialMessageConsumed, dispatch]);
   function send(event: FormEvent) {
     event.preventDefault();
     if ((!draft.trim() && !photos.drafts.length) || !ready || !client) return;
@@ -342,9 +263,109 @@ function ChatDetail({
       dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') });
     });
   }
+  return { draft, setDraft, photos, send };
+}
+
+function ChatInput({
+  draft,
+  setDraft,
+  photos,
+}: Pick<ReturnType<typeof useChatDraft>, 'draft' | 'setDraft' | 'photos'>) {
+  const { t } = useI18n();
+  return (
+    <textarea
+      aria-label={t('composer')}
+      placeholder={t('composer')}
+      rows={1}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onPaste={(event) => {
+        const pasted = [...event.clipboardData.files].filter(isPhoto);
+        if (!pasted.length) return;
+        event.preventDefault();
+        void photos.add(pasted);
+      }}
+      onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.form?.requestSubmit();
+        }
+      }}
+    />
+  );
+}
+
+function ChatComposer({ waiting, ...props }: ChatDraftProps & { waiting: boolean }) {
+  const { t } = useI18n();
+  const { status } = useConnection();
+  const { draft, setDraft, photos, send } = useChatDraft(props);
+  const consent = usePhotoConsent(photos.drafts.length > 0);
+  const [hasKeyboard] = useState(hasPrecisePointer);
+  const Send = icons.send;
+  return (
+    <div className="composer-area">
+      {waiting && <Thinking />}
+      {(waiting || hasKeyboard) && <p className="composer-notice">{t(waiting ? 'queueHelp' : 'sendHelp')}</p>}
+      {photos.failed && <p role="alert">{t('photoFailed')}</p>}
+      <PhotoDrafts drafts={photos.drafts} remove={photos.remove} />
+      <PhotoConsent consent={consent} />
+      <form className="composer card" onSubmit={send}>
+        <PhotoButton disabled={photos.full || status !== 'connected'} add={(files) => void photos.add(files)} />
+        <ChatInput draft={draft} setDraft={setDraft} photos={photos} />
+        <IconButton
+          type="submit"
+          variant="primary"
+          disabled={(!draft.trim() && !photos.drafts.length) || !props.ready || status !== 'connected'}
+          aria-label={t('send')}
+        >
+          <Send size={24} />
+        </IconButton>
+      </form>
+    </div>
+  );
+}
+
+function ChatTranscript({
+  sessionId,
+  state,
+  dispatch,
+}: Pick<ChatSession, 'state' | 'dispatch'> & { sessionId: string }) {
+  const { t } = useI18n();
+  return (
+    <VirtualList
+      items={state.rows}
+      itemKey={(row) => row.id}
+      label={t('messages')}
+      followEnd
+      className="transcript"
+      renderItem={(row) => (
+        <TranscriptRow
+          row={row}
+          sessionId={sessionId}
+          onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })}
+        />
+      )}
+    />
+  );
+}
+
+function ChatDetail({
+  sessionId,
+  onBack,
+  onOptions,
+  ...initial
+}: InitialMessage & {
+  sessionId: string;
+  onBack: () => void;
+  onOptions: () => void;
+}) {
+  const { t } = useI18n();
+  const { status, root, sessions } = useConnection();
+  const { state, dispatch, ready } = useChatSession(sessionId);
+  const Options = icons.settings;
   return (
     <DetailPage
-      title={sessions.find((s) => s.sessionId === sessionId)?.title || t('untitledChat')}
+      title={sessions.find((session) => session.sessionId === sessionId)?.title || t('untitledChat')}
       subtitle={root || t(status)}
       onBack={onBack}
       action={
@@ -357,59 +378,8 @@ function ChatDetail({
       <DeviceApprovals compact />
       <TransferCards compact />
       <LiveDeviceButton />
-      <VirtualList
-        items={state.rows}
-        itemKey={(row) => row.id}
-        label={t('messages')}
-        followEnd
-        className="transcript"
-        renderItem={(row) => (
-          <TranscriptRow
-            row={row}
-            sessionId={sessionId}
-            onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })}
-          />
-        )}
-      />
-      <div className="composer-area glass">
-        {state.waiting && <Thinking />}
-        {(state.waiting || hasKeyboard) && (
-          <p className="composer-notice">{t(state.waiting ? 'queueHelp' : 'sendHelp')}</p>
-        )}
-        {photos.failed && <p role="alert">{t('photoFailed')}</p>}
-        <PhotoDrafts drafts={photos.drafts} remove={photos.remove} />
-        <PhotoConsent consent={consent} />
-        <form className="composer" onSubmit={send}>
-          <PhotoButton disabled={photos.full || status !== 'connected'} add={(files) => void photos.add(files)} />
-          <textarea
-            aria-label={t('composer')}
-            placeholder={t('composer')}
-            rows={2}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onPaste={(event) => {
-              const pasted = [...event.clipboardData.files].filter(isPhoto);
-              if (!pasted.length) return;
-              event.preventDefault();
-              void photos.add(pasted);
-            }}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-          <IconButton
-            type="submit"
-            variant="primary"
-            disabled={(!draft.trim() && !photos.drafts.length) || !ready || status !== 'connected'}
-            aria-label={t('send')}
-          >
-            <Send size={24} />
-          </IconButton>
-        </form>
-      </div>
+      <ChatTranscript sessionId={sessionId} state={state} dispatch={dispatch} />
+      <ChatComposer sessionId={sessionId} waiting={state.waiting} ready={ready} dispatch={dispatch} {...initial} />
     </DetailPage>
   );
 }
@@ -422,272 +392,119 @@ export function App() {
     </DeviceHubProvider>
   );
 }
-function goHome() {
-  window.location.hash = '/';
-}
-function AppContent() {
-  const { t } = useI18n();
-  const { reducedMotion } = useTheme();
-  const { store, sessions, status } = useConnection();
-  const { owner } = usePlugins();
-  const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '#/' : window.location.hash));
-  const [preferences, setPreferences] = useState(false);
-  const [query, setQuery] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const swipe = useRef<{ x: number; y: number } | null>(null);
-  const chatId = chatFromHash(hash);
-  const pairing = hash.startsWith('#/pair');
-  const devicesPage = hash.startsWith('#/devices');
-  const pluginsPage = hash.startsWith('#/plugins');
-  const modelsPage = hash.startsWith('#/models');
-  const transfersPage = hash.startsWith('#/transfers');
-  const memoryPage = hash.startsWith('#/memory');
-  const Settings = icons.settings,
-    Avatar = icons.avatar;
-  const visibleChats = sessions.filter((item) =>
-    (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+function AppRoutes({ navigation }: { navigation: ShellNavigation }) {
+  const { hash, chatId, initialMessage, consumeInitialMessage, openPreferences, creating, newChat } = navigation;
+  const { status } = useConnection();
+  if (hash.startsWith('#/models')) return <ModelsPage onBack={goHome} />;
+  if (hash.startsWith('#/plugins')) return <PluginsPage onBack={goHome} />;
+  if (hash.startsWith('#/memory')) return <MemoryPage key={status} onBack={goHome} />;
+  if (hash.startsWith('#/transfers')) return <TransfersPage onBack={goHome} />;
+  if (hash.startsWith('#/devices')) return <DevicesPage onBack={goHome} />;
+  if (hash.startsWith('#/pair')) return <PairPage onBack={goHome} />;
+  if (chatId)
+    return (
+      <ChatDetail
+        key={`${chatId}:${status}`}
+        sessionId={chatId}
+        initialMessage={initialMessage?.id === chatId ? initialMessage.text : undefined}
+        onInitialMessageConsumed={consumeInitialMessage}
+        onBack={goHome}
+        onOptions={openPreferences}
+      />
+    );
+  return (
+    <>
+      <ConnectionStatus quiet />
+      <Home creating={creating} onSend={newChat} />
+    </>
   );
-  // Read current state without re-registering the async native listener on every
-  // route/sheet change. StrictMode may clean up before registration resolves.
-  const consumeBack = useRef<() => boolean>(() => false);
-  consumeBack.current = () => {
-    if (preferences) {
-      setPreferences(false);
-      return true;
-    }
-    if (hash && hash !== '#/' && hash !== '#') {
-      goHome();
-      return true;
-    }
-    return false;
-  };
-  useEffect(() => {
-    if (!isTauriRuntime() || !/Android/i.test(navigator.userAgent)) return;
-    let disposed = false;
-    let unregister: (() => void) | undefined;
-    void import('./androidBack')
-      .then((module) => module.registerAndroidBack(() => consumeBack.current()))
-      .then((cleanup) => {
-        if (disposed) cleanup();
-        else unregister = cleanup;
-      });
-    return () => {
-      disposed = true;
-      unregister?.();
-    };
-  }, []);
-  useEffect(() => {
-    const navigate = () => {
-      setHash(window.location.hash);
-      setSwipeOffset(0);
-    };
-    const shortcut = (event: KeyboardEvent) => {
-      if (event.altKey && event.key === 'ArrowLeft') {
+}
+
+function ShellSidebar({ navigation }: { navigation: ShellNavigation }) {
+  const { t } = useI18n();
+  const { chatId, creating, newChat, closeDrawer, openPreferences, drawer } = navigation;
+  const content = (
+    <Sidebar
+      chatId={chatId}
+      creating={creating}
+      onNewChat={() => void newChat()}
+      onNavigate={closeDrawer}
+      onPreferences={openPreferences}
+    />
+  );
+  return (
+    <>
+      <aside className="sidebar card">{content}</aside>
+      <Sheet open={drawer} onClose={closeDrawer} title={t('shell.navigation')} presentation="drawer">
+        {content}
+      </Sheet>
+    </>
+  );
+}
+
+function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
+  const { t } = useI18n();
+  const Menu = icons.menu;
+  const Settings = icons.settings;
+  return (
+    <header className="phone-header">
+      <IconButton
+        aria-label={t('shell.openNavigation')}
+        aria-expanded={navigation.drawer}
+        onClick={navigation.openDrawer}
+      >
+        <Menu size={24} />
+      </IconButton>
+      <span>{t('appName')}</span>
+      <IconButton aria-label={t('openPreferences')} onClick={navigation.openPreferences}>
+        <Settings size={24} />
+      </IconButton>
+    </header>
+  );
+}
+
+function SkipLink() {
+  const { t } = useI18n();
+  return (
+    // biome-ignore lint/a11y/useValidAnchor: a real skip link; following the href would change the route hash
+    <a
+      className="skip-link"
+      href="#main-content"
+      onClick={(event) => {
         event.preventDefault();
-        goHome();
-      }
-    };
-    const refresh = () => {
-      if (document.visibilityState === 'visible') void store.refresh();
-    };
-    window.addEventListener('hashchange', navigate);
-    window.addEventListener('keydown', shortcut);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      window.removeEventListener('hashchange', navigate);
-      window.removeEventListener('keydown', shortcut);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, [store]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: focus the new page on every navigation, even within a page
-  useEffect(() => {
-    document.getElementById('main-content')?.focus({ preventScroll: true });
-    if (!chatId && !pairing) void store.refresh();
-  }, [hash, chatId, pairing, store]);
-  async function newChat() {
-    setCreating(true);
-    try {
-      const id = await store.newChat();
-      if (id) window.location.hash = `/chats/${encodeURIComponent(id)}`;
-    } finally {
-      setCreating(false);
-    }
-  }
-  function startSwipe(event: PointerEvent<HTMLElement>) {
-    if (chatId && window.innerWidth < breakpoints.tablet && event.clientX <= 32 && event.isPrimary)
-      swipe.current = { x: event.clientX, y: event.clientY };
-  }
-  function moveSwipe(event: PointerEvent<HTMLElement>) {
-    if (!swipe.current) return;
-    if (Math.abs(event.clientY - swipe.current.y) > 48) {
-      swipe.current = null;
-      setSwipeOffset(0);
-      return;
-    }
-    const distance = Math.max(0, event.clientX - swipe.current.x);
-    if (distance > 8 && !event.currentTarget.hasPointerCapture(event.pointerId))
-      event.currentTarget.setPointerCapture(event.pointerId);
-    setSwipeOffset(distance);
-  }
-  function endSwipe() {
-    if (swipeOffset > Math.min(120, window.innerWidth / 4)) goHome();
-    swipe.current = null;
-    setSwipeOffset(0);
-  }
+        document.getElementById('main-content')?.focus();
+      }}
+    >
+      {t('skipToContent')}
+    </a>
+  );
+}
+
+function AppContent() {
+  const navigation = useShellNavigation();
+  const { reducedMotion } = useTheme();
+  const { offset, ...swipeHandlers } = useChatSwipe(navigation.chatId, navigation.hash);
+  const style =
+    offset && !reducedMotion
+      ? ({ transform: `translateX(${offset}px)`, animation: 'none' } as CSSProperties)
+      : undefined;
   return (
     <div className="app-shell">
       <LanguageSync />
-      {/* biome-ignore lint/a11y/useValidAnchor: a real skip link; following the href would change the route hash */}
-      <a
-        className="skip-link"
-        href="#main-content"
-        onClick={(event) => {
-          event.preventDefault();
-          document.getElementById('main-content')?.focus();
-        }}
-      >
-        {t('skipToContent')}
-      </a>
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <strong>{t('appName')}</strong>
-          <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
-            <Settings size={24} />
-          </IconButton>
-        </div>
-        <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>
-        <a className="devices-link" href="#/devices">
-          {t('devices')}
-        </a>
-        <a className="devices-link" href="#/transfers">
-          {t('transfers')}
-        </a>
-        {owner && (
-          <>
-            <a className="devices-link" href="#/models">
-              {t('modelsTitle')}
-            </a>
-            <a className="devices-link" href="#/plugins">
-              {t('pluginsTitle')}
-            </a>
-          </>
-        )}
-        <a className="devices-link" href="#/memory">
-          {t('memory')}
-        </a>
-        <nav aria-label={t('chatNavigation')}>
-          <VirtualList
-            items={sessions}
-            itemKey={(s) => s.sessionId}
-            label={t('chats')}
-            renderItem={(item) => <ChatLink chat={item} selected={item.sessionId === chatId} />}
-          />
-        </nav>
-      </aside>
-      <main
-        id="main-content"
-        className="main-content"
-        tabIndex={-1}
-        onPointerDown={startSwipe}
-        onPointerMove={moveSwipe}
-        onPointerUp={endSwipe}
-        onPointerCancel={() => {
-          swipe.current = null;
-          setSwipeOffset(0);
-        }}
-      >
+      <SkipLink />
+      <ShellSidebar navigation={navigation} />
+      <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
+        <PhoneHeader navigation={navigation} />
         <div
-          key={chatId ?? (pairing ? 'pair' : devicesPage ? 'devices' : 'hub')}
+          key={navigation.hash}
           className="route-view"
-          data-direction={chatId ? 'forward' : 'back'}
-          style={
-            swipeOffset && !reducedMotion
-              ? ({ transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties)
-              : undefined
-          }
+          data-direction={navigation.chatId ? 'forward' : 'back'}
+          style={style}
         >
-          {modelsPage ? (
-            <ModelsPage onBack={goHome} />
-          ) : pluginsPage ? (
-            <PluginsPage onBack={goHome} />
-          ) : memoryPage ? (
-            <MemoryPage key={status} onBack={goHome} />
-          ) : transfersPage ? (
-            <TransfersPage onBack={goHome} />
-          ) : devicesPage ? (
-            <DevicesPage onBack={goHome} />
-          ) : pairing ? (
-            <PairPage onBack={goHome} />
-          ) : chatId ? (
-            <ChatDetail
-              key={`${chatId}:${status}`}
-              sessionId={chatId}
-              onBack={goHome}
-              onOptions={() => setPreferences(true)}
-            />
-          ) : (
-            <HubPage
-              title={t('chats')}
-              subtitle={t('chatsSubtitle')}
-              action={
-                <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
-                  <Avatar size={24} />
-                </IconButton>
-              }
-            >
-              <ConnectionStatus />
-              <a className="devices-link" href="#/devices">
-                {t('devices')}
-              </a>
-              <a className="devices-link" href="#/transfers">
-                {t('transfers')}
-              </a>
-              {owner && (
-                <>
-                  <a className="devices-link" href="#/models">
-                    {t('modelsTitle')}
-                  </a>
-                  <a className="devices-link" href="#/plugins">
-                    {t('pluginsTitle')}
-                  </a>
-                </>
-              )}
-              <a className="devices-link" href="#/memory">
-                {t('memory')}
-              </a>
-              <DeviceApprovals compact />
-              <TransferCards compact />
-              <LiveDeviceButton />
-              {status === 'connected' && (
-                <Button variant="primary" disabled={creating} onClick={() => void newChat()}>
-                  {t('newChat')}
-                </Button>
-              )}
-              <label className="search-field">
-                <input
-                  type="search"
-                  value={query}
-                  placeholder={t('search')}
-                  aria-label={t('search')}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              {visibleChats.length ? (
-                <VirtualList
-                  items={visibleChats}
-                  itemKey={(s) => s.sessionId}
-                  label={t('chats')}
-                  renderItem={(item) => <ChatLink chat={item} />}
-                />
-              ) : (
-                <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>
-              )}
-            </HubPage>
-          )}
+          <AppRoutes navigation={navigation} />
         </div>
       </main>
-      <Preferences open={preferences} onClose={() => setPreferences(false)} />
+      <Preferences open={navigation.preferences} onClose={navigation.closePreferences} />
     </div>
   );
 }

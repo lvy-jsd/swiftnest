@@ -1,3 +1,4 @@
+import { openNavigation, openSettingsPage } from './navigation';
 /** Real Apply → DSH process replacement → cookie reconnect; no registry or model network traffic. */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -87,11 +88,11 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
 }
 
 async function createChat(page: Page) {
-  await page.getByRole('button', { name: 'New chat', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Write a message' }).waitFor();
+  await (await openNavigation(page)).getByRole('button', { name: 'New chat', exact: true }).click();
+  await page.getByRole('list', { name: 'Messages', exact: true }).waitFor();
   const route = page.url().split('#')[1]!;
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  const links = page.getByRole('main').locator('a[href^="#/chats/"]');
+  const links = (await openNavigation(page)).locator('a[href^="#/chats/"]');
   await links.first().waitFor();
   expect(await links.count()).toBe(1);
   return route;
@@ -99,7 +100,7 @@ async function createChat(page: Page) {
 
 async function chatAfterRestart(page: Page, route: string) {
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  const links = page.getByRole('main').locator('a[href^="#/chats/"]');
+  const links = (await openNavigation(page)).locator('a[href^="#/chats/"]');
   await links.first().waitFor();
   expect(await links.count()).toBe(1);
   expect(await links.first().getAttribute('href')).toBe(`#${route}`);
@@ -112,7 +113,7 @@ async function chatAfterRestart(page: Page, route: string) {
   expect(await messages.getByText('hi after restart', { exact: true }).count()).toBe(1);
   expect(await messages.getByText('Reply after real restart.', { exact: true }).count()).toBe(1);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
-  await expect.poll(() => page.getByRole('main').locator('a[href^="#/chats/"]').count()).toBe(1);
+  await expect.poll(async () => (await openNavigation(page)).locator('a[href^="#/chats/"]').count()).toBe(1);
 }
 
 function observeBrowser(page: Page) {
@@ -132,7 +133,7 @@ async function applyAndReconnect(page: Page, kernel: RunningKernel, native: Conn
   const originalChild = kernel.child;
   const originalToken = kernel.token;
   const originalUrl = kernel.url;
-  await page.getByRole('main').getByRole('link', { name: 'Recommended plugins', exact: true }).click();
+  await openSettingsPage(page, 'shell.plugins');
   const initial = await native.client!.listPlugins();
   const market = initial.plugins.find((plugin) => plugin.id === 'market')!;
   expect(market).toMatchObject({ active: true, enabled: true, locked: false });
@@ -211,7 +212,7 @@ async function rotateAndRestart(kernel: RunningKernel, native: ConnectionStore, 
 async function revokeNative(page: Page, kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {
   const app = (await native.client!.listDevices()).find((d) => d.device.startsWith('app-'))!;
   expect(app).toMatchObject({ paired: true, capabilities: [] });
-  await page.getByRole('link', { name: 'Devices', exact: true }).first().click();
+  await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
   await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Revoke device' });
   await dialog.waitFor();
@@ -254,7 +255,8 @@ async function exerciseApply(
   await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
   await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
   await page.waitForURL((url) => url.hash === '#/');
-  await page.getByRole('main').getByRole('link', { name: 'Memory', exact: true }).waitFor();
+  await (await openNavigation(page)).getByRole('link', { name: 'Memory', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
   const initialExchanges = [...observed.exchanges];
   const route = await createChat(page);
   await applyAndReconnect(page, kernel, native, readyCount);

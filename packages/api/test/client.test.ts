@@ -141,6 +141,17 @@ function harness(
 const pairing = 'https://server.test/mount/connect?token=launch&interactions=answer';
 
 describe('independent API client', () => {
+  it.each([
+    ['https://server.test/mount/connect?token=launch', true],
+    ['http://127.0.0.1:3077/connect?token=launch', false],
+  ])('reports actual connection encryption for %s', async (url, encrypted) => {
+    const h = harness();
+    expect(h.client.connectionEncrypted).toBe(false);
+    await h.client.connect(url as string);
+    expect(h.client.connectionEncrypted).toBe(encrypted);
+    h.client.close();
+    expect(h.client.connectionEncrypted).toBe(false);
+  });
   it('exchanges web links for the durable browser cookie instead of a single-socket API Peer', async () => {
     const h = harness({ browser: true });
     await h.client.connect(pairing);

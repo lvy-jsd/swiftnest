@@ -1,3 +1,4 @@
+import { openSettingsPage } from './navigation';
 /**
  * Real App + real DSH kernel: a beginner adds a cloud expert on the model page, applies,
  * the kernel restarts with it and the page comes back on its own. The expert's key is
@@ -100,10 +101,7 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !==
       page.on('pageerror', (error) => errors.push(error.message));
       await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
       await page.goto(webAppUrl(kernel.url, kernel.token));
-      await page
-        .getByRole('main')
-        .getByRole('link', { name: en('modelsTitle'), exact: true })
-        .click();
+      await openSettingsPage(page, 'shell.models');
       await page.getByText('fake', { exact: false }).first().waitFor();
       await addExpert(page);
       await applyAndReturn(page, () => readyCount);
