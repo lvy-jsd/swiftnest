@@ -1,5 +1,6 @@
+import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
-import { MessagePhotos, PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
+import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
 import { isPhoto } from './photoState';
 import { RelaySettings } from './relaySettings';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
@@ -261,12 +262,15 @@ function TranscriptRow({
   }
   if (row.kind === 'tools')
     return (
-      <details key={String(row.finished)} className="event-card">
-        <summary>
-          {t(row.finished ? 'ranTools' : 'runningTools').replace('{count}', String(Object.keys(row.calls).length))}
-        </summary>
-        <pre>{JSON.stringify(row.calls, null, 2)}</pre>
-      </details>
+      <div>
+        <ToolAttachments calls={row.calls} />
+        <details key={String(row.finished)} className="event-card">
+          <summary>
+            {t(row.finished ? 'ranTools' : 'runningTools').replace('{count}', String(Object.keys(row.calls).length))}
+          </summary>
+          <pre>{JSON.stringify(row.calls, null, 2)}</pre>
+        </details>
+      </div>
     );
   return (
     <details className="event-card">

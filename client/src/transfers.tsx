@@ -92,14 +92,14 @@ export function TransferCards({ compact = false }: { compact?: boolean }) {
     </section>
   );
 }
-export function SendFile({ source }: { source?: string }) {
+export function SendFile({ source, sourcePath }: { source?: string; sourcePath?: string }) {
   const { devices, busy, act } = useDevices();
   const { store, status } = useConnection();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(source ?? 'server');
   const [to, setTo] = useState(source ? 'server' : (devices[0]?.slug ?? 'server'));
-  const [path, setPath] = useState('');
+  const [path, setPath] = useState(sourcePath ?? '');
   const [target, setTarget] = useState('');
   const choices = (
     <>
@@ -119,7 +119,8 @@ export function SendFile({ source }: { source?: string }) {
         disabled={status !== 'connected'}
         onClick={() => {
           setFrom(source ?? 'server');
-          setTo(source ? 'server' : (devices[0]?.slug ?? 'server'));
+          setTo(source ? 'server' : (devices.find((d) => d.paired && d.slug)?.slug ?? 'server'));
+          setPath(sourcePath ?? '');
           setOpen(true);
         }}
       >

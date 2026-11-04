@@ -90,6 +90,8 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
         'content-type': upstream.headers.get('content-type') ?? 'application/json',
         'cache-control': 'no-store',
         'x-accel-buffering': 'no',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
       });
       if (upstream.body)
         await pipeline(Readable.fromWeb(upstream.body as import('node:stream/web').ReadableStream), res);

@@ -4,6 +4,7 @@ const get = [
   /^\/swiftnest\/relay(?:\/connection)?$/,
   /^\/swiftnest\/api\/devices\/?$/,
   /^\/swiftnest\/api\/devices\/(preferences|transfers|approvals|pairing|audit|events)$/,
+  /^\/swiftnest\/api\/devices\/files$/,
   /^\/swiftnest\/api\/plugins$/,
   /^\/swiftnest\/api\/models$/,
   /^\/swiftnest\/api\/memory(?:\/topic)?$/,

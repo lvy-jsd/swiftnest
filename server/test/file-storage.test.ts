@@ -91,7 +91,9 @@ it('binary file endpoints transfer empty and partial chunks, authenticate record
         sender.close();
         receiver.close();
       }
-      expect(await readFile(binding.destinationPath)).toEqual(await readFile(path));
+      // Compare every byte natively; Vitest's recursive Buffer comparison can
+      // spend tens of seconds enumerating a full 4 MiB chunk under CI load.
+      expect((await readFile(binding.destinationPath)).equals(await readFile(path))).toBe(true);
       expect((await destination.load(transferId(binding))).state).toBe('complete');
       const a = new FileCipher(offer, true),
         b = new FileCipher(offer, false);

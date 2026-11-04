@@ -11,9 +11,29 @@ interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
-/** Each prompt selects a finite script, so no real model can choose host commands. */
-export function scriptedModel(shared: string) {
+function toolSteps(shared: string): Record<string, ToolCall[]> {
   const steps: Record<string, ToolCall[]> = {
+    'media-html': [
+      { name: 'tools_load', arguments: { targets: ['pack:media'] } },
+      {
+        name: 'html_render',
+        arguments: { html: '<div style="color:green">中文海报 🌻</div>', width: 320, height: 180 },
+      },
+    ],
+    'media-chart': [
+      { name: 'tools_load', arguments: { targets: ['pack:media'] } },
+      {
+        name: 'chart_render',
+        arguments: {
+          spec: {
+            title: '中文图表',
+            data: { values: [{ x: 'A', y: 2 }] },
+            mark: 'bar',
+            encoding: { x: { field: 'x', type: 'nominal' }, y: { field: 'y', type: 'quantitative' } },
+          },
+        },
+      },
+    ],
     calculate: [
       { name: 'tools_load', arguments: { targets: ['math_eval'] } },
       { name: 'math_eval', arguments: { expression: '2 inch to cm' } },
@@ -27,6 +47,12 @@ export function scriptedModel(shared: string) {
   for (const prompt of ['risk-deny', 'risk-allow', 'risk-browser-deny', 'risk-browser-allow']) {
     steps[prompt] = [{ name: 'tools_load', arguments: { targets: ['delete_file'] } }];
   }
+  return steps;
+}
+
+/** Each prompt selects a finite script, so no real model can choose host commands. */
+export function scriptedModel(shared: string) {
+  const steps = toolSteps(shared);
   const rounds = new Map<string, number>();
   const requests = new Map<string, ModelRequest[]>();
   return {

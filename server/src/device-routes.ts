@@ -16,6 +16,7 @@ import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
 import type { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
+import { downloadFile } from './file-download.js';
 import { nativeDevices } from './native-pairings.js';
 
 export const PREFIX = '/swiftnest/api/devices';
@@ -300,6 +301,9 @@ const routes: Route[] = [
   route('POST', `${CONTROL}/tasks/${TASK_ID}/cancel`, (r) => r.hub.nest.tasks.cancel(existingTask(r))),
   ...transferRoutes(CONTROL),
 
+  route('GET', `${PREFIX}/files`, ({ hub, url, res }) =>
+    downloadFile(hub.transfers.storage, url.searchParams.get('path') ?? '', res),
+  ),
   ...transferRoutes(PREFIX),
   ...pluginRoutes,
   ...modelRoutes,
