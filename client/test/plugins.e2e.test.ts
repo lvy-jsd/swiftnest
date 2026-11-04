@@ -109,7 +109,7 @@ async function stubPlugins(page: Page, locale: Locale) {
     },
   };
 }
-async function exercisePlugins(page: Page, locale: Locale, url: string) {
+async function exercisePlugins(page: Page, locale: Locale, url: string, screenshotPath: string) {
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const mock = await stubPlugins(page, locale);
   page.on('console', (message) => {
@@ -138,7 +138,7 @@ async function exercisePlugins(page: Page, locale: Locale, url: string) {
   await pluginSwitch.click();
   await sheet.getByRole('button', { name: t('pluginsEnable'), exact: true }).click();
   await expect.poll(() => pluginSwitch.isChecked()).toBe(true);
-  if (locale === 'zh-CN') await page.screenshot({ path: '.codex-tasks/P1-zh.png', fullPage: true });
+  if (locale === 'zh-CN') await page.screenshot({ path: screenshotPath, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: t('pluginsApply'), exact: true }).click();
   await page.getByText(t('pluginsPreparing'), { exact: true }).waitFor();
@@ -180,7 +180,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         const page = await context.newPage();
         const errors: string[] = [];
         page.on('pageerror', (error) => errors.push(error.message));
-        await exercisePlugins(page, locale, webAppUrl(kernel.url, kernel.token));
+        await exercisePlugins(page, locale, webAppUrl(kernel.url, kernel.token), join(home, 'P1-zh.png'));
         expect(errors).toEqual([]);
         await context.close();
       }

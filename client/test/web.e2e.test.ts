@@ -254,8 +254,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await second.getByRole('button', { name: 'Open preferences' }).first().click();
       await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await second.getByRole('button', { name: '完成', exact: true }).click();
-      await mkdir('client/test/screenshots', { recursive: true });
-      await second.screenshot({ path: 'client/test/screenshots/language-zh-CN-390.png', animations: 'disabled' });
+      await second.screenshot({ path: join(home, 'language-zh-CN-390.png'), animations: 'disabled' });
       await second.close();
       expect(errors).toEqual([]);
       // A phone viewport and a keyboard-sized resize keep the composer visible. The language dance above left the
