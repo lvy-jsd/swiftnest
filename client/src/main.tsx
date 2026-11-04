@@ -4,6 +4,8 @@ import { App } from './App';
 import { ThemeProvider } from './design/theme';
 import { I18nProvider } from './i18n';
 import { ConnectionProvider } from './connection';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/noto-sans-sc';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(

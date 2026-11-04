@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
 import { icons } from '../design/icons';
-import { Button } from './Button';
+import { IconButton } from './IconButton';
 
 export type PageHeaderProps = {
   title: string;
@@ -18,9 +18,9 @@ export function PageHeader({ title, subtitle, large, onBack, action, children }:
     <header className={`page-header glass${large ? ' page-header--large' : ''}`}>
       <div className="page-header__row">
         {onBack && (
-          <Button variant="ghost" iconOnly onClick={onBack} aria-label={t('back')}>
+          <IconButton variant="ghost" onClick={onBack} aria-label={t('back')}>
             <Back size={24} />
-          </Button>
+          </IconButton>
         )}
         <div className="page-header__titles">
           <h1>{title}</h1>

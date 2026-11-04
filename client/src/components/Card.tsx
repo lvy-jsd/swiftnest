@@ -1,5 +1,7 @@
 import type { HTMLAttributes } from 'react';
 
-export function Card({ className = '', ...props }: HTMLAttributes<HTMLElement>) {
+export type CardProps = HTMLAttributes<HTMLElement>;
+
+export function Card({ className = '', ...props }: CardProps) {
   return <article className={`card ${className}`} {...props} />;
 }

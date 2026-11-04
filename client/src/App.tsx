@@ -14,12 +14,13 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent, PointerEvent } from 'react';
 import type { SessionSummary } from '@swiftnest/api';
 import { Button } from './components/Button';
-import { DetailPage, FormPage, HubPage, SheetPage } from './components/pages';
+import { IconButton } from './components/IconButton';
+import { AppearanceSettings } from './components/AppearanceSettings';
+import { Sheet } from './components/Sheet';
+import { DetailPage, FormPage, HubPage } from './components/pages';
 import { VirtualList } from './components/VirtualList';
 import { icons } from './design/icons';
-import { presets } from './design/palette';
 import { useTheme } from './design/theme';
-import type { ThemePreference } from './design/theme';
 import { breakpoints } from './design/tokens';
 import { useI18n } from './i18n';
 import type { Locale } from './i18n';
@@ -54,9 +55,8 @@ function clearPairingLocation() {
 function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t, locale, setLocale } = useI18n();
   const theme = useTheme();
-  const chosenPreset = Object.entries(presets).find(([, hue]) => hue === theme.accentHue)?.[0] ?? 'custom';
   return (
-    <SheetPage
+    <Sheet
       open={open}
       onClose={onClose}
       title={t('preferences')}
@@ -78,37 +78,7 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
             <option value="en">{t('english')}</option>
           </select>
         </label>
-        <label className="field">
-          <span>{t('appearance')}</span>
-          <select
-            value={theme.preference}
-            onChange={(event) => theme.setPreference(event.target.value as ThemePreference)}
-          >
-            {(['system', 'light', 'dark'] as const).map((mode) => (
-              <option key={mode} value={mode}>
-                {t(mode)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>{t('accent')}</span>
-          <select
-            value={chosenPreset}
-            onChange={(event) =>
-              theme.setAccentHue(
-                event.target.value === 'custom' ? 0 : presets[event.target.value as keyof typeof presets],
-              )
-            }
-          >
-            {Object.keys(presets).map((name) => (
-              <option key={name} value={name}>
-                {t(name as keyof typeof presets)}
-              </option>
-            ))}
-            <option value="custom">{t('custom')}</option>
-          </select>
-        </label>
+        <AppearanceSettings />
         <label className="field">
           <span>{t('customHue')}</span>
           <input
@@ -124,7 +94,9 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
           <span>{t('reduceMotion')}</span>
           <input
             type="checkbox"
+            role="switch"
             checked={theme.reduceMotion}
+            aria-checked={theme.reduceMotion}
             onChange={(event) => theme.setReduceMotion(event.target.checked)}
           />
         </label>
@@ -132,13 +104,15 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
           <span>{t('reduceTransparency')}</span>
           <input
             type="checkbox"
+            role="switch"
             checked={theme.reduceTransparency}
+            aria-checked={theme.reduceTransparency}
             onChange={(event) => theme.setReduceTransparency(event.target.checked)}
           />
         </label>
         <RelaySettings />
       </div>
-    </SheetPage>
+    </Sheet>
   );
 }
 
@@ -152,7 +126,7 @@ function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?:
       aria-current={selected ? 'page' : undefined}
     >
       <span className="avatar">
-        <ChatIcon size={24} weight={selected ? 'fill' : 'regular'} aria-hidden="true" />
+        <ChatIcon size={24} weight="regular" aria-hidden="true" />
       </span>
       <span className="chat-link__copy">
         <strong>{chat.title || t('untitledChat')}</strong>
@@ -370,9 +344,9 @@ function ChatDetail({
       subtitle={root || t(status)}
       onBack={onBack}
       action={
-        <Button variant="ghost" iconOnly aria-label={t('chatActions')} onClick={onOptions}>
+        <IconButton variant="ghost" aria-label={t('chatActions')} onClick={onOptions}>
           <Options size={24} />
-        </Button>
+        </IconButton>
       }
     >
       <ConnectionStatus quiet />
@@ -422,15 +396,14 @@ function ChatDetail({
               }
             }}
           />
-          <Button
+          <IconButton
             type="submit"
             variant="primary"
-            iconOnly
             disabled={(!draft.trim() && !photos.drafts.length) || !ready || status !== 'connected'}
             aria-label={t('send')}
           >
             <Send size={24} />
-          </Button>
+          </IconButton>
         </form>
       </div>
     </DetailPage>
@@ -575,9 +548,9 @@ function AppContent() {
       <aside className="sidebar">
         <div className="sidebar__brand">
           <strong>{t('appName')}</strong>
-          <Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
+          <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
             <Settings size={24} />
-          </Button>
+          </IconButton>
         </div>
         <p className="sidebar__caption">{t(isTauriRuntime() ? 'desktop' : 'web')}</p>
         <a className="devices-link" href="#/devices">
@@ -654,9 +627,9 @@ function AppContent() {
               title={t('chats')}
               subtitle={t('chatsSubtitle')}
               action={
-                <Button variant="ghost" iconOnly aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
+                <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
                   <Avatar size={24} />
-                </Button>
+                </IconButton>
               }
             >
               <ConnectionStatus />
