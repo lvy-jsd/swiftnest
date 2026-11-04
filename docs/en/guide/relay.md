@@ -20,6 +20,8 @@ apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubuserco
 
 This targets `main` after R2 is released. Before release, select a branch/tag containing R2 in both the download URL and `SWIFTNEST_RELAY_REF`. You can download and read the script first. It installs Docker, builds the relay from source, creates a random secret, and starts the relay and Caddy with automatic restart. Containers avoid installing Node or writing service files. The relay listens only on the VPS's loopback address; Caddy is its public HTTPS entrance. Caddy obtains and renews a Let's Encrypt certificate in its own volume; the relay saves no forwarded data and enables no access logs. [Caddy's HTTPS documentation](https://caddyserver.com/docs/automatic-https)
 
+The Caddy image is pinned to `2.11.7` and a multi-architecture SHA-256 digest. To upgrade it, update both the version and digest in `caddy_image` at the top of the installer.
+
 After a few minutes, save the printed **Relay address** and **Relay secret** in your password manager. Keep the secret private. A root-only copy is in `/opt/swiftnest-relay/relay.env`. Open `https://relay.example.com/health` in a browser: an empty page without a certificate warning means it is ready. Initial certificate setup may take another minute.
 
 ## Fill in the App
