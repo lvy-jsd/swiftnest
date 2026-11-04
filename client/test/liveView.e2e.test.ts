@@ -1,11 +1,15 @@
 /** UI gestures tested with a deterministic native-stream fixture; the real crypto/host path has its own e2e. */
 import { createServer } from 'vite';
 import { launchChromium } from './browser';
-import { expect, it } from 'vitest';
-import { resolve } from 'node:path';
+import { expect, it, onTestFinished } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
   'live panel: phone/desktop, en/zh, tap, hold, drag, keyboard, control state and cleanup',
   async () => {
+    const home = await mkdtemp(join(tmpdir(), 'swiftnest-live-browser-'));
+    onTestFinished(() => rm(home, { recursive: true, force: true }));
     const fixture = `
     import React from 'react';import{createRoot}from'react-dom/client';
     import{LivePanel}from'/src/liveView.tsx';import{ThemeProvider}from'/src/design/theme.tsx';import{I18nProvider}from'/src/i18n.tsx';import{ConnectionProvider,ConnectionStore}from'/src/connection.tsx';import'/src/styles.css';
@@ -18,7 +22,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
   `;
     const server = await createServer({
       root: resolve('client'),
-      cacheDir: resolve('node_modules/.cache/swiftnest/live-fixture'),
+      cacheDir: join(home, 'vite-cache'),
       server: { host: '127.0.0.1', port: 0 },
       plugins: [
         {
