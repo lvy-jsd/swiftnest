@@ -1,5 +1,5 @@
 import { message } from '@swiftnest/protocol';
-import type { VisionLlm } from '../vision-services.js';
+import type { Llm } from '../llm.js';
 import { memoryOperations } from './auto-schema.js';
 import type { MemoryStore } from './store.js';
 
@@ -22,7 +22,7 @@ export interface MemorySession {
   snapshotEvents(): readonly MemoryEvent[];
 }
 export interface AutoContext {
-  llm: VisionLlm;
+  llm: Llm;
   sessions: { list(): MemorySession[]; flush(session: MemorySession): Promise<unknown> };
   sessionPersistence: {
     list(): Promise<readonly { header: { id: string; origin?: string } }[]>;
@@ -214,7 +214,7 @@ function reviewMessages(events: readonly MemoryEvent[]) {
     return text ? [{ role: owner ? 'user' : 'assistant', text }] : [];
   });
 }
-async function reviewText(llm: VisionLlm, provider: string, model: string, input: string, signal: AbortSignal) {
+async function reviewText(llm: Llm, provider: string, model: string, input: string, signal: AbortSignal) {
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(60_000)]);
   let output = '';
   let stopped = false;

@@ -5,6 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Llm, LlmChunk } from './llm.js';
 
 /** What DSH keeps for a stored photo. */
 export interface ImageRef {
@@ -25,26 +26,6 @@ export interface FreeVision {
   baseUrl: string;
   /** Tried in order; the first that answers wins. */
   models: string[];
-}
-
-interface Chunk {
-  type: string;
-  text?: string;
-  reason?: { kind: string; failure?: { message: string } };
-}
-
-/** One model call as DSH takes it; the rest of DSH's request fields pass through untouched. */
-export interface LlmRequest {
-  provider: string;
-  model: string;
-  messages: readonly { role: string; content: readonly unknown[] }[];
-  system?: string;
-  maxTokens?: number;
-  signal?: AbortSignal;
-}
-
-export interface VisionLlm {
-  stream(options: LlmRequest): AsyncIterable<Chunk>;
 }
 
 export interface VisionAttachments {
@@ -72,7 +53,7 @@ export function describePrompt(question: string): string {
 }
 
 /** A vision model reached through DSH with the owner's key. */
-export function routeDescriber(llm: VisionLlm, route: VisionRoute): Describer {
+export function routeDescriber(llm: Llm, route: VisionRoute): Describer {
   return {
     label: `${route.provider}/${route.model}`,
     async describe(image, question, signal) {
@@ -93,7 +74,7 @@ export function routeDescriber(llm: VisionLlm, route: VisionRoute): Describer {
   };
 }
 
-async function collectText(chunks: AsyncIterable<Chunk>): Promise<string> {
+async function collectText(chunks: AsyncIterable<LlmChunk>): Promise<string> {
   let text = '';
   for await (const chunk of chunks) {
     if (chunk.type === 'text-delta') text += chunk.text ?? '';

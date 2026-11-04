@@ -12,12 +12,11 @@ import {
   freeDescriber,
   freeVisionAgreed,
   type ImageRef,
-  type LlmRequest,
   routeDescriber,
   type VisionAttachments,
-  type VisionLlm,
   type VisionRoute,
 } from './vision-services.js';
+import type { Llm, LlmRequest } from './llm.js';
 
 export const name = 'swiftnest-vision';
 export const inject = ['llm', 'attachments'];
@@ -50,7 +49,7 @@ interface StreamOptions extends LlmRequest {
 }
 
 export interface VisionContext {
-  llm: VisionLlm;
+  llm: Llm;
   attachments: VisionAttachments;
   on(
     event: 'llm/stream',

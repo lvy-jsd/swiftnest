@@ -694,5 +694,6 @@
   "memoryAutoHelp": "记忆保存在你的服务器上，整理时只使用该聊天原本使用的模型。",
   "memoryAutoRecent": "最近自动记住的",
   "memoryAutoEmpty": "聊天中值得长期记住的事会显示在这里。",
-  "memoryAdvanced": "更多记忆选项"
+  "memoryAdvanced": "更多记忆选项",
+  "memoryAutoSkippedLog": "自动记忆审阅已跳过 {0} 条无效操作。"
 }

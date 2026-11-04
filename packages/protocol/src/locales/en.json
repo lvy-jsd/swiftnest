@@ -694,5 +694,6 @@
   "memoryAutoHelp": "Memory stays on your server. Reviews use only the model you already use for this chat.",
   "memoryAutoRecent": "Recently remembered automatically",
   "memoryAutoEmpty": "Important things from your conversations will appear here.",
-  "memoryAdvanced": "More memory options"
+  "memoryAdvanced": "More memory options",
+  "memoryAutoSkippedLog": "Automatic memory review skipped {0} invalid operations."
 }

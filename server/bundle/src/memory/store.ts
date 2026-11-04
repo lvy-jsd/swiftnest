@@ -310,8 +310,8 @@ export class MemoryStore {
         .slice(0, 50),
     );
   }
-  /** Apply the complete validated proposal and cursor in the same recoverable transaction.
-   * Reject stale updates if another session or the owner changed the supplied baseline. */
+  /** Commit valid operations and the cursor together, skipping invalid facts.
+   * A concurrent change to the supplied baseline still rejects the entire proposal. */
   async applyAuto(
     sessionId: string,
     cursor: number,
@@ -333,16 +333,34 @@ export class MemoryStore {
         })
       )
         throw new ServerFailure(text('memoryInvalidData'));
-      for (const operation of validated) this.stageAuto(files, operation, baseline);
+      const staged = this.stageAutoBatch(files, validated, baseline);
       const state = this.autoState();
       state.cursors[sessionId] = cursor;
-      this.commit(files, { 'auto.json': JSON.stringify(state) });
+      this.commit(staged.files, { 'auto.json': JSON.stringify(state) });
+      if (staged.skipped) console.warn(message('memoryAutoSkippedLog', undefined, [staged.skipped]));
       return true;
     });
+  }
+  private stageAutoBatch(files: Map<string, string>, operations: MemoryOperation[], baseline: MemoryEntry[]) {
+    let skipped = 0;
+    for (const operation of operations) {
+      const candidate = new Map(files);
+      try {
+        this.stageAuto(candidate, operation, baseline);
+        this.prepare(candidate);
+      } catch (error) {
+        if (!(error instanceof ServerFailure)) throw error;
+        skipped++;
+        continue;
+      }
+      files = candidate;
+    }
+    return { files, skipped };
   }
   private stageAuto(files: Map<string, string>, operation: MemoryOperation, baseline: MemoryEntry[]): void {
     if (operation.op === 'none') return;
     const value = validateEntry(operation.text);
+    if (operation.topic !== undefined) validTopic(operation.topic);
     const entries = this.view(files).entries;
     if (operation.op === 'add') {
       if (!entries.some((entry) => entry.text.toLocaleLowerCase() === value.toLocaleLowerCase()))
@@ -350,10 +368,8 @@ export class MemoryStore {
       return;
     }
     const entry = entries.find((item) => item.id === operation.id);
-    if (!entry || !baseline.some((item) => item.id === entry.id && item.line === entry.line))
-      throw new ServerFailure(text('memoryInvalidData'));
+    if (!entry || !baseline.some((item) => item.id === entry.id)) throw new ServerFailure(text('memoryInvalidData'));
     const topic = operation.topic ?? entry.topic;
-    if (topic !== undefined) validTopic(topic);
     this.replaceEntry(files, entry, { text: value, source: 'auto', topic });
   }
 

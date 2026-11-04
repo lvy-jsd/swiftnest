@@ -1,17 +1,12 @@
 import { z } from 'zod';
-import { characters, memoryRules } from './rules.js';
 
-const fact = z
-  .string()
-  .trim()
-  .min(1)
-  .refine((value) => characters(value) <= memoryRules.entry);
-const topic = z.string().regex(memoryRules.topicName).optional();
+// Validate the JSON structure here; the store checks each fact against its write rules.
+const topic = z.string().optional();
 export const memoryOperations = z
   .array(
     z.discriminatedUnion('op', [
-      z.strictObject({ op: z.literal('add'), text: fact, topic }),
-      z.strictObject({ op: z.literal('update'), id: z.string().min(1), text: fact, topic }),
+      z.strictObject({ op: z.literal('add'), text: z.string(), topic }),
+      z.strictObject({ op: z.literal('update'), id: z.string(), text: z.string(), topic }),
       z.strictObject({ op: z.literal('none') }),
     ]),
   )

@@ -58,3 +58,38 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
   },
   90_000,
 );
+
+it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
+  'a rejected secret does not block valid facts or replay messages in the next review',
+  async () => {
+    const harness = new MemoryHarness();
+    const secret = 'my api key: sk-abc...';
+    harness.autoProposal = ({ entries }) =>
+      entries.length
+        ? [{ op: 'update', id: entries[0]!.id, text: 'Prefers coffee' }]
+        : [
+            { op: 'add', text: secret },
+            { op: 'add', text: 'Prefers tea' },
+          ];
+    try {
+      await harness.start(100);
+      const { sessionId } = await harness.client.createSession();
+      await harness.turn(sessionId, `I prefer tea. ${secret}`);
+      await expect
+        .poll(async () => (await harness.client.recentAutoMemory()).map((entry) => entry.text), { timeout: 15_000 })
+        .toEqual(['Prefers tea']);
+      await harness.turn(sessionId, 'I now prefer coffee.');
+      await expect
+        .poll(async () => (await harness.client.recentAutoMemory()).map((entry) => entry.text), { timeout: 15_000 })
+        .toEqual(['Prefers coffee']);
+      expect(harness.autoReviews).toHaveLength(2);
+      expect(harness.autoReviews[1]!.messages.filter((item) => item.role === 'user')).toEqual([
+        { role: 'user', text: 'I now prefer coffee.' },
+      ]);
+      expect(harness.logs.some((line) => line.includes(secret))).toBe(false);
+    } finally {
+      await harness.close();
+    }
+  },
+  60_000,
+);

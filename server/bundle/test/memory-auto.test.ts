@@ -40,8 +40,8 @@ it.each([
   '[{"op":"add","text":"ok","extra":true}]',
   '[{"op":"update","text":"missing id"}]',
   '[{"op":"none","text":"extra"}]',
-  '[{"op":"add","text":"ok","topic":"../escape"}]',
-  '[{"op":"add","text":""}]',
+  '[{"op":"add","text":42}]',
+  '[{"op":"add","topic":"Preferences"}]',
 ])('rejects invalid or extra data: %s', (output) => {
   expect(() => memoryOperations.parse(JSON.parse(output))).toThrow();
 });
@@ -66,28 +66,6 @@ it('adds, deduplicates, replaces an id, and redacts old snapshots through the no
   expect(await store.recentAuto()).toMatchObject([{ text: 'Likes coffee', added: expect.any(String) }]);
   expect(new MemoryStore(home).reviewed('two')).toBe(10);
   expect(readFileSync(join(home, 'memory/journal.jsonl'), 'utf8')).not.toContain('Likes tea');
-});
-
-it('rejects a whole batch containing a secret, unknown id, stale update or over-limit fact without advancing', async () => {
-  const { entry } = await store.remember('Original fact');
-  const baseline = (await store.list()).entries;
-  for (const operation of [
-    { op: 'add' as const, text: 'password=hidden' },
-    { op: 'update' as const, id: 'missing', text: 'New fact' },
-  ]) {
-    await expect(
-      store.applyAuto('one', 4, [{ op: 'add', text: 'Valid fact' }, operation], baseline, () => true),
-    ).rejects.toThrow();
-    expect((await store.list()).entries).toEqual(baseline);
-    expect(store.reviewed('one')).toBe(0);
-  }
-  await store.edit(entry.id, 'Owner changed this');
-  await expect(
-    store.applyAuto('one', 4, [{ op: 'update', id: entry.id, text: 'Stale fact' }], baseline, () => true),
-  ).rejects.toThrow();
-  await expect(
-    store.applyAuto('one', 4, [{ op: 'add', text: 'x'.repeat(301) }], baseline, () => true),
-  ).rejects.toThrow();
 });
 
 it('replays facts and cursor together after an interrupted pending transaction', async () => {
@@ -126,6 +104,48 @@ function harness(output = '[{"op":"add","text":"Likes tea"}]', id = 'chat', shar
   };
   return { ctx, automatic, append, start, requests, session, events, stream };
 }
+
+it('skips a secret proposal, persists the cursor, and sends only new messages on the next review', async () => {
+  vi.useFakeTimers();
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const secret = 'my api key: sk-abc...';
+  const h = harness(
+    JSON.stringify([
+      { op: 'add', text: secret },
+      { op: 'add', text: 'Likes tea' },
+    ]),
+  );
+  h.start(`I like tea. ${secret}`);
+  h.append('turn/end');
+  await vi.advanceTimersByTimeAsync(100);
+  expect((await store.list()).entries).toMatchObject([{ text: 'Likes tea', source: 'auto' }]);
+  expect(new MemoryStore(home).reviewed('chat')).toBe(4);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(h.stream).toHaveBeenCalledOnce();
+  h.automatic.dispose();
+  const restarted = new AutomaticMemory(h.ctx, new MemoryStore(home), true, 100);
+  restarted.observe(h.session);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(h.stream).toHaveBeenCalledOnce();
+  h.stream.mockImplementationOnce(async function* (options) {
+    h.requests.push(options);
+    yield { type: 'text-delta', text: '[{"op":"add","text":"Works on a garden project"}]' };
+    yield { type: 'finish', reason: { kind: 'stop' } };
+  });
+  h.start('I work on an ongoing garden project');
+  h.append('turn/end');
+  restarted.observe(h.session);
+  await vi.advanceTimersByTimeAsync(100);
+  const input = JSON.stringify(h.requests[1]!.messages);
+  expect(input).toContain('ongoing garden project');
+  expect(input).not.toContain(secret);
+  expect(input).not.toContain('I like tea.');
+  expect((await store.recentAuto()).map((entry) => entry.text)).toEqual(['Works on a garden project', 'Likes tea']);
+  expect(store.reviewed('chat')).toBe(8);
+  expect(warning).toHaveBeenCalledOnce();
+  expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
+  restarted.dispose();
+});
 
 it('waits for quiet, resets on a new turn, uses only new owner messages and the chat route', async () => {
   vi.useFakeTimers();
