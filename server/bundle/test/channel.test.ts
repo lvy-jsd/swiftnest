@@ -174,6 +174,9 @@ describe('standard Noise App channel', () => {
     expect(channelRoute('POST', '/api/session/create')).toBe(true);
     expect(channelRoute('WS', '/api/remote.mux')).toBe(true);
     expect(channelRoute('GET', '/swiftnest/api/devices/events')).toBe(true);
+    expect(channelRoute('GET', '/swiftnest/api/devices/files?path=media%2Fanimation.gif')).toBe(true);
+    expect(channelRoute('POST', '/swiftnest/api/devices/files')).toBe(false);
+    expect(channelRoute('GET', '/swiftnest/api/devices/files/private')).toBe(false);
     expect(channelRoute('GET', '/api/session/create')).toBe(false);
     expect(channelRoute('DELETE', '/swiftnest/api/devices')).toBe(false);
     expect(channelRoute('WS', '/api/session/follow')).toBe(false);

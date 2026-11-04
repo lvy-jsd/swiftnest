@@ -80,7 +80,7 @@ function keepMarketInstalls(config: ServerConfig, profile: string, plugins: Prof
 function toolUltraRows(config: ServerConfig, missing: string[]): unknown[] | undefined {
   if (!isEnabled(pluginById(TOOL_ULTRA_ID, 'git'), config.plugins)) return undefined;
   const dir = toolUltraDir(config);
-  if (isBuilt(dir)) return toolUltraPatch(dir);
+  if (isBuilt(dir)) return toolUltraPatch(dir, config);
   missing.push(TOOL_ULTRA_ID);
   return undefined;
 }

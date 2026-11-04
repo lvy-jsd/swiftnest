@@ -27,13 +27,37 @@ export function isBuilt(dir: string): boolean {
   }
 }
 
+interface PatchRow {
+  insert: { name: string; config: Record<string, unknown> }[];
+}
+
+function configureMedia(entry: PatchRow['insert'][number], config: ServerConfig): void {
+  const sourceModule = entry.name;
+  entry.name = '@swiftnest/server-bundle/media';
+  entry.config = {
+    ...entry.config,
+    sourceModule,
+    outputDir: join(config.home, 'files', 'media'),
+    inputDirs: [join(config.home, 'files')],
+    modelCacheDir: join(config.home, 'models'),
+    modelMirror: config.media?.modelMirror,
+    lang: config.lang ?? 'zh-CN',
+  };
+  for (const key of ['soundfont', 'soundfontUrl'] as const) {
+    if (config.media?.[key] !== undefined) entry.config[key] = config.media[key];
+  }
+}
+
 /** Preserve each upstream row and its config, changing only the module location. */
-export function toolUltraPatch(dir: string): unknown[] {
+export function toolUltraPatch(dir: string, config?: ServerConfig): unknown[] {
   return TOOL_ULTRA_PACKAGES.flatMap((pkg) => {
     const packageDir = resolve(dir, 'packages', `dsh-tool-ultra-${pkg}`);
-    const rows = parse(readFileSync(join(packageDir, 'cordis.patch.yml'), 'utf8')) as { insert: { name: string }[] }[];
+    const rows = parse(readFileSync(join(packageDir, 'cordis.patch.yml'), 'utf8')) as PatchRow[];
     for (const row of rows) {
-      for (const entry of row.insert) entry.name = join(packageDir, 'lib', 'index.js');
+      for (const entry of row.insert) {
+        entry.name = join(packageDir, 'lib', 'index.js');
+        if (pkg === 'pack-media' && config) configureMedia(entry, config);
+      }
     }
     return rows;
   });

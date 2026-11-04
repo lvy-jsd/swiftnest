@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `8ccfefa1a922ad407e57ecbe6ea8b68e24adcbd9` 构建。
+Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `27df9c25a97016bed9bbd5f0d905747b14c6c278` 构建。
 
 ## 安装与启用
 
@@ -13,7 +13,9 @@ swiftnest-server start --config swiftnest.yaml
 
 源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
-安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-8ccfefa1a922` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-27df9c25a970` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+
+首次安装还需从 npm 下载图像和本地语音运行库，下载量因系统而异，与首次转写时下载的语音模型是两回事。网络超时后，可在连接恢复后重试同一个安装命令。
 
 Tool Ultra 默认启用，固定提交写在 [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json)。启动时若未安装，会给出安装提示并继续运行；启动不会自动获取源码。关闭方法：
 
@@ -28,7 +30,7 @@ plugins:
 
 ## 工具与审批
 
-启用的包为 `core`、`classifier-rules`、`risk-gate`、`persist`、`pack-essentials`、`pack-web`、`devices`。默认配置从各包自己的 `cordis.patch.yml` 读取，生成绝对路径的 DSH `insert` 行。自定义配置放在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，最后应用且不被改写；DSH 的配置覆盖会替换整行 `config`，修改时须保留需要的其他字段。
+启用的包为 `core`、`classifier-rules`、`risk-gate`、`persist`、`pack-essentials`、`pack-web`、`devices`、`pack-media`。默认配置从各包自己的 `cordis.patch.yml` 读取，生成绝对路径的 DSH `insert` 行。自定义配置放在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，最后应用且不被改写；DSH 的配置覆盖会替换整行 `config`，修改时须保留需要的其他字段。
 
 模型可通过 `tools_ls` 浏览目录、`tools_find` 查找工具，通过 `tools_load` 加载。例如：
 
@@ -50,3 +52,43 @@ SWIFTNEST_TOOL_ULTRA_E2E=1 pnpm vitest run server/test/tool-ultra.e2e.test.ts
 ```
 
 测试使用临时数据目录、真实 DSH 内核、脚本模型和配对的 Node Perch。要同时验证 App 中的批准与拒绝按钮，先构建 App 并准备 Chromium，再额外设置 `SWIFTNEST_WEB_E2E=1`（可用 `SWIFTNEST_CHROMIUM` 指定浏览器）。CI 会运行这条完整链路。
+
+## 媒体工具
+
+直接在聊天中说“画一张中文图表”“做一段铃声”或“生成一个短视频”即可。媒体包随 Tool Ultra 默认启用，无需 API key；模型可用 `tools_load` 的 `{"targets":["pack:media"]}` 加载。`html_render` 用 HTML/CSS 制作海报、卡片或幻灯片，支持中文和表情，也能把 CSS 动画保存成 GIF/WebP；`svg_render` 把 SVG 绘图变成图片，`chart_render` 绘制 Vega-Lite 图表，`music_render` 生成 MIDI/WAV 音乐，`video_render` 将 HTML、SVG 或图片场景和可选配乐合成 MP4。`audio_transcribe` 把录音变成带时间戳的文字和 SRT 字幕；`video_understand` 返回视频时长、画面与声音信息、场景切换时间、带时间标记的故事板图片和语音文字。故事板按场景切换选取关键帧，较长镜头会多取几帧；未发现切换时均匀取帧。
+
+例如可以说：“做一个 1080×1920 的竖屏短片，两个场景分别是早安和出发，加弹跳字幕、转场和轻快配乐。”也可上传录音后说“转成文字和字幕”，再让助手把字幕加入视频。视频支持淡入淡出、滑动、擦除、圆形和直接切换，帧率可选 24、30 或 60。
+
+HTML 绘制由 Takumi 在本地完成，无需浏览器。脚本、网络字体和外部链接会被拒绝；可使用内嵌图片或已生成文件。中文需安装 Noto Sans CJK 等字体，彩色表情需 Noto Color Emoji。页面语言跟随服务器语言；有 fontconfig 时自动寻找字体，没有时可由管理员通过媒体包的 `fontFiles` 指定本机字体。
+
+首次生成音乐会尝试下载约 24 MB 的 FluidR3 Mono GM 乐器音色库到 `<home>/models/soundfonts`，并校验 SHA-256；后续使用缓存，不需要反复下载。默认地址是 `raw.githubusercontent.com`，国内可能无法访问。目前没有配置经过验证的国内自动镜像；下载失败时会自动使用内置合成器，并在工具结果中说明，仍可生成配乐。管理员可以选择可信的同文件 HTTPS 镜像，或使用本地 `.sf2`/`.sf3` 文件（本地文件优先）：
+
+```yaml
+media:
+  soundfontUrl: https://your-mirror.example/FluidR3Mono_GM.sf3
+  # 或使用本地文件，无需下载：
+  # soundfont: /srv/sounds/library.sf3
+```
+
+这两项均可省略；请勿直接照抄示例镜像地址。更换镜像仍会校验默认音色库的 SHA-256。音色库下载与下面的语音模型下载是两回事。
+
+生成文件会显示在聊天中：可以预览图片、播放音视频、下载文件，或点击“发送文件到…”发给已配对的手机。请选择手机上已共享的接收文件夹，并在手机上批准传输。生成文件保存在 `<home>/files/media`，通过文件传输接收的手机上传位于 `<home>/files` 下；媒体工具仅能读取这些目录，拒绝其他路径以及指向目录之外的符号链接。
+
+视频和语音工具使用 PATH 中的 `ffmpeg`、`ffprobe`。缺少时，聊天会提示安装 ffmpeg，其他功能照常运行。中文绘图需要 Noto Sans CJK 等中文字体；系统有 fontconfig 时会快速检查字体。
+
+首次转写会下载约 200 MB 的语音和说话人模型到 `<home>/models/sherpa-onnx`，聊天会显示首次准备提示。语音识别通过 sherpa-onnx 在本地 CPU 上运行，默认使用 SenseVoice Small（FunAudioLLM / FunASR）和 4 个线程，可识别中文、粤语、英语、日语、韩语，以及情绪和笑声等声音。其他语言会自动使用 Whisper large-v3-turbo，另需下载约 540 MB。录音始终留在服务器。
+
+默认开启说话人分离（`speakers: true`）：多人录音中的“Speaker 1”“Speaker 2”等标签会保留到聊天、模型收到的文本和 SRT 字幕中；只有一个声音时不加标签。单人录音可要求跳过说话人分离（`speakers: false`），转写会更快。
+
+模型来自 sherpa-onnx 的 GitHub Releases。中文服务器优先使用公共下载镜像 `gh-proxy.com`；英文服务器检查一个小模型的 GitHub 下载地址，最多等待两秒，无法访问时切换该镜像。验证时镜像可达，实际网络的可用性可能不同。媒体包仍会校验所有模型的 SHA-256。管理员可在服务器 YAML 中指定下载基址（须保留完整发布路径，末尾斜杠会自动补齐）：
+
+```yaml
+media:
+  modelMirror: https://github.com/k2-fsa/sherpa-onnx/releases/download/
+```
+
+此可选示例可让中文服务器也直接使用 GitHub。镜像必须提供相同的发布子路径和文件。媒体包的高级选项 `speechModel` 支持 `sensevoice`（默认）和 `whisper-turbo`，`speechThreads` 默认为 4，普通使用无需修改。
+
+纯文本模型收到事实、转写和故事板路径，不会收到图片字节。App 仍会为你展示故事板；模型需要支持视觉并使用图片读取工具才能查看画面。
+
+开发者真实测试：`SWIFTNEST_MEDIA_E2E=1 pnpm vitest run server/test/media.e2e.test.ts`。测试使用 eSpeak 合成的英文语音、ffmpeg、中文/表情字体，验证中文图表、HTML 动画、5 秒视频、两段 HTML 的竖屏配乐短片、SenseVoice 转写、聊天/模型文本和 SRT 中的说话人标签，以及故事板。除 eSpeak 语音外，还使用 sherpa-onnx 公开的四人中文录音。运行时可设置 `SWIFTNEST_MEDIA_MODEL_CACHE=$HOME/.cache/dsh-tool-ultra/models` 复用可写的测试模型缓存；不设置则使用临时目录。
