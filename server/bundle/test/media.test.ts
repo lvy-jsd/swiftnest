@@ -1,10 +1,10 @@
-import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { mediaFiles } from '../src/media-files.js';
 import { modelMirror, requireMediaPrograms } from '../src/media-runtime.js';
-import { adaptTool } from '../src/media.js';
+import { adaptTool, mediaGeminiConfig, apply } from '../src/media.js';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -101,4 +101,59 @@ it('keeps media output as text for the model and persists separate App attachmen
   expect(tool.output.presentationMeta({}, result)).toEqual({
     mediaFiles: [{ path: 'media/storyboard.jpg', name: 'storyboard.jpg' }],
   });
+});
+
+it('injects only the Models Google key in memory, and never passes a key when uploads are off', () => {
+  const config = { sourceModule: '', outputDir: '', inputDirs: [], modelCacheDir: '', lang: 'en' as const };
+  const key = 'google-model-test-key';
+  const env = { SWIFTNEST_MODEL_KEY_GOOGLE: key, GEMINI_API_KEY: 'unrelated-key' };
+  expect(mediaGeminiConfig(config, env)).toMatchObject({ geminiUploads: false, geminiApiKey: undefined });
+  expect(mediaGeminiConfig({ ...config, geminiUploads: false }, env)).toMatchObject({
+    geminiUploads: false,
+    geminiApiKey: undefined,
+  });
+  expect(mediaGeminiConfig({ ...config, geminiUploads: true }, env)).toMatchObject({
+    geminiUploads: true,
+    geminiApiKey: key,
+  });
+  expect(mediaGeminiConfig({ ...config, geminiUploads: true }, { GEMINI_API_KEY: key })).toMatchObject({
+    geminiUploads: false,
+    geminiApiKey: undefined,
+  });
+});
+
+it('passes the Models key only to the loaded media module, leaving profile config and key-file path untouched', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'swiftnest-media-secret-'));
+  roots.push(root);
+  const source = join(root, 'media.mjs');
+  await writeFile(
+    source,
+    `
+    export const resolveSettings = () => ({ speech: { mirror: 'https://models.example/' } });
+    export function apply(ctx, config) { ctx.tools.register({ name: 'fixture', received: config }); }
+  `,
+  );
+  const config = {
+    sourceModule: source,
+    outputDir: join(root, 'files/media'),
+    inputDirs: [join(root, 'files')],
+    modelCacheDir: join(root, 'models'),
+    modelMirror: 'https://models.example/',
+    geminiKeyFile: join(root, 'media-gemini.key'),
+    lang: 'en' as const,
+  };
+  const key = 'shared-google-model-key';
+  vi.stubEnv('SWIFTNEST_MODEL_KEY_GOOGLE', key);
+  const register = vi.fn();
+  for (const enabled of [false, true]) {
+    const profile = { ...config, geminiUploads: enabled };
+    await apply({ tools: { register } }, profile);
+    expect(register.mock.lastCall![0].received).toMatchObject({
+      geminiUploads: enabled,
+      geminiApiKey: enabled ? key : undefined,
+      geminiKeyFile: config.geminiKeyFile,
+    });
+    expect(JSON.stringify(profile).includes(key)).toBe(false);
+    await expect(stat(config.geminiKeyFile)).rejects.toMatchObject({ code: 'ENOENT' });
+  }
 });

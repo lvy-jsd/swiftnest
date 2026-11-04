@@ -703,5 +703,11 @@
   "memoryAutoRecent": "Recently remembered automatically",
   "memoryAutoEmpty": "Important things from your conversations will appear here.",
   "memoryAdvanced": "More memory options",
-  "memoryAutoSkippedLog": "Automatic memory review skipped {0} invalid operations."
+  "memoryAutoSkippedLog": "Automatic memory review skipped {0} invalid operations.",
+  "media.gemini_uploads_title": "Recordings and videos",
+  "media.gemini_uploads_switch": "Send recordings and videos to Google Gemini for better results",
+  "media.gemini_uploads_help": "When on, files leave this computer and go to Google. When off, recordings and videos stay local.",
+  "media.gemini_uploads_apply": "Save your choice, then apply changes on this page to restart the assistant.",
+  "media.gemini_uploads_key_required": "Add your Google key on the Models page before turning this on. The switch stays off until a key is saved.",
+  "media.gemini_uploads_add_key": "Add Google key"
 }

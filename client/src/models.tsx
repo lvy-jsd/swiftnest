@@ -237,7 +237,15 @@ function ProviderChoice({
   );
 }
 
-function ProviderKey({ draft, update }: { draft: ExpertDraft; update: (draft: ExpertDraft) => void }) {
+function ProviderKey({
+  draft,
+  update,
+  keyOnly = false,
+}: {
+  draft: ExpertDraft;
+  update: (draft: ExpertDraft) => void;
+  keyOnly?: boolean;
+}) {
   const { t } = useI18n();
   const { provider } = draft;
   if (!provider) return null;
@@ -261,13 +269,15 @@ function ProviderKey({ draft, update }: { draft: ExpertDraft; update: (draft: Ex
         />
       </label>
       <p className="plugin-muted">{t('modelsKeyHelp')}</p>
-      <details>
-        <summary>{t('modelsAdvanced')}</summary>
-        <label className="model-field">
-          <span className="model-label">{t('modelsModelId')}</span>
-          <input value={draft.model} onChange={(event) => update({ ...draft, model: event.target.value })} />
-        </label>
-      </details>
+      {!keyOnly && (
+        <details>
+          <summary>{t('modelsAdvanced')}</summary>
+          <label className="model-field">
+            <span className="model-label">{t('modelsModelId')}</span>
+            <input value={draft.model} onChange={(event) => update({ ...draft, model: event.target.value })} />
+          </label>
+        </details>
+      )}
     </>
   );
 }
@@ -278,20 +288,26 @@ function ExpertSheet({
   disabled,
   close,
   save,
+  keyOnly,
 }: {
   view: ModelsView;
   open: boolean;
+  keyOnly?: ModelProviderView;
   disabled: boolean;
   close: () => void;
   save: (draft: ExpertDraft) => Promise<void>;
 }) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState<ExpertDraft>({ key: '', model: '' });
+  const [draft, setDraft] = useState<ExpertDraft>({
+    provider: keyOnly,
+    key: '',
+    model: keyOnly?.recommendedModel ?? '',
+  });
   const pick = (provider: ModelProviderView) => setDraft({ provider, key: '', model: modelFor(view, provider) });
   return (
     <SheetPage
       open={open}
-      title={t('modelsExpert')}
+      title={t(keyOnly ? 'media.gemini_uploads_add_key' : 'modelsExpert')}
       onClose={close}
       actions={
         <>
@@ -302,9 +318,9 @@ function ExpertSheet({
         </>
       }
     >
-      <p>{t('modelsExpertHelp')}</p>
-      <ProviderChoice view={view} draft={draft} pick={pick} />
-      <ProviderKey draft={draft} update={setDraft} />
+      <p>{t(keyOnly ? 'media.gemini_uploads_key_required' : 'modelsExpertHelp')}</p>
+      {!keyOnly && <ProviderChoice view={view} draft={draft} pick={pick} />}
+      <ProviderKey draft={draft} update={setDraft} keyOnly={!!keyOnly} />
     </SheetPage>
   );
 }
@@ -315,8 +331,53 @@ function saveExpert(client: SwiftnestClient, { provider, key, model }: ExpertDra
   return saveKey.then(() => client.updateModels({ expert: { provider: id, model: model.trim() } }));
 }
 
+export function MediaGeminiSettings({
+  view,
+  disabled,
+  save,
+  addKey,
+}: {
+  view: ModelsView;
+  disabled: boolean;
+  save: (update: ModelSettingsUpdate) => void;
+  addKey: () => void;
+}) {
+  const { t } = useI18n();
+  const hasKey = !!view.providers.find((provider) => provider.id === 'google')?.keyHint;
+  const enabled = view.geminiUploads && hasKey;
+  return (
+    <Card className="plugin-card">
+      <h2>{t('media.gemini_uploads_title')}</h2>
+      <label className="model-field">
+        <span className="model-label">{t('media.gemini_uploads_switch')}</span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={enabled}
+          aria-checked={enabled}
+          disabled={disabled}
+          aria-describedby="media-gemini-help"
+          onChange={() => (hasKey ? save({ geminiUploads: !enabled }) : addKey())}
+        />
+      </label>
+      <p className="plugin-muted" id="media-gemini-help">
+        {t('media.gemini_uploads_help')}
+      </p>
+      {!hasKey && (
+        <>
+          <p className="plugin-muted">{t('media.gemini_uploads_key_required')}</p>
+          <Button disabled={disabled} onClick={addKey}>
+            {t('media.gemini_uploads_add_key')}
+          </Button>
+        </>
+      )}
+      <p className="plugin-muted">{t('media.gemini_uploads_apply')}</p>
+    </Card>
+  );
+}
+
 function ModelSettings({ view, disabled, act }: { view: ModelsView; disabled: boolean; act: Save }) {
-  const [choosing, setChoosing] = useState(false);
+  const [choosing, setChoosing] = useState<'expert' | 'google' | undefined>();
   const save = (update: ModelSettingsUpdate) => void act((client) => client.updateModels(update));
   const remove = (provider: ModelProviderView) =>
     void act(async (client) => {
@@ -324,17 +385,27 @@ function ModelSettings({ view, disabled, act }: { view: ModelsView; disabled: bo
       return client.updateModels(routesWithout(view, provider.id));
     });
   const addExpert = async (draft: ExpertDraft) => {
-    if (await act((client) => saveExpert(client, draft))) setChoosing(false);
+    const action = (client: SwiftnestClient) =>
+      choosing === 'google' ? client.setModelKey('google', draft.key.trim()) : saveExpert(client, draft);
+    if (await act(action)) setChoosing(undefined);
   };
   return (
     <>
       <LocalModel view={view} />
       <Photos view={view} disabled={disabled} save={save} />
-      <Expert view={view} disabled={disabled} choose={() => setChoosing(true)} save={save} />
+      <Expert view={view} disabled={disabled} choose={() => setChoosing('expert')} save={save} />
+      <MediaGeminiSettings view={view} disabled={disabled} save={save} addKey={() => setChoosing('google')} />
       <CloudKeys view={view} disabled={disabled} remove={remove} />
       <MainModel view={view} disabled={disabled} save={save} />
       {choosing && (
-        <ExpertSheet view={view} open disabled={disabled} close={() => setChoosing(false)} save={addExpert} />
+        <ExpertSheet
+          view={view}
+          open
+          disabled={disabled}
+          close={() => setChoosing(undefined)}
+          save={addExpert}
+          keyOnly={choosing === 'google' ? view.providers.find((provider) => provider.id === 'google') : undefined}
+        />
       )}
     </>
   );

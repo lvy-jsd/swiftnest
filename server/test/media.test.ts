@@ -44,6 +44,8 @@ it.each(['zh-CN', 'en'] as const)('enables media with Tool Ultra and forwards th
     modelCacheDir: join(root, 'models'),
     lang,
     modelMirror: undefined,
+    geminiUploads: false,
+    geminiKeyFile: join(root, 'media-gemini.key'),
   });
   expect(await readFile(join(root, 'packages/dsh-tool-ultra-pack-media/cordis.patch.yml'), 'utf8')).not.toContain(
     'outputDir',
@@ -51,10 +53,13 @@ it.each(['zh-CN', 'en'] as const)('enables media with Tool Ultra and forwards th
   config.media = {
     modelMirror: 'https://models.example/releases/',
     soundfont: '/srv/instruments.sf3',
+    geminiUploads: true,
     soundfontUrl: 'https://sounds.example/FluidR3Mono_GM.sf3',
   };
   const overridden = (toolUltraPatch(root, config) as any[]).at(-1).insert[0].config;
   expect(overridden).toMatchObject(config.media);
+  expect(overridden).not.toHaveProperty('geminiApiKey');
+  expect(overridden).not.toHaveProperty('geminiModel');
 });
 it('accepts an operator speech mirror and refuses invalid URLs', async () => {
   const root = await mkdtemp(join(tmpdir(), 'swiftnest-media-host-'));
