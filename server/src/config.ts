@@ -78,6 +78,8 @@ export interface ServerConfig {
   /** Where photos go when nothing else can read them and the owner agreed; defaults to {@link FREE_VISION}. */
   freeVision?: FreeVisionService;
   files?: { quotaBytes: number };
+  /** Optional download mirrors and an administrator-owned local instrument library. */
+  media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string };
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean; auto?: boolean };
   devices: { host: string; port: number; mdns: boolean };
@@ -186,6 +188,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     },
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
+    media: fromFile.media,
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
@@ -222,6 +225,10 @@ export function validate(config: ServerConfig): void {
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
     throw new ServerFailure(text('assistantNameMustString'));
+  validateMediaUrl(config.media?.modelMirror, 'media.model_mirror_invalid');
+  validateMediaUrl(config.media?.soundfontUrl, 'media.soundfont_url_invalid');
+  if (config.media?.soundfont !== undefined && typeof config.media.soundfont !== 'string')
+    throw new ServerFailure(text('media.soundfont_path_invalid'));
   checkOverrides(config.plugins);
   if (config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0))
     throw new ServerFailure(text('filesQuotabytesMustNonnegativeSafeInteger'));
@@ -268,4 +275,17 @@ function validateMemoryAuto(value: unknown, environment?: string): void {
     (environment !== undefined && !['true', 'false'].includes(environment))
   )
     throw new ServerFailure(text('memoryAutoMustBoolean'));
+}
+
+function validateMediaUrl(
+  value: string | undefined,
+  key: 'media.model_mirror_invalid' | 'media.soundfont_url_invalid',
+) {
+  if (value === undefined) return;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error();
+  } catch {
+    throw new ServerFailure(text(key));
+  }
 }

@@ -2,6 +2,9 @@
 # Fresh Debian/Ubuntu VPS. No home router changes. Usage: sudo sh install.sh relay.example.com
 set -eu
 umask 077
+# Docker Hub multi-arch index; bump version and digest together (checked 2026-11-04).
+# https://hub.docker.com/v2/repositories/library/caddy/tags/2.11.7
+caddy_image='caddy:2.11.7@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e'
 relay_domain=${1:-}
 case "$relay_domain" in
   *[!a-zA-Z0-9.-]*|''|.*|*.|*..*|*-.*|*.-*|-*|*-)
@@ -39,6 +42,6 @@ docker run -d --name swiftnest-relay --network host --restart unless-stopped \
   --env-file "$relay_dir/relay.env" --log-driver none swiftnest-relay:local
 docker run -d --name swiftnest-relay-tls --network host --restart unless-stopped \
   -v "$relay_dir/Caddyfile:/etc/caddy/Caddyfile:ro" -v swiftnest-relay-certs:/data \
-  caddy:2
+  "$caddy_image"
 printf '\n中转地址 / Relay address: https://%s/\n中转密钥 / Relay secret: %s\n' "$relay_domain" "$relay_secret"
 echo '请保存到密码管理器，再粘贴到 App 高级设置。 / Save these in your password manager, then paste into App advanced settings.'

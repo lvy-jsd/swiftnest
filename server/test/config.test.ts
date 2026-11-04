@@ -164,12 +164,21 @@ it('validates memory.auto in YAML, direct config and environment with environmen
   expect(() => loadConfig(file, { SWIFTNEST_MEMORY_AUTO: 'true' })).toThrow(/memory.auto/);
 });
 
-it('keeps relay settings and automatic memory together and validates each', () => {
+it('keeps relay, media and automatic memory together and validates each', () => {
   const file = join(tmp(), 'relay-memory.yaml');
   const relay = { address: 'https://relay.example.com/', secret: 'a'.repeat(32) };
-  writeFileSync(file, `relay:\n  address: ${relay.address}\n  secret: ${relay.secret}\nmemory: { auto: false }\n`);
+  const media = { modelMirror: 'https://models.example.com/', soundfontUrl: 'https://sounds.example.com/piano.sf3' };
+  writeFileSync(
+    file,
+    [
+      `relay:\n  address: ${relay.address}\n  secret: ${relay.secret}`,
+      'memory: { auto: false }',
+      `media:\n  modelMirror: ${media.modelMirror}\n  soundfontUrl: ${media.soundfontUrl}\n`,
+    ].join('\n'),
+  );
   const config = loadConfig(file, {});
   expect(config.relay).toEqual(relay);
+  expect(config.media).toEqual(media);
   expect(config.memory).toEqual({ enabled: true, auto: false });
   expect(loadConfig(file, { SWIFTNEST_MEMORY_AUTO: 'true' }).memory?.auto).toBe(true);
   expect(() => validate(config)).not.toThrow();
@@ -177,4 +186,7 @@ it('keeps relay settings and automatic memory together and validates each', () =
   expect(() => validate({ ...config, memory: { enabled: true, auto: 'false' as unknown as boolean } })).toThrow(
     /memory.auto/,
   );
+  for (const key of ['modelMirror', 'soundfontUrl'] as const) {
+    expect(() => validate({ ...config, media: { ...media, [key]: 'http://insecure.example.com/file' } })).toThrow();
+  }
 });

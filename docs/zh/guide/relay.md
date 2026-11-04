@@ -20,6 +20,8 @@ apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubuserco
 
 该命令适用于已发布 R2 的 `main`；发布前测试时把下载地址和 `SWIFTNEST_RELAY_REF` 都改为包含 R2 的分支或标签。可先下载阅读脚本再执行。脚本会安装 Docker、从源代码构建中转、生成随机密钥，并启动中转与 Caddy。选用容器是为了不要求你安装 Node 或手写系统服务；两者都设置了自动重启。中转仅监听 VPS 自己的回环地址，由 Caddy 提供公网 HTTPS 入口。Caddy 自动向 Let's Encrypt 申请并续期证书，证书保存在独立卷中，中转不保存任何聊天或转发数据，也没有访问日志。[Caddy 的 HTTPS 说明](https://caddyserver.com/docs/automatic-https)
 
+Caddy 镜像固定为 `2.11.7`，并通过多架构 SHA-256 摘要锁定。升级时，在安装脚本顶部的 `caddy_image` 中一并更新版本号与摘要。
+
 等几分钟，命令最后会显示「中转地址」与「中转密钥」。把两项保存到密码管理器，密钥不要发给其他人。密钥也存在 VPS 的 `/opt/swiftnest-relay/relay.env`，仅 root 可读。先在浏览器打开 `https://relay.example.com/health`：空白页面且没有证书警告就表示已就绪。首次申请证书可能还要等一分钟。
 
 ## 在 App 中填写

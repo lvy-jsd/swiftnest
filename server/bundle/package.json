@@ -35,6 +35,10 @@
       "types": "./dist/channel-identity.d.ts",
       "default": "./dist/channel-identity.js"
     },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "default": "./dist/media.js"
+    },
     "./trusted-proxy": {
       "types": "./dist/trusted-proxy.d.ts",
       "default": "./dist/trusted-proxy.js"

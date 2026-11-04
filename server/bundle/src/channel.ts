@@ -84,12 +84,13 @@ class AppBridge {
         this.send({ t: 'error', status: admission.rejection });
         return;
       }
-      if (auth.browser) this.browserCookie = cookie;
+      const browser = auth.browser || Boolean(auth.ticket);
+      if (browser) this.browserCookie = cookie;
       this.authenticated();
       const owner = admission.peer.principal.kind === 'owner';
       this.send({
         t: 'ready',
-        cookie: auth.browser ? '' : cookie,
+        cookie: browser ? '' : cookie,
         ...this.metadata?.(),
         ...(owner ? {} : { relaySecret: undefined }),
       });

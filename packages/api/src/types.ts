@@ -51,6 +51,12 @@ export interface QuestionAnswer {
 }
 export type ApprovalAnswer = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable';
 
+export interface ChatAttachment {
+  /** Path relative to the existing server transfer storage. */
+  path: string;
+  name: string;
+}
+
 interface EventBase {
   sessionId: string;
   seq?: number;
@@ -64,7 +70,7 @@ export type SwiftnestEvent = EventBase &
     | { type: 'assistant-delta'; attemptId: string; index: number; text: string }
     | { type: 'assistant-message'; messageId: string; text: string }
     | { type: 'tool-start'; callId: string; name: string; arguments: string }
-    | { type: 'tool-result'; callId: string; text: string; isError: boolean }
+    | { type: 'tool-result'; callId: string; text: string; isError: boolean; attachments?: ChatAttachment[] }
     | { type: 'turn-end'; turn: number; reason: string }
     | { type: 'error'; code: string; message: string }
     | {

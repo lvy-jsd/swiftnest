@@ -16,7 +16,7 @@ import {
   type VisionAttachments,
   type VisionRoute,
 } from './vision-services.js';
-import type { Llm, LlmRequest } from './llm.js';
+import type { Llm, LlmChunk, LlmRequest } from './llm.js';
 
 export const name = 'swiftnest-vision';
 export const inject = ['llm', 'attachments'];
@@ -53,7 +53,7 @@ export interface VisionContext {
   attachments: VisionAttachments;
   on(
     event: 'llm/stream',
-    listener: (options: StreamOptions, next: () => AsyncIterable<unknown>) => AsyncIterable<unknown>,
+    listener: (options: StreamOptions, next: () => AsyncIterable<LlmChunk>) => AsyncIterable<LlmChunk>,
   ): () => void;
   effect(fn: () => () => void, label?: string): void;
 }

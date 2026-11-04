@@ -17,6 +17,7 @@ it.skipIf(process.env.SWIFTNEST_TOOL_ULTRA_E2E !== '1')(
     try {
       await harness.start();
       await verifyDevices(harness.client!, harness.script.offered);
+      await verifyMedia(harness.client!, harness.script.offered);
       await verifyRiskGate(harness.client!, harness.script.offered);
       const calculated = await turn(harness.client!, 'calculate');
       expect(calculated).toEqual(
@@ -112,4 +113,25 @@ async function browserApproval(kernel: RunningKernel, offered: Offered) {
   } finally {
     await browser.close();
   }
+}
+
+async function verifyMedia(client: SwiftnestClient, offered: Offered) {
+  for (const kind of ['chart', 'html']) {
+    const prompt = `media-${kind}`;
+    const events = await turn(client, prompt);
+    expect(offered(prompt, 1)).toContain(`${kind}_render`);
+    await verifyMediaDownload(client, events);
+  }
+}
+
+async function verifyMediaDownload(client: SwiftnestClient, events: SwiftnestEvent[]) {
+  const result = events.find((event) => event.type === 'tool-result' && event.attachments?.length);
+  expect(result, JSON.stringify(events)).toMatchObject({
+    isError: false,
+    attachments: [{ path: expect.stringMatching(/^media\/.*\.png$/u) }],
+  });
+  if (result?.type !== 'tool-result') throw new Error('Missing generated attachment');
+  const blob = await client.downloadFile(result.attachments![0]!.path);
+  expect(blob.type).toBe('image/png');
+  expect(blob.size).toBeGreaterThan(100);
 }

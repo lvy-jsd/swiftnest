@@ -36,6 +36,8 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
     const shipped = enabledPlugins<DshSource>(config.plugins, 'dsh').map((plugin) => plugin.source.package);
     try {
       await installPlugins(config, (line) => log.push(line));
+      // Successful registry retries are installation diagnostics, not kernel load failures.
+      const startup = log.length;
       const kernel = await startKernel(config, { readyTimeoutMs: 90_000, onLine: (line) => log.push(line) });
       // Plugins load after the ready line; give them time to fail loudly.
       await sleep(10_000);
@@ -49,7 +51,9 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
       ]);
       expect(alive).toBe(true);
       const names = plugins.flatMap((plugin) => [plugin.id, plugin.source.package]);
-      expect(log.filter((line) => FAILURE.test(line) && names.some((name) => line.includes(name)))).toEqual([]);
+      expect(
+        log.slice(startup).filter((line) => FAILURE.test(line) && names.some((name) => line.includes(name))),
+      ).toEqual([]);
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.stack : error}\n${log.slice(-80).join('\n')}`, {
         cause: error,

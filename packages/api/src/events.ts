@@ -15,6 +15,32 @@ function text(content: unknown): string {
     .join('');
 }
 
+function mediaAttachments(value: unknown): import('./types.js').ChatAttachment[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const file = record(item);
+    if (
+      typeof file.path !== 'string' ||
+      typeof file.name !== 'string' ||
+      !/^media\/[\p{L}\p{N}_-]+\.(png|jpe?g|webp|gif|mp4|wav|mid|srt)$/u.test(file.path)
+    )
+      return [];
+    return [{ path: file.path, name: file.name }];
+  });
+}
+
+function toolResult(data: Record<string, unknown>) {
+  const message = record(data.message);
+  const files = record(data.meta).mediaFiles;
+  return {
+    type: 'tool-result' as const,
+    callId: String(message.toolCallId),
+    text: text(message.content),
+    isError: message.isError === true,
+    ...(Array.isArray(files) ? { attachments: mediaAttachments(files) } : {}),
+  };
+}
+
 /** Stored image references in a user message; DSH replaces uploaded bytes with these. */
 function images(content: unknown): MessageImage[] {
   if (!Array.isArray(content)) return [];
@@ -67,15 +93,7 @@ export function mapEvent(sessionId: string, event: SessionWireEvent): SwiftnestE
         },
       ];
     case 'tool/result':
-      return [
-        {
-          ...base,
-          type: 'tool-result',
-          callId: String(message.toolCallId),
-          text: text(message.content),
-          isError: message.isError === true,
-        },
-      ];
+      return [{ ...base, ...toolResult(data) }];
     case 'turn/end': {
       const reason = record(data.reason);
       const result: SwiftnestEvent[] = [];

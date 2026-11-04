@@ -3,7 +3,7 @@
  * sending; and see the photos already in a conversation.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { ImageInput, MessageImage, ModelsView } from '@swiftnest/api';
+import type { ImageInput, ModelsView } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { icons } from './design/icons';
@@ -88,47 +88,6 @@ export function PhotoDrafts({ drafts, remove }: { drafts: readonly PhotoDraft[];
         </li>
       ))}
     </ul>
-  );
-}
-
-function StoredPhoto({ sessionId, image }: { sessionId: string; image: MessageImage }) {
-  const { t } = useI18n();
-  const { store, status } = useConnection();
-  const [src, setSrc] = useState<string>();
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    if (!store.client || status !== 'connected' || src) return;
-    let ended = false;
-    store.client
-      .readImage(sessionId, image)
-      .then((url) => !ended && setSrc(url))
-      .catch(() => !ended && setMissing(true));
-    return () => {
-      ended = true;
-    };
-  }, [store, status, sessionId, image, src]);
-  if (missing) return <span className="photo-missing">{t('photoUnavailable')}</span>;
-  return (
-    <img
-      src={src}
-      alt={image.name ?? t('photo')}
-      width={image.width}
-      height={image.height}
-      className="message-photo"
-      loading="lazy"
-    />
-  );
-}
-
-/** Photos sent with a message, loaded from the server as they come into view. */
-export function MessagePhotos({ sessionId, images }: { sessionId: string; images?: readonly MessageImage[] }) {
-  if (!images?.length) return null;
-  return (
-    <div className="message-photos">
-      {images.map((image) => (
-        <StoredPhoto key={image.attachmentId} sessionId={sessionId} image={image} />
-      ))}
-    </div>
   );
 }
 
