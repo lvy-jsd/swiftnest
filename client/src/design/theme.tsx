@@ -2,18 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { generatePalette, presets } from './palette';
 import type { Mode } from './palette';
-import {
-  breakpoints,
-  easing,
-  fonts,
-  gutters,
-  interaction,
-  motionDurations,
-  radii,
-  spacing,
-  surfaces,
-  typography,
-} from './tokens';
+import { easing, fonts, gutters, interaction, motionDurations, radii, spacing, surfaces, typography } from './tokens';
 
 export type ThemePreference = 'system' | Mode;
 const kebab = (value: string) => value.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
@@ -29,7 +18,6 @@ export function themeVariables(hue: number, mode: Mode, reducedMotion: boolean):
   add('space', spacing, 'px');
   add('radius', radii, 'px');
   add('gutter', gutters, 'px');
-  add('breakpoint', breakpoints, 'px');
   add('duration', motionDurations(reducedMotion), 'ms');
   add('easing', easing);
   add('font', fonts);
@@ -39,6 +27,9 @@ export function themeVariables(hue: number, mode: Mode, reducedMotion: boolean):
     variables[`--type-${kebab(name)}-weight`] = String(type.weight);
   }
   variables['--surface-blur'] = `${surfaces.blur}px`;
+  variables['--card-opacity'] = `${surfaces.cardOpacity}%`;
+  variables['--card-shadow'] = surfaces.cardShadow;
+  variables['--overlay-scrim'] = surfaces.scrim;
   variables['--sheet-shadow'] = surfaces.sheetShadow;
   variables['--min-target'] = `${interaction.minTarget}px`;
   variables['--press-scale'] = String(interaction.pressScale);

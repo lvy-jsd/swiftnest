@@ -187,6 +187,12 @@ importers:
 
   client:
     dependencies:
+      '@fontsource-variable/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-sans-sc':
+        specifier: ^5.3.1
+        version: 5.3.1
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -3446,6 +3452,12 @@ packages:
   '@eslint-community/regexpp@4.12.2':
     resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
+
+  '@fontsource-variable/inter@5.3.0':
+    resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
+
+  '@fontsource-variable/noto-sans-sc@5.3.1':
+    resolution: {integrity: sha512-UB96JJ17HyD5ehEU7Em0hDdh7fvTMB4B4Hzmq5c4QaNwwSLqTrdM2S+coySeBqCkXwh0DxqXT0b0wMrmzorFpQ==}
 
   '@google/genai@2.21.0':
     resolution: {integrity: sha512-+PDtco2/Z0ONdzCGekCoCT+O1VJS9xJQNN4XzQpXG/t3El/SWWMkCWlFRO1KmivOHPa4Q0VjUYu1HBKCZ/v33Q==}
@@ -10102,6 +10114,10 @@ snapshots:
     optional: true
 
   '@eslint-community/regexpp@4.12.2': {}
+
+  '@fontsource-variable/inter@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-sc@5.3.1': {}
 
   '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.32.1(supports-color@10.2.2)(zod@4.6.7))(supports-color@10.2.2)':
     dependencies:

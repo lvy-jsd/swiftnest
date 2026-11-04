@@ -1,8 +1,6 @@
 export type Mode = 'light' | 'dark';
 export type RGB = { r: number; g: number; b: number };
 export type OKLCH = { l: number; c: number; h: number };
-export const presets = { iris: 285, ocean: 245, jade: 155, amber: 75, rose: 15 } as const;
-
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
 const linearize = (x: number) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
 const encode = (x: number) => (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055);
@@ -98,8 +96,13 @@ export function guardContrast(color: OKLCH, backgrounds: readonly string[], mini
   throw new Error('No foreground can meet the requested contrast against these backgrounds.');
 }
 
+const irisLight = srgbToOklch(fromHex('#4B57D6'));
+const irisDark = srgbToOklch(fromHex('#8C95F5'));
+export const presets = { iris: irisLight.h, ocean: 245, jade: 155, amber: 75, rose: 15 } as const;
+
 export type Palette = Record<
   | 'background'
+  | 'backgroundEnd'
   | 'surface1'
   | 'surface2'
   | 'surface3'
@@ -108,50 +111,75 @@ export type Palette = Record<
   | 'textMuted'
   | 'border'
   | 'accent'
+  | 'accentText'
   | 'onAccent'
   | 'success'
-  | 'warning'
+  | 'successText'
+  | 'waiting'
+  | 'waitingText'
+  | 'dangerText'
   | 'danger',
   string
 >;
 export type PaletteOptions = { chroma?: number };
-export const backgroundTokens = ['background', 'surface1', 'surface2', 'surface3'] as const;
-// Status and accent colors may label text or icons. Use the stronger body-text threshold for both.
+export const backgroundTokens = ['background', 'backgroundEnd', 'surface1', 'surface2', 'surface3'] as const;
+// Text roles and primary button labels use the body-text contrast threshold.
 export const contrastPairs = [
   ...backgroundTokens.flatMap((background) =>
-    (['textPrimary', 'textSecondary', 'textMuted', 'accent', 'success', 'warning', 'danger'] as const).map(
-      (foreground) => ({ foreground, background, minimum: 4.5 }),
-    ),
+    (
+      ['textPrimary', 'textSecondary', 'textMuted', 'accentText', 'successText', 'waitingText', 'dangerText'] as const
+    ).map((foreground) => ({ foreground, background, minimum: 4.5 })),
   ),
   { foreground: 'onAccent', background: 'accent', minimum: 4.5 },
 ] as const satisfies readonly { foreground: keyof Palette; background: keyof Palette; minimum: number }[];
 
+const neutralSurfaces = {
+  dark: {
+    background: '#1B1F29',
+    backgroundEnd: '#16181E',
+    surface1: '#22252D',
+    surface2: '#252933',
+    surface3: '#292D38',
+  },
+  light: {
+    background: '#ECF0FA',
+    backgroundEnd: '#F6F5F9',
+    surface1: '#FFFFFF',
+    surface2: '#F0F2F9',
+    surface3: '#E9EDF7',
+  },
+} as const;
+
+/** Neutral surfaces stay independent of the accent. Color conversion maps only out-of-gamut hues. */
 export function generatePalette(accentHue: number, mode: Mode, opts: PaletteOptions = {}): Palette {
   if (!Number.isFinite(accentHue) || (opts.chroma !== undefined && !Number.isFinite(opts.chroma)))
     throw new RangeError('Hue and chroma must be finite.');
-  const h = ((accentHue % 360) + 360) % 360;
-  const c = Math.max(0, Math.min(0.3, opts.chroma ?? 0.16));
   const dark = mode === 'dark';
-  const color = (l: number, chroma = 0.012, hue = h) => hex(oklchToSrgb({ l, c: chroma, h: hue }));
-  const bases = {
-    background: color(dark ? 0.16 : 0.98),
-    surface1: color(dark ? 0.2 : 1, 0),
-    surface2: color(dark ? 0.24 : 0.96),
-    surface3: color(dark ? 0.28 : 0.92),
-  };
+  const iris = dark ? irisDark : irisLight;
+  const h = (((accentHue + iris.h - irisLight.h) % 360) + 360) % 360;
+  const c = Math.max(0, Math.min(0.3, opts.chroma ?? iris.c));
+  const bases = neutralSurfaces[mode];
   const backgrounds = Object.values(bases);
-  const text = (l: number, chroma = 0.012, hue = h) => guardContrast({ l, c: chroma, h: hue }, backgrounds);
-  const accent = text(dark ? 0.76 : 0.5, c);
+  const readable = (value: string) => guardContrast(srgbToOklch(fromHex(value)), backgrounds);
+  const accent = hex(oklchToSrgb({ ...iris, c, h }));
+  const success = dark ? '#75D5A5' : '#1F8A5B';
+  const waiting = dark ? '#F0B96F' : '#B25E09';
+  const danger = dark ? '#F59A9A' : '#B42F2F';
   return {
     ...bases,
-    textPrimary: text(dark ? 0.94 : 0.2),
-    textSecondary: text(dark ? 0.8 : 0.4),
-    textMuted: text(dark ? 0.68 : 0.52),
-    border: color(dark ? 0.4 : 0.8),
+    textPrimary: dark ? '#ECEEF3' : '#191C24',
+    textSecondary: dark ? '#A9AEBA' : '#565B67',
+    // The reference #6B7080 needs a slight lightness adjustment on the gradient's top edge.
+    textMuted: readable(dark ? '#969DAD' : '#6B7080'),
+    border: dark ? '#434957' : '#D5DBE9',
     accent,
-    onAccent: guardContrast({ l: dark ? 0.16 : 1, c: 0, h }, [accent]),
-    success: text(dark ? 0.78 : 0.48, 0.14, 150),
-    warning: text(dark ? 0.82 : 0.48, 0.14, 80),
-    danger: text(dark ? 0.76 : 0.5, 0.18, 25),
+    accentText: readable(accent),
+    onAccent: dark ? '#191C24' : '#FFFFFF',
+    success,
+    successText: readable(success),
+    waiting,
+    waitingText: readable(waiting),
+    danger,
+    dangerText: readable(danger),
   };
 }

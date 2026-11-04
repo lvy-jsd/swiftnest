@@ -10,6 +10,7 @@ import { icons } from './design/icons';
 import { preparePhotos } from './photoEncode';
 import { isPhoto, needsFreeVisionAnswer, roomFor, type PhotoDraft } from './photoState';
 import { Button } from './components/Button';
+import { IconButton } from './components/IconButton';
 import { Card } from './components/Card';
 
 /** Photos waiting to go with the next message. */
@@ -65,15 +66,9 @@ export function PhotoButton({ disabled, add }: { disabled: boolean; add: (files:
           event.target.value = '';
         }}
       />
-      <Button
-        variant="ghost"
-        iconOnly
-        aria-label={t('photoAdd')}
-        disabled={disabled}
-        onClick={() => input.current?.click()}
-      >
+      <IconButton variant="ghost" aria-label={t('photoAdd')} disabled={disabled} onClick={() => input.current?.click()}>
         <Photo size={24} />
-      </Button>
+      </IconButton>
     </>
   );
 }
@@ -87,9 +82,9 @@ export function PhotoDrafts({ drafts, remove }: { drafts: readonly PhotoDraft[];
       {drafts.map((draft) => (
         <li key={draft.id}>
           <img src={draft.url} alt={draft.name ?? t('photo')} />
-          <Button variant="ghost" iconOnly aria-label={t('photoRemove')} onClick={() => remove(draft.id)}>
+          <IconButton variant="ghost" aria-label={t('photoRemove')} onClick={() => remove(draft.id)}>
             <Close size={16} />
-          </Button>
+          </IconButton>
         </li>
       ))}
     </ul>

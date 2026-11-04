@@ -112,7 +112,7 @@ function Expert({
       <p>{expert ? `${providerName(view, expert.provider)} · ${expert.model}` : t('modelsExpertNone')}</p>
       <p className="plugin-muted">{t('modelsExpertHelp')}</p>
       <div className="model-actions">
-        <Button variant={expert ? 'secondary' : 'primary'} disabled={disabled} onClick={choose}>
+        <Button variant={expert ? 'soft' : 'primary'} disabled={disabled} onClick={choose}>
           {t(expert ? 'modelsExpertChange' : 'modelsExpertAdd')}
         </Button>
         {expert && (
