@@ -193,6 +193,46 @@ describe('standard Noise App channel', () => {
   });
 });
 
+it.each([undefined, false])('keeps ticket credentials server-side even with browser=%s', async (browser) => {
+  const identity = await generateChannelIdentity();
+  const credential = 'owner=PRIVATE';
+  const http = createServer((req, res) => {
+    if (req.url === '/swiftnest/channel/bootstrap') bridge.bootstrap(req, res);
+    else res.writeHead(req.headers.cookie === credential ? 200 : 401).end('{"ok":true}');
+  });
+  await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+  const root = new URL(`http://127.0.0.1:${(http.address() as AddressInfo).port}/`);
+  const bridge = appChannel(identity, () => root.origin, {
+    admit: ({ headers }) =>
+      headers.cookie === credential ? { peer: { principal: { kind: 'owner' } } } : { rejection: 401 },
+  });
+  http.on('upgrade', bridge.handler);
+  const pin: ChannelPairing = { v: 1, key: channelPublicKey(identity), addresses: { lan: [root.href], relay: [] } };
+  let client: AppChannel | undefined;
+  try {
+    const response = await fetch(new URL('swiftnest/channel/bootstrap', root), {
+      method: 'POST',
+      headers: { cookie: credential },
+    });
+    expect(response.status).toBe(200);
+    const { ticket } = await response.json();
+    client = await AppChannel.open(
+      root,
+      pin,
+      { createWebSocket: (url: string) => new WebSocket(url) },
+      { t: 'auth', ticket, browser },
+      AbortSignal.timeout(3000),
+    );
+    expect(client.cookie).toBe('');
+    expect((await client.fetch(new URL('swiftnest/health', root), {}, '')).status).toBe(200);
+    expect((await client.fetch(new URL('swiftnest/health', root), {}, 'owner=WRONG')).status).toBe(200);
+  } finally {
+    client?.close();
+    bridge.close();
+    await new Promise<void>((resolve) => http.close(() => resolve()));
+  }
+});
+
 it('pins the server before sending a credential; wrong and revoked credentials are refused inside Noise', async () => {
   const identity = await generateChannelIdentity();
   let credential = 'owner=GOOD';
