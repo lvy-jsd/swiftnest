@@ -72,6 +72,8 @@ describe('local model detection', () => {
     expect(await detect(llama)).toMatchObject({ context: 8192, vision: false });
     const lmStudio = { 'GET /api/v0/models/m': () => ({ type: 'vlm' }) };
     expect((await detect(lmStudio)).vision).toBe(true);
+    const tabby = { 'GET /v1/model': () => ({ id: 'm', parameters: { max_seq_len: 131072, use_vision: true } }) };
+    expect(await detect(tabby)).toMatchObject({ context: 131072, vision: true });
     const catalog = {
       'GET /v1/models': () => ({ data: [{ id: 'm', architecture: { input_modalities: ['text', 'image'] } }] }),
     };
