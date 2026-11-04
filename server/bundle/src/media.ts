@@ -13,6 +13,8 @@ export interface MediaConfig {
   inputDirs: string[];
   modelCacheDir: string;
   modelMirror?: string;
+  geminiUploads?: boolean;
+  geminiKeyFile?: string;
   lang: Language;
 }
 interface Result {
@@ -60,6 +62,17 @@ export function adaptTool(tool: Definition, config: MediaConfig): unknown {
   };
 }
 
+/** Only the Models key can authorize Google uploads; never copy it into a profile. */
+export function mediaGeminiConfig(config: MediaConfig, env = process.env) {
+  const key = env.SWIFTNEST_MODEL_KEY_GOOGLE?.trim();
+  const enabled = config.geminiUploads === true && !!key;
+  return {
+    ...config,
+    geminiUploads: enabled,
+    geminiApiKey: enabled ? key : undefined,
+  };
+}
+
 export async function apply(ctx: Context, config: MediaConfig): Promise<void> {
   await Promise.all([config.outputDir, ...config.inputDirs].map((dir) => mkdir(dir, { recursive: true, mode: 0o700 })));
   const upstream = await import(pathToFileURL(config.sourceModule).href);
@@ -73,5 +86,5 @@ export async function apply(ctx: Context, config: MediaConfig): Promise<void> {
   });
   const releases = upstream.resolveSettings({}).speech.mirror;
   const mirror = await modelMirror(config.lang, releases, config.modelMirror);
-  upstream.apply(proxy, { ...config, modelMirror: mirror });
+  upstream.apply(proxy, { ...mediaGeminiConfig(config), modelMirror: mirror });
 }

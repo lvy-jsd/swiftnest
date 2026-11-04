@@ -407,6 +407,9 @@
     " live-surface--phone",
     "live-body",
     "live-stage",
-    "page page--hub devices-page"
+    "page page--hub devices-page",
+    "google",
+    "expert",
+    "media-gemini-help"
   ]
 }

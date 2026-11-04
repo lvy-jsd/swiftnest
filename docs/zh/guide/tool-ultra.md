@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `27df9c25a97016bed9bbd5f0d905747b14c6c278` 构建。
+Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `9644ca819e302b90a781ac17b10042c63b7e9d33` 构建。
 
 ## 安装与启用
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
-安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-27df9c25a970` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-9644ca819e30` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
 
 首次安装还需从 npm 下载图像和本地语音运行库，下载量因系统而异，与首次转写时下载的语音模型是两回事。网络超时后，可在连接恢复后重试同一个安装命令。
 
@@ -76,7 +76,7 @@ media:
 
 视频和语音工具使用 PATH 中的 `ffmpeg`、`ffprobe`。缺少时，聊天会提示安装 ffmpeg，其他功能照常运行。中文绘图需要 Noto Sans CJK 等中文字体；系统有 fontconfig 时会快速检查字体。
 
-首次转写会下载约 200 MB 的语音和说话人模型到 `<home>/models/sherpa-onnx`，聊天会显示首次准备提示。语音识别通过 sherpa-onnx 在本地 CPU 上运行，默认使用 SenseVoice Small（FunAudioLLM / FunASR）和 4 个线程，可识别中文、粤语、英语、日语、韩语，以及情绪和笑声等声音。其他语言会自动使用 Whisper large-v3-turbo，另需下载约 540 MB。录音始终留在服务器。
+首次转写会下载约 200 MB 的语音和说话人模型到 `<home>/models/sherpa-onnx`，聊天会显示首次准备提示。语音识别通过 sherpa-onnx 在本地 CPU 上运行，默认使用 SenseVoice Small（FunAudioLLM / FunASR）和 4 个线程，可识别中文、粤语、英语、日语、韩语，以及情绪和笑声等声音。其他语言会自动使用 Whisper large-v3-turbo，另需下载约 540 MB。Gemini 上传关闭时，录音留在服务器。
 
 默认开启说话人分离（`speakers: true`）：多人录音中的“Speaker 1”“Speaker 2”等标签会保留到聊天、模型收到的文本和 SRT 字幕中；只有一个声音时不加标签。单人录音可要求跳过说话人分离（`speakers: false`），转写会更快。
 
@@ -90,5 +90,17 @@ media:
 此可选示例可让中文服务器也直接使用 GitHub。镜像必须提供相同的发布子路径和文件。媒体包的高级选项 `speechModel` 支持 `sensevoice`（默认）和 `whisper-turbo`，`speechThreads` 默认为 4，普通使用无需修改。
 
 纯文本模型收到事实、转写和故事板路径，不会收到图片字节。App 仍会为你展示故事板；模型需要支持视觉并使用图片读取工具才能查看画面。
+
+### 可选的 Google Gemini 分析
+
+录音和视频默认在本地处理。需要更好的转写和视频理解时，打开**模型 → 录音和视频**，开启**录音和视频交给 Google Gemini 分析（会上传到 Google）**。开启后，整份录音或视频会离开这台电脑并发送给 Google，请只用于你愿意交给 Google 的文件。关闭时，录音和视频都在本地分析。
+
+开关复用模型页面已经保存的 Google 密钥。未添加时，开关保持关闭，并打开 Google 密钥入口，其中有创建密钥的链接。在那里保存密钥，返回后开启开关，再点击**应用更改**。应用时会像其他模型设置一样重启助手。删除 Google 密钥也会关闭上传；同样需要应用更改。
+
+仅当开关开启且已保存 Google 密钥时，`audio_transcribe`、`video_understand` 的 `engine: auto` 才会使用 Gemini。`engine: local` 始终使用本地；即使指定 `engine: gemini` 也不能绕过关闭的开关。Gemini 结果开头会显示隐私提示：“analysed by Gemini … (file uploaded to Google)”。Google 不可用时会说明原因并改用本地。Gemini 默认模型由固定版本的媒体包提供，无需另外设置。
+
+密钥仍只保存在原有的所有者专用 `<home>/model-keys.json` 中。内核通过 `SWIFTNEST_MODEL_KEY_GOOGLE` 传递密钥；媒体适配层仅在上传开启时将它作为内存中的 `geminiApiKey` 传给媒体包，不写入生成的 profile。`geminiKeyFile` 指向 `<home>/media-gemini.key`，Swiftnest 从不创建该文件。遗留的 `~/.config/swiftnest/gemini.key` 或其他 `GEMINI_API_KEY` 不会静默开启上传，也不会取代模型页面的 Google 密钥。
+
+开发者可运行 `SWIFTNEST_GEMINI_E2E=1 pnpm vitest run server/test/gemini.e2e.test.ts`。该自选测试仅将 `~/.config/swiftnest/gemini.key` 作为测试输入，保存为临时数据目录中的 Google 模型密钥，全程不打印。它验证真实 Gemini 录音分析及其隐私提示，再验证关闭上传后的本地分析。密钥文件不存在时，测试会跳过，不会请求 Google。测试使用合成语音，不使用私人录音。
 
 开发者真实测试：`SWIFTNEST_MEDIA_E2E=1 pnpm vitest run server/test/media.e2e.test.ts`。测试使用 eSpeak 合成的英文语音、ffmpeg、中文/表情字体，验证中文图表、HTML 动画、5 秒视频、两段 HTML 的竖屏配乐短片、SenseVoice 转写、聊天/模型文本和 SRT 中的说话人标签，以及故事板。除 eSpeak 语音外，还使用 sherpa-onnx 公开的四人中文录音。运行时可设置 `SWIFTNEST_MEDIA_MODEL_CACHE=$HOME/.cache/dsh-tool-ultra/models` 复用可写的测试模型缓存；不设置则使用临时目录。

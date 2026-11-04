@@ -78,8 +78,8 @@ export interface ServerConfig {
   /** Where photos go when nothing else can read them and the owner agreed; defaults to {@link FREE_VISION}. */
   freeVision?: FreeVisionService;
   files?: { quotaBytes: number };
-  /** Optional download mirrors and an administrator-owned local instrument library. */
-  media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string };
+  /** Optional media resources; upload consent is supplied by ModelManager from saved Models settings. */
+  media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string; geminiUploads?: boolean };
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean; auto?: boolean };
   devices: { host: string; port: number; mdns: boolean };
