@@ -290,6 +290,11 @@ export const en = {
   relaySaved: messageEn.relaySaved,
   relayUsingRemote: messageEn.relayUsingRemote,
   relayUsingLan: messageEn.relayUsingLan,
+  memoryAutoSwitch: messageEn.memoryAutoSwitch,
+  memoryAutoHelp: messageEn.memoryAutoHelp,
+  memoryAutoRecent: messageEn.memoryAutoRecent,
+  memoryAutoEmpty: messageEn.memoryAutoEmpty,
+  memoryAdvanced: messageEn.memoryAdvanced,
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -569,6 +574,11 @@ export const zhCN: Record<StringKey, string> = {
   relaySaved: messageZh.relaySaved,
   relayUsingRemote: messageZh.relayUsingRemote,
   relayUsingLan: messageZh.relayUsingLan,
+  memoryAutoSwitch: messageZh.memoryAutoSwitch,
+  memoryAutoHelp: messageZh.memoryAutoHelp,
+  memoryAutoRecent: messageZh.memoryAutoRecent,
+  memoryAutoEmpty: messageZh.memoryAutoEmpty,
+  memoryAdvanced: messageZh.memoryAdvanced,
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];

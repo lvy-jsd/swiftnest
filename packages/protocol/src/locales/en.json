@@ -687,5 +687,12 @@
   "relayDisconnected": "Not connected yet. Check the address and secret, and that your server and VPS are on.",
   "relaySaved": "Saved. Other paired Apps learn this the next time they connect at home. Check the connection in a few seconds.",
   "relayUsingRemote": "This App is using your relay.",
-  "relayUsingLan": "This App is using your home network."
+  "relayUsingLan": "This App is using your home network.",
+  "memoryAutoMustBoolean": "memory.auto must be a boolean (true or false).",
+  "memoryAutoReviewFailedLog": "Automatic memory review failed; no proposal was applied.",
+  "memoryAutoSwitch": "Remember important things automatically",
+  "memoryAutoHelp": "Memory stays on your server. Reviews use only the model you already use for this chat.",
+  "memoryAutoRecent": "Recently remembered automatically",
+  "memoryAutoEmpty": "Important things from your conversations will appear here.",
+  "memoryAdvanced": "More memory options"
 }

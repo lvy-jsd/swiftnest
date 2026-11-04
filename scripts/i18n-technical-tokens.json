@@ -371,6 +371,9 @@
     "pill__dot",
     "preferences-group",
     "sheet",
-    "soft"
+    "soft",
+    "memory-auto-switch",
+    "memory-auto-settings",
+    "region"
   ]
 }

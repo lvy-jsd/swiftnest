@@ -6,7 +6,12 @@ import type { MemoryStore } from './store.js';
 
 const prefix = '/swiftnest/api/memory';
 
-export function memoryHandler(connection: DeviceConnection, store?: MemoryStore) {
+export function memoryHandler(
+  connection: DeviceConnection,
+  store?: MemoryStore,
+  defaultAuto = true,
+  settingsChanged = () => {},
+) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const admission = connection.admit(req);
     const rejection =
@@ -20,7 +25,7 @@ export function memoryHandler(connection: DeviceConnection, store?: MemoryStore)
       if (!store) throw new ServerFailure(text('memoryDisabled'));
       const url = new URL(req.url ?? '/', 'http://localhost');
       const path = url.pathname.slice(prefix.length);
-      const value = await route(store, path, req, url);
+      const value = await route(store, path, req, url, defaultAuto, settingsChanged);
       send(res, 200, value);
     } catch (error) {
       const failure = error instanceof ServerFailure ? error : new ServerFailure(text('memoryInvalidData'));
@@ -30,14 +35,29 @@ export function memoryHandler(connection: DeviceConnection, store?: MemoryStore)
   };
 }
 
-async function route(store: MemoryStore, path: string, req: IncomingMessage, url: URL) {
+async function route(
+  store: MemoryStore,
+  path: string,
+  req: IncomingMessage,
+  url: URL,
+  defaultAuto: boolean,
+  settingsChanged: () => void,
+) {
   if (req.method === 'GET') {
     if (path === '') return store.list();
+    if (path === '/auto') return store.autoSettings(defaultAuto);
+    if (path === '/auto/recent') return store.recentAuto();
     if (path === '/topic') return store.readTopic(url.searchParams.get('topic') ?? '');
     throw new ServerFailure(text('memoryNotFound'));
   }
   if (req.method !== 'POST') throw new ServerFailure(text('methodNotAllowed'));
   const body = await readBody(req);
+  if (path === '/auto') {
+    if (Object.keys(body).some((key) => key !== 'enabled')) throw new ServerFailure(text('memoryInvalidData'));
+    const result = await store.setAuto(body.enabled);
+    settingsChanged();
+    return result;
+  }
   if (path === '/add') return store.remember(body.text, body.topic as string | undefined);
   if (path === '/edit') return store.edit(body.id as string, body.text);
   if (path === '/delete') return store.forget(body.id as string);

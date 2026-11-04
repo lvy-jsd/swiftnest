@@ -687,5 +687,12 @@
   "relayDisconnected": "尚未连接。请检查地址和密钥，并确认家中服务器和云服务器都已开机。",
   "relaySaved": "已保存。其他已配对 App 下次在家连接时会自动学习。几秒后可检查连接。",
   "relayUsingRemote": "此 App 正在使用你的中转。",
-  "relayUsingLan": "此 App 正在使用局域网。"
+  "relayUsingLan": "此 App 正在使用局域网。",
+  "memoryAutoMustBoolean": "memory.auto 必须是布尔值（true 或 false）。",
+  "memoryAutoReviewFailedLog": "自动记忆审阅失败，未应用任何提议。",
+  "memoryAutoSwitch": "自动记住重要的事",
+  "memoryAutoHelp": "记忆保存在你的服务器上，整理时只使用该聊天原本使用的模型。",
+  "memoryAutoRecent": "最近自动记住的",
+  "memoryAutoEmpty": "聊天中值得长期记住的事会显示在这里。",
+  "memoryAdvanced": "更多记忆选项"
 }
