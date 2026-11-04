@@ -112,7 +112,7 @@ it
       await panel.getByText(zh ? '小艾正在控制' : 'Ivy is in control', { exact: true }).waitFor();
       const screenshots = host.home;
       await page.screenshot({ path: resolve(screenshots, `live-view-${locale}-390-ivy.png`), animations: 'disabled' });
-      await panel.getByRole('button', { name: zh ? '接管控制' : 'Take over', exact: true }).click();
+      await panel.getByRole('button', { name: zh ? '我来接管' : 'Take over', exact: true }).click();
       await panel.getByText(zh ? '你正在控制' : 'You are in control', { exact: true }).waitFor();
       await expect.poll(() => host.last()?.ownerControl).toBe(true);
       await page.screenshot({
