@@ -52,8 +52,14 @@ const PROBES: readonly Probe[] = [
       };
     },
   },
-  // TabbyAPI: the loaded model's card.
-  { path: () => 'model', read: (json) => ({ contextWindow: get(json, 'parameters', 'max_seq_len') }) },
+  // TabbyAPI: the loaded model's card, including whether its vision modules are loaded.
+  {
+    path: () => 'model',
+    read: (json) => ({
+      contextWindow: get(json, 'parameters', 'max_seq_len'),
+      vision: get(json, 'parameters', 'use_vision') ?? json.use_vision,
+    }),
+  },
   // llama.cpp server: the slot context it was started with, and whether a projector is loaded.
   {
     path: () => '/props',
