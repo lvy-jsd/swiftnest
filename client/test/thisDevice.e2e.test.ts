@@ -59,6 +59,10 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
           };
           (window as any).__deviceTest = {
             calls: [],
+            setWatching: () => {
+              value.watching = true;
+              value.ownerControl = true;
+            },
             setPlatform: (platform: string) => {
               value.platform = platform;
             },
@@ -83,6 +87,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
                 value.phase = args.accept ? 'online' : 'stopped';
                 value.settings.nestKey = args.accept ? 'public-nest-key' : null;
                 value.nestFingerprint = null;
+              }
+              if (command === 'perch_stop_view') {
+                value.watching = false;
+                value.ownerControl = false;
+                value.settings.allowLiveView = false;
               }
               if (command === 'perch_disable') {
                 value.settings.enabled = false;
@@ -118,6 +127,22 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         expect(before).toHaveLength(0);
         await section.getByRole('button', { name: zh ? '指纹一致' : 'Fingerprint matches', exact: true }).click();
         await expect.poll(() => toggle.isChecked()).toBe(true);
+        const viewing = section.getByRole('checkbox', { name: zh ? '允许实时画面' : 'Allow live view', exact: true });
+        // This permission changes only after the native settings call acknowledges it.
+        await viewing.click();
+        await expect.poll(() => viewing.isChecked()).toBe(true);
+        await page.evaluate(() => (window as any).__deviceTest.setWatching());
+        const stopView = section.getByRole('button', { name: zh ? '停止实时画面' : 'Stop live view', exact: true });
+        await stopView.waitFor();
+        expect(await stopView.getAttribute('class')).toContain('button--danger');
+        await stopView.click();
+        await expect.poll(() => viewing.isChecked()).toBe(false);
+        expect(
+          await page.evaluate(() =>
+            (window as any).__deviceTest.calls.some((c: any) => c.command === 'perch_stop_view'),
+          ),
+        ).toBe(true);
+
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         // Unsaved invalid edits must never prevent the emergency off action.
         await section.getByLabel(zh ? '设备显示名称' : 'Device display name', { exact: true }).fill('');
@@ -150,11 +175,11 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
           .waitFor();
         await section.getByText(zh ? '无障碍' : 'Accessibility', { exact: true }).waitFor();
         await section
-          .getByText(zh ? '· 已开启' : '· On')
+          .getByText(zh ? '已开启' : 'On', { exact: true })
           .first()
           .waitFor();
         await section
-          .getByText(zh ? '· 未开启' : '· Off')
+          .getByText(zh ? '未开启' : 'Off', { exact: true })
           .first()
           .waitFor();
         expect(await section.getByRole('button', { name: zh ? '添加共享文件夹' : 'Add shared folder' }).count()).toBe(

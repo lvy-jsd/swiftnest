@@ -60,7 +60,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         const dialog = page.getByRole('dialog');
         await dialog.waitFor();
         await dialog.getByRole('img').waitFor();
-        await dialog.getByRole('button', { name: zh ? '接管控制' : 'Take over', exact: true }).click();
+        await dialog.getByRole('button', { name: zh ? '我来接管' : 'Take over', exact: true }).click();
         await dialog.getByText(zh ? '你正在控制' : 'You are in control', { exact: true }).waitFor();
         const rect = (await dialog.getByRole('img').boundingBox())!;
         const x = rect.x + rect.width / 2,

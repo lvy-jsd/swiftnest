@@ -290,6 +290,19 @@ export const en = {
   relaySaved: messageEn.relaySaved,
   relayUsingRemote: messageEn.relayUsingRemote,
   relayUsingLan: messageEn.relayUsingLan,
+
+  devicesDetails: 'Device details',
+  devicesPhone: 'Android phone',
+  devicesComputer: 'Computer',
+  devicesLastOnline: 'Last online',
+  devicesScreenPlaceholder: 'Screen preview unavailable',
+  devicesViewScreen: 'View screen',
+  devicesWaiting: 'Waiting for confirmation',
+  devicesAllowPairing: 'Matches, allow',
+  devicesAdvanced: 'Connection details',
+  liveTakeOver: 'Take over',
+  liveControlHelp:
+    'Take over to tap or type on the screen. Hand back when you are ready for the assistant to continue.',
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -569,6 +582,18 @@ export const zhCN: Record<StringKey, string> = {
   relaySaved: messageZh.relaySaved,
   relayUsingRemote: messageZh.relayUsingRemote,
   relayUsingLan: messageZh.relayUsingLan,
+
+  devicesDetails: '设备详情',
+  devicesPhone: 'Android 手机',
+  devicesComputer: '电脑',
+  devicesLastOnline: '上次在线',
+  devicesScreenPlaceholder: '暂无屏幕预览',
+  devicesViewScreen: '看屏幕',
+  devicesWaiting: '等待确认',
+  devicesAllowPairing: '一样，允许',
+  devicesAdvanced: '连接详情',
+  liveTakeOver: '我来接管',
+  liveControlHelp: '接管后，可以直接在屏幕上点按或输入。操作完成后点「交还控制」，助手就可以继续了。',
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];
