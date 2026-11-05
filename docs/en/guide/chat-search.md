@@ -1,8 +1,8 @@
 # Search past conversations
 
-Use the search box above the chat list on desktop, phone or web. It searches titles and conversation text, including Chinese and short words. Results show a highlighted excerpt and date; tap one to open the original chat. The assistant can call `search_chats` when you refer to an earlier conversation.
+Use the search box above the chat list on desktop, phone or web. On desktop, the sidebar also lets you search while reading a chat or using another page. It searches titles and conversation text, including Chinese and short words. Results show a highlighted excerpt and date; tap one to open the original chat. The assistant can call `search_chats` when you refer to an earlier conversation.
 
-Search is built in. The private SQLite index lives at `<home>/search/chats.db`. Startup catches up from saved sessions; new messages update the index in the background. Only human messages and assistant text are indexed, excluding subagent sessions, reasoning, tool output and images. Removing a session removes its search results. Back up your original sessions; this index is derived data.
+Search is built in. The private SQLite index lives at `<home>/search/chats.db`. Startup catches up from saved sessions; new messages update the index in the background. If a live event arrives before its earlier events have been saved, the index retries in the background without skipping sequence numbers. Only human messages and assistant text are indexed, excluding subagent sessions, reasoning, tool output and images. Removing a session removes its search results. Back up your original sessions; this index is derived data.
 
 Open **Preferences → Advanced: conversation search** to turn search or search by meaning on/off, select an embedding source, or **Rebuild search index**. Rebuilding retains your conversations. Word search continues to work when embeddings are unavailable. The status shows indexed messages and whether search by meaning is available.
 

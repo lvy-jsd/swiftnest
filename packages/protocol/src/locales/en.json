@@ -718,5 +718,6 @@
   "chatSearchModel": "Embedding model (optional)",
   "chatSearchAutomatic": "Detect automatically",
   "chatSearchKeyHelp": "Add your OpenAI key in Models first. Your key stays on this server.",
-  "chatSearchCloudConsent": "Use cloud embeddings: I agree to send my past chats and search queries to OpenAI. Provider charges may apply. Off by default."
+  "chatSearchCloudConsent": "Use cloud embeddings: I agree to send my past chats and search queries to OpenAI. Provider charges may apply. Off by default.",
+  "chatSearchSemanticOff": "Search by meaning is turned off. Word search is available."
 }

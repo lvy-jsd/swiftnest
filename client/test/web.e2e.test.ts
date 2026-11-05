@@ -175,9 +175,10 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       perch = await new Perch({ device: 'browser-device' }).use(files, { roots: [shared] });
       perchRun = runLanPerch(perch, { url: address, reconnect: false, pairing: { code, confirm: async () => true } });
       await page.getByText(perch.identity.fingerprint, { exact: true }).waitFor();
-      await page.getByRole('button', { name: 'Fingerprint matches' }).click();
+      await page.getByRole('button', { name: 'Matches, allow' }).click();
       await page.getByRole('heading', { name: 'browser-device', exact: true }).waitFor();
-      await page.getByText('Online · lan', { exact: true }).waitFor();
+      await page.locator('.device-tile').getByText('Online', { exact: true }).waitFor();
+      await page.locator('.device-tile summary').click();
       expect(await page.getByRole('list', { name: 'Devices', exact: true }).innerText()).toContain('files');
       const args = { path: join(shared, 'approved.txt'), content: 'Approved from phone-width App' };
       const write = await kernel.devices.nest.call('browser-device__files__write', args, {

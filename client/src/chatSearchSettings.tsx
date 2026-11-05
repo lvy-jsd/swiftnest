@@ -64,9 +64,11 @@ export function ChatSearchAdvanced() {
           {t(
             !state.view.settings.enabled
               ? 'chatSearchDisabled'
-              : state.view.semantic
-                ? 'chatSearchSemanticReady'
-                : 'chatSearchSemanticUnavailable',
+              : !state.view.settings.semantic
+                ? 'chatSearchSemanticOff'
+                : state.view.semantic
+                  ? 'chatSearchSemanticReady'
+                  : 'chatSearchSemanticUnavailable',
           )}
         </p>
       )}

@@ -31,6 +31,9 @@ export class ChatSearch {
   private settings: ChatSearchSettings;
   private queue = Promise.resolve();
   private deleted = new Set<string>();
+  private pendingSequences = new Map<string, number>();
+  private retry?: ReturnType<typeof setTimeout>;
+  private retryDelay = 250;
   private closed = false;
   private indexing = 0;
   private indexingFailed = false;
@@ -49,14 +52,24 @@ export class ChatSearch {
     if (session.header.origin === 'subagent' || this.deleted.has(session.id)) return;
     void this.enqueue(async () => {
       if (!this.settings.enabled || this.deleted.has(session.id)) return;
-      if (event.seq > this.index.through(session.id) + 1) await this.readSession(session.header);
+      if (event.seq > this.index.through(session.id) + 1) {
+        this.pendingSequences.set(session.id, Math.max(event.seq, this.pendingSequences.get(session.id) ?? -1));
+        await this.readSession(session.header);
+      }
       if (this.deleted.has(session.id) || this.closed) return;
       this.index.consume(session.header, [event]);
+      if (this.index.through(session.id) >= (this.pendingSequences.get(session.id) ?? -1))
+        this.pendingSequences.delete(session.id);
+      if (this.pendingSequences.size) this.retryCatchUp();
+      else this.retryDelay = 250;
       this.embeddings.start();
-    }).catch(() => {});
+    }).catch(() => {
+      if (this.pendingSequences.size) this.retryCatchUp();
+    });
   }
   dispose(session: SearchSession) {
     this.deleted.add(session.id);
+    this.pendingSequences.delete(session.id);
     void this.enqueue(async () => this.index.deleteSession(session.id)).catch(() => {});
   }
   async search(query: unknown, limit: unknown = 20) {
@@ -74,6 +87,7 @@ export class ChatSearch {
     if (!query.trim()) return [];
     const semantic = await this.embeddings.search(query);
     if (this.closed) return [];
+    if (!this.settings.enabled) throw new ServerFailure(text('chatSearchDisabled'));
     return this.index.results(query, limit as number, semantic).filter((row) => !this.deleted.has(row.sessionId));
   }
   status(): ChatSearchStatus {
@@ -108,6 +122,7 @@ export class ChatSearch {
   }
   async close() {
     this.closed = true;
+    if (this.retry) clearTimeout(this.retry);
     this.embeddings.close();
     await this.queue;
     this.index.close();
@@ -122,17 +137,34 @@ export class ChatSearch {
         .map((header) => [header.id, header]),
     );
     this.index.prune(new Set(headers.keys()));
+    for (const id of this.pendingSequences.keys()) {
+      if (!headers.has(id)) this.pendingSequences.delete(id);
+    }
     let failed = false;
     for (const header of headers.values()) {
       if (this.closed) return;
       try {
         await this.readSession(header);
+        if (this.index.through(header.id) >= (this.pendingSequences.get(header.id) ?? -1))
+          this.pendingSequences.delete(header.id);
       } catch {
         failed = true;
       }
     }
-    this.indexingFailed = failed;
+    this.indexingFailed = failed || this.pendingSequences.size > 0;
+    if (this.pendingSequences.size) this.retryCatchUp();
+    else this.retryDelay = 250;
     this.embeddings.start();
+  }
+  /** A live event may precede the persistence batching deadline. Never checkpoint past that gap. */
+  private retryCatchUp() {
+    if (this.retry || this.closed || !this.pendingSequences.size) return;
+    this.retry = setTimeout(() => {
+      this.retry = undefined;
+      void this.start().catch(() => this.retryCatchUp());
+    }, this.retryDelay);
+    this.retryDelay = Math.min(this.retryDelay * 2, 60_000);
+    this.retry.unref();
   }
   private async readSession(header: SearchHeader) {
     if (this.deleted.has(header.id)) return;

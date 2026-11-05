@@ -214,3 +214,89 @@ it('preserves App choices across restarts and applies a changed server configura
   await service.start();
   expect(service.status().indexedMessages).toBe(0);
 });
+
+it('recovers a live event whose seeded prefix has not reached persistence yet, without another event', async () => {
+  const persisted: SearchEvent[] = [];
+  const source = sources(persisted);
+  const service = new ChatSearch(source, {
+    home: home(),
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+    settings: { semantic: false },
+  });
+  cleanups.push(() => service.close());
+  await service.start();
+  service.event({ id: 'old', header: { id: 'old' } }, user(1, 'latest bicycle route'));
+  expect(await service.search('bicycle')).toEqual([]);
+  expect(service.index.through('old')).toBe(-1);
+  persisted.push(user(0, 'seeded orchard notes'), user(1, 'latest bicycle route'));
+  await expect.poll(async () => (await service.search('bicycle')).length).toBe(1);
+  expect(service.index.through('old')).toBe(1);
+  expect(service.status().indexedMessages).toBe(2);
+  expect(service.status().indexingFailed).toBe(false);
+});
+
+it('retries a failed gap read without waiting for another live event', async () => {
+  const events = [user(0, 'seed'), user(1, 'private bicycle')];
+  const source = sources(events);
+  const open = source.sessionPersistence.open;
+  const list = source.sessionPersistence.list;
+  source.sessionPersistence.list = vi.fn().mockRejectedValueOnce(new Error('Still listing')).mockImplementation(list);
+  source.sessionPersistence.open = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('Still publishing'))
+    .mockImplementation(open);
+  const service = new ChatSearch(source, {
+    home: home(),
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+    settings: { semantic: false },
+  });
+  cleanups.push(() => service.close());
+  service.event({ id: 'old', header: { id: 'old' } }, events[1]!);
+  await expect.poll(async () => (await service.search('bicycle')).length, { timeout: 3000 }).toBe(1);
+  expect(service.status().indexingFailed).toBe(false);
+});
+
+it('does not resurrect a deleted session from a delayed gap retry', async () => {
+  const persisted: SearchEvent[] = [];
+  const source = sources(persisted);
+  const service = new ChatSearch(source, {
+    home: home(),
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+    settings: { semantic: false },
+  });
+  cleanups.push(() => service.close());
+  service.event({ id: 'old', header: { id: 'old' } }, user(1, 'deleted bicycle'));
+  expect(await service.search('bicycle')).toEqual([]);
+  service.dispose({ id: 'old', header: { id: 'old' } });
+  persisted.push(user(0, 'seed'), user(1, 'deleted bicycle'));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  expect(await service.search('bicycle')).toEqual([]);
+  expect(service.status().indexedMessages).toBe(0);
+  expect(vi.mocked(source.sessionPersistence.open)).toHaveBeenCalledTimes(1);
+});
+
+it('does not return results when search is disabled during an in-flight semantic request', async () => {
+  const service = new ChatSearch(sources([user(0, 'private bicycle')]), {
+    home: home(),
+    localBaseUrl: 'http://127.0.0.1:9/v1',
+    localModel: 'fake',
+  });
+  cleanups.push(() => service.close());
+  await service.start();
+  let release!: (ids: number[]) => void;
+  const semantic = vi.spyOn(service.embeddings, 'search').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  const result = service.search('bicycle');
+  const rejected = expect(result).rejects.toMatchObject({ text: { key: 'chatSearchDisabled' } });
+  await expect.poll(() => semantic.mock.calls.length).toBe(1);
+  await service.configure({ enabled: false });
+  release([]);
+  await rejected;
+});

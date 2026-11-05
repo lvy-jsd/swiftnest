@@ -58,19 +58,17 @@ export class ChatSearchHarness {
   async turn(sessionId: string, prompt: string): Promise<SwiftnestEvent[]> {
     const sub = await this.client.follow(sessionId, { signal: AbortSignal.timeout(25_000) });
     const events: SwiftnestEvent[] = [];
-    const consume = (async () => {
+    try {
+      const receipt = await this.client.sendMessage(sessionId, prompt);
       let started = false;
       for await (const event of sub) {
-        if (event.type === 'user-message' && event.text === prompt) started = true;
+        // Follow includes history: repeated text must still select this request's turn.
+        if (event.type === 'user-message' && event.requestId === receipt.requestId) started = true;
         if (!started) continue;
         events.push(event);
-        if (event.type === 'turn-end') break;
+        if (event.type === 'turn-end') return events;
       }
-    })();
-    try {
-      await this.client.sendMessage(sessionId, prompt);
-      await consume;
-      return events;
+      throw new Error('The test turn ended without a completion event');
     } finally {
       sub.close();
     }

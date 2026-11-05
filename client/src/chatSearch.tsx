@@ -29,6 +29,7 @@ function SearchResult({ result }: { result: ChatSearchResult }) {
 }
 function useChatSearch(query: string) {
   const { store, status } = useConnection();
+  const client = store.client;
   const [results, setResults] = useState<ChatSearchResult[]>([]);
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(true);
@@ -38,11 +39,11 @@ function useChatSearch(query: string) {
     setBusy(true);
     setError(undefined);
     const timer = setTimeout(() => {
-      if (!store.client || status !== 'connected') {
+      if (!client || status !== 'connected') {
         setBusy(false);
         return;
       }
-      void store.client
+      void client
         .searchChats(query, 20, abort.signal)
         .then(
           (results) => {
@@ -60,7 +61,7 @@ function useChatSearch(query: string) {
       clearTimeout(timer);
       abort.abort();
     };
-  }, [query, store, status]);
+  }, [query, client, status]);
   return { results, error, busy };
 }
 export function ChatSearchResults({ query }: { query: string }) {
@@ -74,6 +75,7 @@ export function ChatSearchResults({ query }: { query: string }) {
       items={results}
       itemKey={(row) => row.id}
       label={t('chatSearchResults')}
+      className="chat-search-results"
       renderItem={(result) => <SearchResult result={result} />}
     />
   );

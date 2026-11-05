@@ -46,6 +46,18 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       expect((await harness.client.chatSearchStatus()).indexedMessages).toBe(before);
       await expect.poll(async () => (await harness.client.chatSearchStatus()).semantic).toBe(true);
       expect(harness.embeddings.filter((batch) => batch.input.includes(OLD_CHAT_TEXT))).toHaveLength(2);
+      const settings = (await harness.client.chatSearchStatus()).settings;
+      await harness.client.configureChatSearch({ ...settings, enabled: false });
+      const disabled = await harness.turn(fresh.sessionId, 'lookup:bicycle');
+      expect(disabled).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool-result',
+            isError: true,
+            text: expect.stringContaining('chatSearchDisabled'),
+          }),
+        ]),
+      );
     } catch (error) {
       throw new Error(`${String(error)}\n${harness.logs.slice(-70).join('\n')}`, { cause: error });
     } finally {

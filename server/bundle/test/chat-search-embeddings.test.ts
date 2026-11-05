@@ -259,3 +259,22 @@ it('discards a batch that finishes after permission has been revoked', async () 
   expect(await worker.search('private')).toEqual([]);
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+it.each([{ enabled: false }, { semantic: false }])(
+  'does not discover or call local models when search is off: %j',
+  async (value) => {
+    const { home, vectors } = fixture();
+    const fetcher = vi.fn(() => {
+      throw new Error('Unexpected request');
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const worker = new Embeddings({ home, localBaseUrl: 'http://127.0.0.1:9/v1', localModel: 'fake' }, vectors, () =>
+      searchSettings(value),
+    );
+    cleanups.push(() => worker.close());
+    worker.start(0);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(await worker.search('private query')).toEqual([]);
+    expect(fetcher).not.toHaveBeenCalled();
+  },
+);

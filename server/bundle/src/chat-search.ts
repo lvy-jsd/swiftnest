@@ -1,9 +1,10 @@
-import { message } from '@swiftnest/protocol';
+import { message, text } from '@swiftnest/protocol';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DeviceConnection } from './devices.js';
 import { ChatSearch, type SearchSources, type SearchSession, type SearchEvent } from './chat-search/service.js';
 import { searchHandler, SEARCH_PREFIX } from './chat-search/http.js';
 import type { EmbeddingConfig } from './chat-search/embeddings.js';
+import { ServerFailure } from './memory/failure.js';
 
 export const name = 'swiftnest-chat-search';
 export const inject = ['tools', 'webServer', 'connection', 'sessions', 'sessionPersistence'];
@@ -61,13 +62,22 @@ export function apply(ctx: SearchContext, config: EmbeddingConfig & { settings?:
           schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
           render: (_args, value) => [{ type: 'text', text: value.text }],
         },
-        execute: async (args) => {
-          const results = await service.search(args.query, args.limit);
-          return { text: JSON.stringify(results.map((row) => ({ ...row, date: new Date(row.time).toISOString() }))) };
-        },
+        execute: (args) => searchTool(service, args),
       }),
     'swiftnest-chat-search: tool',
   );
   // Indexing failures stay isolated from the session append feed and chat startup.
   void service.start().catch(() => {});
+}
+
+async function searchTool(service: ChatSearch, args: { query: string; limit?: number }) {
+  try {
+    const results = await service.search(args.query, args.limit);
+    return { text: JSON.stringify(results.map((row) => ({ ...row, date: new Date(row.time).toISOString() }))) };
+  } catch (error) {
+    const failure = error instanceof ServerFailure ? error : new ServerFailure(text('chatSearchFailed'));
+    // DSH retains Error.message only; carry the catalog key just like the memory tools.
+    failure.message = JSON.stringify({ code: failure.code, text: failure.text });
+    throw failure;
+  }
 }
