@@ -12,7 +12,7 @@
       "source": {
         "type": "git",
         "repository": "https://github.com/lvy-jsd/dsh-tool-ultra",
-        "commit": "19c59e9efe5b999fc34df4c5b7a3b22a911293e0",
+        "commit": "727f9e41f611c3781d8693ecf76e926fcf4bb1c7",
         "packages": [
           "core",
           "classifier-rules",
