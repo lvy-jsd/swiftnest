@@ -38,5 +38,7 @@ it.each(['en', 'zh-CN'] as const)(
     expect(html).toContain('&lt;private&gt;');
     expect(html.match(/disabled=""/g)).toHaveLength(2);
     expect(html).not.toContain('<details open');
+    // The owner sees which tool is asking without opening the details fold-out.
+    expect(html.split('<details')[0]).toContain('<code>read</code>');
   },
 );

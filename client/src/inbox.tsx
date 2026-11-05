@@ -28,6 +28,9 @@ export function InboxApproval({ item }: { item: ApprovalItem }) {
   return (
     <Card className="device-card approval-card" aria-label={t('toolApproval')}>
       <strong>{item.requester}</strong>
+      <p>
+        <code>{item.tool}</code>
+      </p>
       <p>{item.displayReason?.[locale] ?? item.summary}</p>
       <details>
         <summary>{t('inboxDetails')}</summary>
@@ -37,7 +40,6 @@ export function InboxApproval({ item }: { item: ApprovalItem }) {
         <p>
           {t('risk')}: {t(item.risk)}
         </p>
-        <p>{item.tool}</p>
         <p>
           {t('inboxExpires')}: <time dateTime={item.expiresAt}>{new Date(item.expiresAt).toLocaleString(locale)}</time>
         </p>
