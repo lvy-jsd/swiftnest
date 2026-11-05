@@ -4,6 +4,33 @@ import { tmpdir } from 'node:os';
 import { expect, it } from 'vitest';
 import { loadConfig, validate } from '../src/config.js';
 
+it('keeps automatic memory, Gemini media and search settings independent with environment precedence', () => {
+  const home = mkdtempSync(join(tmpdir(), 'swiftnest-search-memory-config-'));
+  try {
+    const path = join(home, 'server.yml');
+    writeFileSync(
+      path,
+      'memory: { enabled: true, auto: false }\nmedia: { geminiUploads: true }\nsearch: { semantic: false }\n',
+    );
+    const config = loadConfig(path, {});
+    expect(config.memory).toEqual({ enabled: true, auto: false });
+    expect(config.media).toEqual({ geminiUploads: true });
+    expect(config.search).toMatchObject({ enabled: true, semantic: false });
+    const overridden = loadConfig(path, { SWIFTNEST_MEMORY_AUTO: 'true', SWIFTNEST_SEARCH: 'false' });
+    expect(overridden.memory?.auto).toBe(true);
+    expect(overridden.search).toMatchObject({ enabled: false, semantic: false });
+    expect(overridden.media).toEqual(config.media);
+    expect(() => validate({ ...config, memory: { enabled: true, auto: 'yes' as unknown as boolean } })).toThrow(
+      /memory.auto/,
+    );
+    expect(() => validate({ ...config, search: { ...config.search!, enabled: 'yes' as unknown as boolean } })).toThrow(
+      /search settings/,
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 it('defaults to private local search and applies validated file/env overrides', () => {
   const config = loadConfig(undefined, {});
   expect(config.search).toEqual({

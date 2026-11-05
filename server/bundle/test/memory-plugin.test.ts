@@ -8,12 +8,20 @@ function context() {
   const tools = new Map<string, any>();
   const sections: any[] = [];
   const routes: any[] = [];
-  const listeners = new Map<string, (session: { id: string }) => void>();
+  const listeners = new Map<string, (...args: any[]) => void>();
   const disposals: (() => void)[] = [];
   const ctx: Parameters<typeof apply>[0] = {
     on: (event, listener) => {
       listeners.set(event, listener);
       return () => listeners.delete(event);
+    },
+    llm: { stream: async function* () {} },
+    sessions: { list: () => [], flush: async () => {} },
+    sessionPersistence: {
+      list: async () => [],
+      open: async () => {
+        throw new Error('unused');
+      },
     },
     connection: { admit: () => ({ peer: { principal: { kind: 'owner' } } }) },
     tools: {

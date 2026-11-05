@@ -49,6 +49,8 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
       SWIFTNEST_PORT: '0',
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
       SWIFTNEST_MODEL_ID: 'fake',
+      SWIFTNEST_MEMORY_AUTO: 'false',
+      SWIFTNEST_SEARCH: 'false',
     });
     kernel = await startStableKernel(config, {
       readyTimeoutMs: 90_000,
@@ -108,6 +110,9 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
     });
     try {
       expect(await client.health()).toMatchObject({ ok: true });
+      expect(await client.memoryAutoSettings()).toEqual({ enabled: false });
+      expect(await client.chatSearchStatus()).toMatchObject({ settings: { enabled: false } });
+      await expect(client.searchChats('test')).rejects.toMatchObject({ text: { key: 'chatSearchDisabled' } });
       const session = await client.createSession();
       expect(await client.listSessions()).toEqual(expect.arrayContaining([expect.objectContaining(session)]));
     } finally {

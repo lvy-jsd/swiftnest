@@ -584,6 +584,15 @@ export class SwiftnestClient {
   rebuildChatSearch(): Promise<import('@swiftnest/protocol').ChatSearchStatus> {
     return this.ownerRequest('search/rebuild', 'POST', undefined, {});
   }
+  memoryAutoSettings(): Promise<{ enabled: boolean }> {
+    return this.memoryRequest('/auto');
+  }
+  setMemoryAuto(enabled: boolean): Promise<{ enabled: boolean }> {
+    return this.memoryRequest('/auto', { enabled });
+  }
+  recentAutoMemory(): Promise<import('./memory.js').MemoryEntry[]> {
+    return this.memoryRequest('/auto/recent');
+  }
   listMemory(): Promise<import('./memory.js').MemoryView> {
     return this.memoryRequest('');
   }

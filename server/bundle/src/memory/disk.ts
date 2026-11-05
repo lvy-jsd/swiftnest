@@ -24,7 +24,7 @@ export interface PendingMemory {
 }
 
 export function validTopic(value: unknown): string {
-  if (typeof value !== 'string' || !/^[\p{L}\p{N}][\p{L}\p{N} _-]{0,79}$/u.test(value))
+  if (typeof value !== 'string' || !memoryRules.topicName.test(value))
     throw new ServerFailure(text('memoryInvalidTopic'));
   return value;
 }
@@ -59,7 +59,7 @@ export function removeMemoryFile(root: string, file: string): void {
 export function memoryPath(root: string, relative: string): string {
   const parts = relative.split('/');
   const allowed =
-    ['MEMORY.md', 'journal.jsonl', 'journal.torn', 'pending.json'].includes(relative) ||
+    ['MEMORY.md', 'journal.jsonl', 'journal.torn', 'pending.json', 'auto.json'].includes(relative) ||
     (parts.length === 2 &&
       ['topics', 'snapshots'].includes(parts[0]!) &&
       parts[1]!.endsWith('.md') &&
@@ -169,7 +169,7 @@ export function readPending(root: string): PendingMemory | undefined {
     )
       throw 0;
     for (const [file, content] of Object.entries(pending.files)) {
-      if (file !== 'MEMORY.md' && !/^(topics|snapshots)\/[^/]+\.md$/.test(file)) throw 0;
+      if (file !== 'MEMORY.md' && file !== 'auto.json' && !/^(topics|snapshots)\/[^/]+\.md$/.test(file)) throw 0;
       if (file.startsWith('topics/')) validTopic(file.slice(7, -3));
       memoryPath(root, file);
       if (typeof content !== 'string') throw 0;

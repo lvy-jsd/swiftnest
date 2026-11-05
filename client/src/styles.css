@@ -1319,6 +1319,18 @@ details.plugin-card summary {
   opacity: 0.7;
 }
 
+.memory-auto-settings {
+  padding: var(--space-xl);
+}
+
+.memory-auto-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--min-target);
+  cursor: pointer;
+}
+
 .chat-search-snippet {
   display: block;
   white-space: normal;

@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import type { Llm, LlmRequest } from '../src/llm.js';
 import { apply, type VisionConfig, type VisionContext } from '../src/vision.js';
-import { freeDescriber } from '../src/vision-services.js';
+import { freeDescriber, routeDescriber } from '../src/vision-services.js';
 
 const photo = { attachmentId: 'a1', mediaType: 'image/jpeg', width: 640, height: 480, name: 'cat.jpg' };
 const homes: string[] = [];
@@ -38,7 +39,7 @@ function kernel(describe: (provider: string) => string | Error = () => 'A grey c
             sent.push(options.messages);
             return reply('ok');
           });
-          return through as AsyncIterable<{ type: string }>;
+          return through;
         }
         asked.push(options.provider);
         const answer = describe(options.provider);
@@ -115,6 +116,48 @@ it('tries the next service when one fails', async () => {
   await call(test.ctx);
   expect(test.asked).toEqual(['vision-a', 'vision-b']);
   expect(textOf(test.sent)).toContain('A cat.');
+});
+
+it('passes the photo, question and cancellation through the shared Llm request', async () => {
+  const requests: LlmRequest[] = [];
+  const llm: Llm = {
+    async *stream(request) {
+      requests.push(request);
+      yield { type: 'text-delta', text: ' A grey' };
+      yield { type: 'text-delta', text: ' cat. ' };
+      yield { type: 'finish', reason: { kind: 'stop' } };
+    },
+  };
+  const signal = new AbortController().signal;
+  const reader = routeDescriber(llm, { provider: 'vision-a', model: 'eye' });
+  expect(await reader.describe(photo, 'What animal is this?', signal)).toBe('A grey cat.');
+  expect(requests).toEqual([
+    expect.objectContaining({
+      provider: 'vision-a',
+      model: 'eye',
+      signal,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', attachment: photo },
+            { type: 'text', text: 'The user asked: What animal is this?\nDescribe this image.' },
+          ],
+        },
+      ],
+    }),
+  ]);
+});
+
+it('rejects partial descriptions when the shared Llm stream finishes with a failure', async () => {
+  const llm: Llm = {
+    async *stream() {
+      yield { type: 'text-delta', text: 'An unfinished description' };
+      yield { type: 'finish', reason: { kind: 'error', failure: { message: 'vision quota exceeded' } } };
+    },
+  };
+  const reader = routeDescriber(llm, { provider: 'vision-a', model: 'eye' });
+  await expect(reader.describe(photo, '')).rejects.toThrow('vision quota exceeded');
 });
 
 it('without any service, tells the model it cannot see the photo and how the owner can fix that', async () => {

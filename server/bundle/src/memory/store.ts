@@ -1,3 +1,4 @@
+import { autoStateSchema, memoryOperations, type MemoryOperation } from './auto-schema.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -137,21 +138,43 @@ export class MemoryStore {
   }
   remember(value: unknown, topic?: string, source = 'owner'): Promise<{ saved: boolean; entry: MemoryEntry }> {
     return this.run(() => {
-      const cleaned = validateEntry(value);
-      if (topic !== undefined) validTopic(topic);
       const files = this.documents();
-      const duplicate = this.view(files).entries.find((entry) => entry.topic === topic && entry.text === cleaned);
-      if (duplicate) return { saved: false, entry: duplicate };
-      const file = topic === undefined ? 'MEMORY.md' : `topics/${topic}.md`;
-      const line = entryLine(cleaned, this.source(source), randomUUID());
-      if (topic === undefined) {
-        const document = parseMemory(files.get(file)!);
-        files.set(file, indexDocument([...document.entries.map((entry) => entry.line), line], document.topics));
-      } else files.set(file, `${(files.get(file) ?? `# ${topic}\n`).trimEnd()}\n\n${line}\n`);
+      const result = this.stageRemember(files, value, topic, source);
       this.commit(files);
-      return { saved: true, entry: parseMemory(`${line}\n`, topic).entries[0]! };
+      return result;
     });
   }
+  private stageRemember(files: Map<string, string>, value: unknown, topic?: string, source = 'owner') {
+    const cleaned = validateEntry(value);
+    if (topic !== undefined) validTopic(topic);
+    const duplicate = this.view(files).entries.find((entry) => entry.topic === topic && entry.text === cleaned);
+    if (duplicate) return { saved: false, entry: duplicate };
+    const line = entryLine(cleaned, this.source(source), randomUUID());
+    this.appendEntry(files, line, topic);
+    return { saved: true, entry: parseMemory(`${line}\n`, topic).entries[0]! };
+  }
+
+  private appendEntry(files: Map<string, string>, line: string, topic?: string): void {
+    const file = topic === undefined ? 'MEMORY.md' : `topics/${topic}.md`;
+    if (topic === undefined) {
+      const document = parseMemory(files.get(file)!);
+      files.set(file, indexDocument([...document.entries.map((entry) => entry.line), line], document.topics));
+    } else files.set(file, `${(files.get(file) ?? `# ${topic}\n`).trimEnd()}\n\n${line}\n`);
+  }
+  private replaceEntry(
+    files: Map<string, string>,
+    entry: MemoryEntry,
+    replacement?: { text: string; source: string; topic?: string },
+  ): void {
+    const file = entry.topic === undefined ? 'MEMORY.md' : `topics/${entry.topic}.md`;
+    const lines = files.get(file)!.split('\n');
+    const line = replacement ? entryLine(replacement.text, replacement.source, entry.id) : undefined;
+    const sameTopic = replacement?.topic === entry.topic;
+    lines.splice(lines.indexOf(entry.line), 1, ...(line && sameTopic ? [line] : []));
+    files.set(file, lines.join('\n'));
+    if (line && !sameTopic) this.appendEntry(files, line, replacement!.topic);
+  }
+
   edit(match: string, value: unknown): Promise<MemoryView> {
     return this.changeEntry(match, { value });
   }
@@ -164,11 +187,11 @@ export class MemoryStore {
       const files = this.documents();
       const entry = this.view(files).entries.find((entry) => entry.id === match || entry.text === match);
       if (!entry) throw new ServerFailure(text('memoryNotFound'));
-      const file = entry.topic === undefined ? 'MEMORY.md' : `topics/${entry.topic}.md`;
-      const lines = files.get(file)!.split('\n');
-      const at = lines.indexOf(entry.line);
-      lines.splice(at, 1, ...(value === undefined ? [] : [entryLine(value, 'owner', entry.id)]));
-      files.set(file, lines.join('\n'));
+      this.replaceEntry(
+        files,
+        entry,
+        value === undefined ? undefined : { text: value, source: 'owner', topic: entry.topic },
+      );
       this.commit(files);
       return this.view(files);
     });
@@ -215,9 +238,9 @@ export class MemoryStore {
       rejectSecrets(content);
     }
   }
-  private commit(files: Map<string, string>): void {
+  private commit(files: Map<string, string>, metadata: Record<string, string> = {}): void {
     this.prepare(files);
-    const pending: PendingMemory = { id: randomUUID(), time: new Date().toISOString(), files: {} };
+    const pending: PendingMemory = { id: randomUUID(), time: new Date().toISOString(), files: { ...metadata } };
     for (const [file, content] of files) {
       const before = readMemoryFile(this.root, file);
       if (before === content && existsSync(memoryPath(this.root, file))) continue;
@@ -248,6 +271,108 @@ export class MemoryStore {
       if (before !== after) pending.files[file] = after;
     }
   }
+  private autoState() {
+    const raw = readMemoryFile(this.root, 'auto.json');
+    return autoStateSchema.parse(raw ? JSON.parse(raw) : { cursors: {} });
+  }
+  autoSettings(defaultEnabled = true): { enabled: boolean } {
+    return { enabled: this.autoState().enabled ?? defaultEnabled };
+  }
+  initializeAuto(defaultEnabled: boolean): void {
+    const state = this.autoState();
+    const enabled = state.enabled ?? defaultEnabled;
+    if (enabled === (state.enabledAt !== undefined)) return;
+    state.enabledAt = enabled ? Date.now() : undefined;
+    atomicMemoryFile(this.root, 'auto.json', JSON.stringify(state));
+  }
+  autoEnabledAt(): number {
+    return this.autoState().enabledAt ?? Infinity;
+  }
+  setAuto(enabled: unknown): Promise<{ enabled: boolean }> {
+    if (typeof enabled !== 'boolean') return Promise.reject(new ServerFailure(text('memoryAutoMustBoolean')));
+    return this.run(() => {
+      const state = this.autoState();
+      state.enabled = enabled;
+      state.enabledAt = enabled ? (state.enabledAt ?? Date.now()) : undefined;
+      atomicMemoryFile(this.root, 'auto.json', JSON.stringify(state));
+      this.notify();
+      return { enabled };
+    });
+  }
+  reviewed(sessionId: string): number {
+    return this.autoState().cursors[sessionId] ?? 0;
+  }
+  recentAuto(): Promise<MemoryEntry[]> {
+    return this.run(() =>
+      this.view()
+        .entries.filter((entry) => entry.source === 'auto')
+        .sort((a, b) => b.added.localeCompare(a.added))
+        .slice(0, 50),
+    );
+  }
+  /** Commit valid operations and the cursor together, skipping invalid facts.
+   * A concurrent change to the supplied baseline still rejects the entire proposal. */
+  async applyAuto(
+    sessionId: string,
+    cursor: number,
+    operations: MemoryOperation[],
+    baseline: MemoryEntry[],
+    allowed: () => boolean,
+  ) {
+    const validated = memoryOperations.parse(operations);
+    return this.run(() => {
+      if (!allowed()) return false;
+      const files = this.documents();
+      const current = this.view(files).entries;
+      const expected = new Map(baseline.map((entry) => [entry.id, entry]));
+      if (
+        current.length !== baseline.length ||
+        current.some((entry) => {
+          const previous = expected.get(entry.id);
+          return previous?.line !== entry.line || previous?.topic !== entry.topic;
+        })
+      )
+        throw new ServerFailure(text('memoryInvalidData'));
+      const staged = this.stageAutoBatch(files, validated, baseline);
+      const state = this.autoState();
+      state.cursors[sessionId] = cursor;
+      this.commit(staged.files, { 'auto.json': JSON.stringify(state) });
+      if (staged.skipped) console.warn(message('memoryAutoSkippedLog', undefined, [staged.skipped]));
+      return true;
+    });
+  }
+  private stageAutoBatch(files: Map<string, string>, operations: MemoryOperation[], baseline: MemoryEntry[]) {
+    let skipped = 0;
+    for (const operation of operations) {
+      const candidate = new Map(files);
+      try {
+        this.stageAuto(candidate, operation, baseline);
+        this.prepare(candidate);
+      } catch (error) {
+        if (!(error instanceof ServerFailure)) throw error;
+        skipped++;
+        continue;
+      }
+      files = candidate;
+    }
+    return { files, skipped };
+  }
+  private stageAuto(files: Map<string, string>, operation: MemoryOperation, baseline: MemoryEntry[]): void {
+    if (operation.op === 'none') return;
+    const value = validateEntry(operation.text);
+    if (operation.topic !== undefined) validTopic(operation.topic);
+    const entries = this.view(files).entries;
+    if (operation.op === 'add') {
+      if (!entries.some((entry) => entry.text.toLocaleLowerCase() === value.toLocaleLowerCase()))
+        this.stageRemember(files, value, operation.topic, 'auto');
+      return;
+    }
+    const entry = entries.find((item) => item.id === operation.id);
+    if (!entry || !baseline.some((item) => item.id === entry.id)) throw new ServerFailure(text('memoryInvalidData'));
+    const topic = operation.topic ?? entry.topic;
+    this.replaceEntry(files, entry, { text: value, source: 'auto', topic });
+  }
+
   deleteSnapshot(sessionId: string): void {
     this.recover();
     removeMemoryFile(this.root, this.snapshotFile(sessionId));

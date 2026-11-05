@@ -5,7 +5,8 @@
  */
 import type { ModelProviderView, ModelRoute, ModelsView } from '@swiftnest/api';
 import type { ServerConfig } from './config.js';
-import { message } from './i18n.js';
+import { text } from '@swiftnest/core';
+import { message, ServerFailure } from './i18n.js';
 import type { KernelApply, KernelChange } from './kernel-apply.js';
 import {
   LOCAL_PROVIDER,
@@ -50,6 +51,10 @@ export class ModelManager {
     const { main, expert, expertApproval } = this.store.settings;
     return {
       ...config,
+      media: {
+        ...config.media,
+        geminiUploads: this.geminiUploads,
+      },
       cloud: {
         ...(main && this.usable(main.provider) ? { main } : {}),
         ...(expert && this.usable(expert.provider) ? { expert } : {}),
@@ -85,6 +90,7 @@ export class ModelManager {
       ...(main ? { main } : {}),
       ...(expert ? { expert } : {}),
       expertApproval,
+      geminiUploads: this.geminiUploads,
       vision: {
         needed: !localVision && (!main || main.provider === LOCAL_PROVIDER),
         readers: this.visionRoutes().map((route) => route.provider),
@@ -96,13 +102,18 @@ export class ModelManager {
   }
 
   async update(update: unknown): Promise<void> {
-    await this.store.save(updateModelSettings(this.store.settings, update));
+    const settings = updateModelSettings(this.store.settings, update);
+    if (settings.geminiUploads && !this.store.key('google'))
+      throw new ServerFailure(text('media.gemini_uploads_key_required'));
+    await this.store.save(settings);
     this.deps.changed();
   }
 
   /** Save a key. A key in use changes the running kernel only at the next apply. */
   async setKey(provider: string, key: unknown): Promise<void> {
     await this.store.setKey(provider, key);
+    if (provider === 'google' && !this.store.key('google') && this.store.settings.geminiUploads)
+      await this.store.save({ ...this.store.settings, geminiUploads: false });
     this.deps.changed();
   }
 
@@ -129,6 +140,11 @@ export class ModelManager {
     return MODEL_PROVIDERS.filter((provider) => provider.visionModel && this.store.key(provider.id)).map(
       (provider) => ({ provider: provider.id, model: provider.visionModel! }),
     );
+  }
+
+  /** Consent alone is insufficient: the shared Google key must still exist. */
+  private get geminiUploads(): boolean {
+    return this.store.settings.geminiUploads && !!this.store.key('google');
   }
 
   private usable(provider: string): boolean {

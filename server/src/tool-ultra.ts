@@ -41,8 +41,12 @@ function configureMedia(entry: PatchRow['insert'][number], config: ServerConfig)
     inputDirs: [join(config.home, 'files')],
     modelCacheDir: join(config.home, 'models'),
     modelMirror: config.media?.modelMirror,
+    geminiUploads: config.media?.geminiUploads === true,
+    geminiKeyFile: join(config.home, 'media-gemini.key'),
     lang: config.lang ?? 'zh-CN',
   };
+  // The adapter injects the Models key in memory, after the profile has been read.
+  delete entry.config.geminiApiKey;
   for (const key of ['soundfont', 'soundfontUrl'] as const) {
     if (config.media?.[key] !== undefined) entry.config[key] = config.media[key];
   }

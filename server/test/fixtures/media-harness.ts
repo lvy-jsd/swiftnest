@@ -12,7 +12,7 @@ import { installToolUltra, toolUltraDir, TOOL_ULTRA_SOURCE } from '../../src/too
 
 export const execute = promisify(execFile);
 
-function mediaContext(tools: Map<string, any>, packs: any[]): any {
+export function mediaContext(tools: Map<string, any>, packs: any[]): any {
   const ctx: any = {
     tools: { register: (tool: any) => tools.set(tool.name, tool) },
     toolCatalog: {

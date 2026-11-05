@@ -530,6 +530,9 @@ it('uses authenticated central memory endpoints and preserves catalog errors', a
     await client.deleteMemory('id-one');
     await client.readMemoryTopic('中文 space');
     await client.writeMemoryTopic('Work', '- next');
+    await client.memoryAutoSettings();
+    await client.setMemoryAuto(false);
+    await client.recentAutoMemory();
     const memory = calls.filter((call) => call.url.includes('/swiftnest/api/memory'));
     expect(memory.map((call) => new URL(call.url).pathname)).toEqual([
       '/mount/swiftnest/api/memory',
@@ -538,11 +541,15 @@ it('uses authenticated central memory endpoints and preserves catalog errors', a
       '/mount/swiftnest/api/memory/delete',
       '/mount/swiftnest/api/memory/topic',
       '/mount/swiftnest/api/memory/topic',
+      '/mount/swiftnest/api/memory/auto',
+      '/mount/swiftnest/api/memory/auto',
+      '/mount/swiftnest/api/memory/auto/recent',
     ]);
     expect(new URL(memory[4]!.url).searchParams.get('topic')).toBe('中文 space');
     expect(memory.every((call) => (call.init.headers as Record<string, string>).cookie === 'dsh_api=secret')).toBe(
       true,
     );
+    expect(memory[7]!.body).toEqual({ enabled: false });
     expect(memory[1]!.body).toEqual({ text: 'fact', topic: 'Work' });
     await expect(client.addMemory('rejected')).rejects.toMatchObject({
       text: { key: 'memorySecret' },

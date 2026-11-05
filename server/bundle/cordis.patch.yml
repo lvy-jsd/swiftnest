@@ -20,6 +20,7 @@
       config:
         home: !!js process.env.SWIFTNEST_HOME
         enabled: !!js process.env.SWIFTNEST_MEMORY !== 'false'
+        auto: !!js process.env.SWIFTNEST_MEMORY_AUTO !== 'false'
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN
     - id: swiftnest-chat-search
