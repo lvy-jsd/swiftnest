@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `27df9c25a97016bed9bbd5f0d905747b14c6c278`; Tool Ultra is not published to npm.
+Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `9644ca819e302b90a781ac17b10042c63b7e9d33`; Tool Ultra is not published to npm.
 
 ## Install and enable
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
-Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-27df9c25a970`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
+Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-9644ca819e30`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
 
 First installation also downloads image and local speech runtime dependencies from npm; the size depends on your system. These are separate from the speech model downloaded on first transcription. After a network timeout, restore the connection and retry the same installation command.
 
@@ -76,7 +76,7 @@ Generated files appear as chat attachments: preview images, play audio/video, do
 
 Video and speech tools use `ffmpeg` and `ffprobe` from PATH. If missing, chat explains to install ffmpeg; other tools keep working. Chinese drawings need a Chinese font, such as Noto Sans CJK. The server checks fontconfig when available.
 
-First transcription downloads about 200 MB of speech and speaker models into `<home>/models/sherpa-onnx`; chat shows a first-use preparation message while the tool runs. Recognition runs locally on the CPU with sherpa-onnx: SenseVoice Small (FunAudioLLM / FunASR) is the default, with four threads. It understands Chinese, Cantonese, English, Japanese and Korean, including emotions and sounds. Other languages automatically use Whisper large-v3-turbo (a separate download of about 540 MB). Audio stays on your server.
+First transcription downloads about 200 MB of speech and speaker models into `<home>/models/sherpa-onnx`; chat shows a first-use preparation message while the tool runs. Recognition runs locally on the CPU with sherpa-onnx: SenseVoice Small (FunAudioLLM / FunASR) is the default, with four threads. It understands Chinese, Cantonese, English, Japanese and Korean, including emotions and sounds. Other languages automatically use Whisper large-v3-turbo (a separate download of about 540 MB). Audio stays on your server while Gemini uploads are off.
 
 Speaker separation is on by default (`speakers: true`): recordings with several voices keep “Speaker 1”, “Speaker 2”, etc. in chat, the text given to the model and SRT subtitles. A single voice has no unnecessary label. Ask to skip speaker separation for faster transcription of a single voice (`speakers: false`).
 
@@ -90,5 +90,17 @@ media:
 This optional example forces the original GitHub releases even on a Chinese server. A mirror must serve the same release subpaths and files. The pack's advanced `speechModel` option accepts `sensevoice` (default) or `whisper-turbo`; `speechThreads` defaults to 4. No change is needed for ordinary use.
 
 Text-only models receive facts and transcript with the storyboard path, never image bytes. The App still displays the storyboard for you; a model needs an image-reading tool and vision support to inspect its picture.
+
+### Optional Google Gemini analysis
+
+Recordings and videos stay local by default. For better transcription and video understanding, open **Models → Recordings and videos** and turn on **Send recordings and videos to Google Gemini for better results**. This uploads the whole recording or video to Google, so only enable it for files you want Google to receive. Off means all recording/video analysis stays local.
+
+The switch uses the same Google key already saved on the Models page. If you have not added one, the switch stays off and opens the Google entry, with a link to create a key. Save the key there, return to the switch, turn it on, then choose **Apply changes**. Applying restarts the assistant, like other model changes. Removing the Google key also switches uploads off; apply that change too.
+
+`audio_transcribe` and `video_understand` use Gemini with `engine: auto` only when this switch is on and the Google key is saved. `engine: local` always stays local; even `engine: gemini` cannot override the off switch. Gemini results start with “analysed by Gemini … (file uploaded to Google)”. If Google is unavailable, the pack explains the fallback and runs locally. The pinned pack supplies the default Gemini model; no extra model setting is needed.
+
+The key stays in the existing owner-only `<home>/model-keys.json` store. The kernel passes it through `SWIFTNEST_MODEL_KEY_GOOGLE`; the media adapter injects `geminiApiKey` only in memory when uploads are enabled, never into generated profiles. Its `geminiKeyFile` points to `<home>/media-gemini.key`, a file Swiftnest never creates. A leftover `~/.config/swiftnest/gemini.key` or unrelated `GEMINI_API_KEY` cannot silently enable media uploads or replace the Models key.
+
+Developers can run `SWIFTNEST_GEMINI_E2E=1 pnpm vitest run server/test/gemini.e2e.test.ts`. This opt-in test reads `~/.config/swiftnest/gemini.key` only as a test fixture, saves it as the temporary home's Google model key without printing it, and checks both real Gemini audio analysis with its privacy notice and local analysis with uploads off. If the key file is missing, the test skips without making a Google request. The fixture recording is synthetic speech, not a personal recording.
 
 Developers can run real media checks with `SWIFTNEST_MEDIA_E2E=1 pnpm vitest run server/test/media.e2e.test.ts`. The suite uses an eSpeak-generated English voice fixture, ffmpeg and CJK/emoji fonts. It checks Chinese charts, HTML animation, a five-second video, a vertical two-HTML-scene video with music, SenseVoice transcription, speaker-labelled chat/model text and SRT, and storyboards. Besides the eSpeak voice, it uses sherpa-onnx’s public four-speaker Chinese sample. Set `SWIFTNEST_MEDIA_MODEL_CACHE=$HOME/.cache/dsh-tool-ultra/models` to reuse a writable test model cache; otherwise it uses a temporary folder.

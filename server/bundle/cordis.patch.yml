@@ -20,5 +20,14 @@
       config:
         home: !!js process.env.SWIFTNEST_HOME
         enabled: !!js process.env.SWIFTNEST_MEMORY !== 'false'
+        auto: !!js process.env.SWIFTNEST_MEMORY_AUTO !== 'false'
         devicesAdminUrl: !!js process.env.SWIFTNEST_DEVICES_ADMIN_URL
         devicesAdminToken: !!js process.env.SWIFTNEST_DEVICES_ADMIN_TOKEN
+    - id: swiftnest-chat-search
+      name: "@swiftnest/server-bundle/chat-search"
+      config:
+        home: !!js process.env.SWIFTNEST_HOME
+        localBaseUrl: !!js process.env.SWIFTNEST_MODEL_BASE_URL
+        localModel: !!js process.env.SWIFTNEST_SEARCH_LOCAL_MODEL
+        localApiKey: !!js process.env[process.env.SWIFTNEST_SEARCH_LOCAL_KEY_ENV]
+        settings: !!js JSON.parse(process.env.SWIFTNEST_SEARCH_CONFIG || '{}')

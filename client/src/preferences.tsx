@@ -4,6 +4,7 @@ import { AppearanceSettings } from './components/AppearanceSettings';
 import { Sheet } from './components/Sheet';
 import { useTheme } from './design/theme';
 import { useI18n, type Locale } from './i18n';
+import { ChatSearchAdvanced } from './chatSearchSettings';
 import { RelaySettings } from './relaySettings';
 
 function LanguageSetting() {
@@ -91,6 +92,7 @@ export function Preferences({ open, onClose }: { open: boolean; onClose: () => v
         <LanguageSetting />
         <PreferencesNavigation onClose={onClose} />
         <DisplaySettings />
+        <ChatSearchAdvanced />
         <RelaySettings />
       </div>
     </Sheet>

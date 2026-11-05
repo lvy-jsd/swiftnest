@@ -54,7 +54,12 @@ describe('model settings', () => {
         expert: { provider: 'nowhere', model: 'x' },
         expertApproval: 'sometimes',
       }),
-    ).toEqual({ main: { provider: 'deepseek', model: 'deepseek-v4-pro' }, expertApproval: 'ask', freeVision: 'ask' });
+    ).toEqual({
+      main: { provider: 'deepseek', model: 'deepseek-v4-pro' },
+      expertApproval: 'ask',
+      freeVision: 'ask',
+      geminiUploads: false,
+    });
   });
 
   it('rejects a whole update when any field is invalid, and clears a route with null', () => {
@@ -62,6 +67,7 @@ describe('model settings', () => {
     expect(updateModelSettings(current, { expert: null, expertApproval: 'auto' })).toEqual({
       expertApproval: 'auto',
       freeVision: 'ask',
+      geminiUploads: false,
     });
     expect(updateModelSettings(current, { freeVision: 'on' })).toMatchObject({ freeVision: 'on' });
     expect(() => updateModelSettings(current, { freeVision: 'yes' as never })).toThrow();
@@ -178,6 +184,8 @@ describe('model routes', () => {
         });
       const initial = (await (await api('')).json()) as ModelsView;
       expect(initial).toMatchObject({ local: { model: config.model.id }, expertApproval: 'ask', pending: false });
+      expect(initial.geminiUploads).toBe(false);
+      expect((await api('/settings', 'POST', { geminiUploads: true })).status).toBe(400);
       const expert = { provider: 'deepseek', model: 'deepseek-v4-pro' };
       expect(await (await api('/settings', 'POST', { expert })).json()).toMatchObject({ expert, pending: true });
       expect((await api('/settings', 'POST', { expert: { provider: 'x', model: 'y' } })).status).toBe(400);
@@ -191,5 +199,56 @@ describe('model routes', () => {
     } finally {
       await hub.close();
     }
+  });
+});
+
+describe('recordings and videos sent to Gemini', () => {
+  it('defaults off, rejects invalid values and cannot enable without the Models Google key', async () => {
+    const { home, config } = setup();
+    const { models } = manager(home);
+    expect(parseModelSettings({ geminiUploads: 'true' }).geminiUploads).toBe(false);
+    expect(models.view(config, 'en').geminiUploads).toBe(false);
+    expect(models.config(config).media?.geminiUploads).toBe(false);
+    expect(() => updateModelSettings(parseModelSettings({}), { geminiUploads: 'yes' })).toThrow();
+    await expect(models.update({ geminiUploads: true })).rejects.toThrow(
+      message('media.gemini_uploads_key_required', 'en'),
+    );
+    expect(models.view(config, 'en')).toMatchObject({ geminiUploads: false, pending: false });
+  });
+  it('persists consent, shares the Google key, applies, and disables when that key is removed', async () => {
+    const { home, config } = setup();
+    let models: ModelManager;
+    ({ models } = manager(
+      home,
+      vi.fn(async () => models.loaded()),
+    ));
+    await models.setKey('google', KEY);
+    models.loaded();
+    await models.update({ geminiUploads: true });
+    expect(ModelSettingsStore.open(home).settings.geminiUploads).toBe(true);
+    expect(models.view(config, 'en')).toMatchObject({ geminiUploads: true, pending: true });
+    expect(models.config(config).media?.geminiUploads).toBe(true);
+    expect(models.env().SWIFTNEST_MODEL_KEY_GOOGLE).toBe(KEY);
+    expect(JSON.stringify(models.config(config))).not.toContain(KEY);
+    models.apply();
+    expect(await settle(models, config)).toMatchObject({ geminiUploads: true, pending: false });
+    await models.setKey('google', '');
+    expect(models.config(config).media?.geminiUploads).toBe(false);
+    expect(ModelSettingsStore.open(home).settings.geminiUploads).toBe(false);
+    await models.setKey('google', KEY);
+    expect(models.view(config, 'en').geminiUploads).toBe(false);
+  });
+  it('keeps uploads disabled for a stale saved opt-in without a key and rolls back a failed apply', async () => {
+    const { home, config } = setup();
+    const store = ModelSettingsStore.open(home);
+    await store.save({ ...store.settings, geminiUploads: true });
+    expect(manager(home).models.config(config).media?.geminiUploads).toBe(false);
+    await store.save({ ...store.settings, geminiUploads: false });
+    const restart = vi.fn().mockRejectedValueOnce(new Error('boot failed')).mockResolvedValue(undefined);
+    const { models } = manager(home, restart);
+    await models.setKey('google', KEY);
+    await models.update({ geminiUploads: true });
+    models.apply();
+    expect(await settle(models, config)).toMatchObject({ geminiUploads: false, apply: { rolledBack: true } });
   });
 });

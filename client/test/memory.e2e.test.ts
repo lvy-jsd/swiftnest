@@ -68,6 +68,7 @@ async function exerciseMemory(page: Page, locale: Locale) {
     .getByRole('alert')
     .filter({ hasText: locale === 'en' ? /password/ : /密码/ })
     .waitFor();
+  await page.getByText(t('memoryAdvanced'), { exact: true }).click();
   await page.getByLabel(t('memoryTopicName'), { exact: true }).fill(`Topic ${locale}`);
   await page.getByLabel(t('memoryTopicContent'), { exact: true }).fill(`- A topic fact ${locale}`);
   await page.getByRole('button', { name: t('memorySaveTopic'), exact: true }).click();

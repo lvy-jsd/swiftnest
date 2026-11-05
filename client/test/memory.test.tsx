@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { initialMemoryState, memoryReducer, watchMemoryChanges } from '../src/memoryState';
-import { MemoryPage } from '../src/memory';
+import { MemoryPage, AutomaticMemorySettings } from '../src/memory';
 import { I18nProvider, translate } from '../src/i18n';
 import { ConnectionProvider } from '../src/connection';
 
@@ -46,4 +46,25 @@ it('refreshes on memory events and reconnect, ignores unrelated events, and abor
   stop();
   expect(signal?.aborted).toBe(true);
   expect(watchDevices).toHaveBeenCalledOnce();
+});
+
+it.each(['en', 'zh-CN'] as const)('renders automatic memory switch, dated facts and one-tap delete: %s', (locale) => {
+  const html = renderToStaticMarkup(
+    <I18nProvider initialLocale={locale}>
+      <AutomaticMemorySettings
+        enabled={true}
+        disabled={false}
+        perform={async () => true}
+        entries={[
+          { id: 'auto', text: 'A durable preference', source: 'auto', added: '2026-11-04T00:00:00.000Z', line: '' },
+        ]}
+      />
+    </I18nProvider>,
+  );
+  expect(html).toContain('role="switch"');
+  expect(html).toContain('checked=""');
+  expect(html).toContain(translate(locale, 'memoryAutoHelp'));
+  expect(html).toContain(translate(locale, 'memoryDelete'));
+  expect(html).toContain('dateTime="2026-11-04T00:00:00.000Z"');
+  expect(html).toContain('A durable preference');
 });

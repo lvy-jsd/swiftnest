@@ -405,6 +405,9 @@
     "suggestion card",
     "suggestions",
     "assistant-start",
+    "memory-auto-switch",
+    "memory-auto-settings",
+    "region",
     "device-details",
     " device-tile--offline",
     "device-card device-tile",
@@ -442,6 +445,16 @@
     "page-header__new-chat",
     "chat-title",
     "chat-title__name",
-    "chat-title__status"
+    "chat-title__status",
+    "google",
+    "expert",
+    "media-gemini-help",
+    "chat-search-snippet",
+    "chat-search-settings",
+    "load",
+    "rebuild",
+    "local",
+    "cloud",
+    "chat-search-results"
   ]
 }

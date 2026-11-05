@@ -35,6 +35,8 @@ export interface ModelsView {
   /** The stronger model hard tasks go to. Unset: no expert. */
   expert?: ModelRoute;
   expertApproval: ExpertApproval;
+  /** Recordings/videos may leave this computer for Google; false until the owner opts in. */
+  geminiUploads: boolean;
   /**
    * Photo reading for a main model that cannot see: `readers` are the owner's vision
    * models (by provider id) that describe photos for it, best first; `free` is the
@@ -51,6 +53,8 @@ export interface ModelSettingsUpdate {
   main?: ModelRoute | null;
   expert?: ModelRoute | null;
   expertApproval?: ExpertApproval;
+  /** Requires a saved Google key; takes effect through the existing apply flow. */
+  geminiUploads?: boolean;
   /** Takes effect at once, without applying. */
   freeVision?: FreeVisionChoice;
 }

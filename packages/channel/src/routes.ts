@@ -1,5 +1,6 @@
 /** A channel is an App carrier, never a generic HTTP proxy or a new API. */
 const get = [
+  /^\/swiftnest\/api\/search(?:\/status)?$/,
   /^\/swiftnest\/health$/,
   /^\/swiftnest\/relay(?:\/connection)?$/,
   /^\/swiftnest\/api\/devices\/?$/,
@@ -7,14 +8,15 @@ const get = [
   /^\/swiftnest\/api\/devices\/files$/,
   /^\/swiftnest\/api\/plugins$/,
   /^\/swiftnest\/api\/models$/,
-  /^\/swiftnest\/api\/memory(?:\/topic)?$/,
+  /^\/swiftnest\/api\/memory(?:\/(?:topic|auto|auto\/recent))?$/,
 ];
 const post = [
+  /^\/swiftnest\/api\/search\/(settings|rebuild)$/,
   /^\/swiftnest\/relay$/,
   /^\/api\/(session\/(list|create|attachment)|userQuestions\/answer|\$events\/result)$/,
   /^\/swiftnest\/native\/(issue|resume|rotate|bind|revoke)$/,
   /^\/swiftnest\/api\/chat$/,
-  /^\/swiftnest\/api\/memory\/(add|edit|delete|topic)$/,
+  /^\/swiftnest\/api\/memory\/(add|edit|delete|topic|auto)$/,
   /^\/swiftnest\/api\/devices\/(preferences|transfers|pairing|live)$/,
   /^\/swiftnest\/api\/devices\/transfers\/[a-f0-9]{64}\/(pause|resume|cancel|retry)$/,
   /^\/swiftnest\/api\/devices\/(pairing|approvals)\/[^/]+\/(approve|deny)$/,

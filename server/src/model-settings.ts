@@ -67,6 +67,7 @@ export interface ModelSettings {
   main?: ModelRoute;
   expert?: ModelRoute;
   expertApproval: ExpertApproval;
+  geminiUploads: boolean;
   /**
    * May photos go to the free anonymous vision service when nothing else can read
    * them? `ask` until the owner answers. The kernel reads this field from the file at
@@ -75,7 +76,7 @@ export interface ModelSettings {
   freeVision: FreeVisionChoice;
 }
 
-export const DEFAULT_MODEL_SETTINGS: ModelSettings = { expertApproval: 'ask', freeVision: 'ask' };
+export const DEFAULT_MODEL_SETTINGS: ModelSettings = { expertApproval: 'ask', freeVision: 'ask', geminiUploads: false };
 
 const FREE_VISION_CHOICES: readonly FreeVisionChoice[] = ['ask', 'on', 'off'];
 
@@ -111,6 +112,7 @@ export function parseModelSettings(value: unknown): ModelSettings {
     ...(main ? { main } : {}),
     ...(expert ? { expert } : {}),
     expertApproval: saved.expertApproval === 'auto' ? 'auto' : 'ask',
+    geminiUploads: saved.geminiUploads === true,
     freeVision: isFreeVisionChoice(saved.freeVision) ? saved.freeVision : 'ask',
   };
 }
@@ -126,6 +128,9 @@ export function updateModelSettings(current: ModelSettings, update: unknown): Mo
       if (fields.expertApproval !== 'ask' && fields.expertApproval !== 'auto')
         throw new ServerFailure(text('modelsInvalidUpdate'));
       next.expertApproval = fields.expertApproval;
+    } else if (key === 'geminiUploads') {
+      if (typeof fields.geminiUploads !== 'boolean') throw new ServerFailure(text('modelsInvalidUpdate'));
+      next.geminiUploads = fields.geminiUploads;
     } else if (key === 'freeVision') {
       if (!isFreeVisionChoice(fields.freeVision)) throw new ServerFailure(text('modelsInvalidUpdate'));
       next.freeVision = fields.freeVision;

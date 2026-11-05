@@ -9,6 +9,7 @@ import { ChatFilters, IdentityRow, Sidebar } from '../src/shell';
 import { groupChats, greetingKey } from '../src/shellState';
 import { Suggestions } from '../src/home';
 import { Preferences } from '../src/preferences';
+import { PluginsProvider } from '../src/plugins';
 import { ThemeProvider } from '../src/design/theme';
 
 const chat = (sessionId: string, date: string): SessionSummary => ({
@@ -109,8 +110,10 @@ it('offers four translated suggestions and settings ListRows', () => {
     <ThemeProvider>
       <English>
         <ConnectionProvider>
-          <Suggestions onChoose={() => {}} />
-          <Preferences open={true} onClose={() => {}} />
+          <PluginsProvider>
+            <Suggestions onChoose={() => {}} />
+            <Preferences open={true} onClose={() => {}} />
+          </PluginsProvider>
         </ConnectionProvider>
       </English>
     </ThemeProvider>,
@@ -136,9 +139,11 @@ it('groups rendered chat rows and marks only actual running sessions', () => {
   const html = renderToStaticMarkup(
     <English>
       <ConnectionProvider store={store}>
-        <DeviceHubProvider>
-          <Sidebar chatId="active" onNewChat={() => {}} onNavigate={() => {}} onPreferences={() => {}} />
-        </DeviceHubProvider>
+        <PluginsProvider>
+          <DeviceHubProvider>
+            <Sidebar chatId="active" onNewChat={() => {}} onNavigate={() => {}} onPreferences={() => {}} />
+          </DeviceHubProvider>
+        </PluginsProvider>
       </ConnectionProvider>
     </English>,
   );

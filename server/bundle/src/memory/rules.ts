@@ -1,6 +1,7 @@
 /** The sole policy table for memory storage and validation. Limits count Unicode characters. */
 export const memoryRules = {
   entry: 300,
+  topicName: /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,79}$/u,
   index: 4_000,
   topic: 16_000,
   topics: 40,

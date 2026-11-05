@@ -1,10 +1,10 @@
 import type { SessionSummary } from '@swiftnest/api';
 
 export type ChatDateGroup = 'shell.today' | 'shell.yesterday' | 'shell.thisWeek' | 'shell.older';
-export type ChatListItem = { group: ChatDateGroup; chat: SessionSummary };
+export type ChatListItem<T = SessionSummary> = { group: ChatDateGroup; chat: T };
 
 /** Local calendar boundaries, Monday first; setDate also handles DST transitions. */
-export function groupChats(chats: readonly SessionSummary[], now = new Date()): ChatListItem[] {
+export function groupChats<T extends SessionSummary>(chats: readonly T[], now = new Date()): ChatListItem<T>[] {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today);

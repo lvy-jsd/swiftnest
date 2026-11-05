@@ -3,12 +3,12 @@ import type { SessionSummary } from '@swiftnest/api';
 import { Button } from './components/Button';
 import { Chip } from './components/Chip';
 import { IconButton } from './components/IconButton';
-import { VirtualList } from './components/VirtualList';
+import { ChatList, ChatSearchResults } from './chatList';
 import { useConnection } from './connection';
 import { useDevices } from './devices';
 import { icons } from './design/icons';
 import { useI18n } from './i18n';
-import { groupChats } from './shellState';
+import { usePlugins } from './plugins';
 import { hasPrecisePointer } from './runtime';
 
 export function BrandMark({ emblem = false }: { emblem?: boolean }) {
@@ -85,47 +85,6 @@ export function ChatFilters({
   );
 }
 
-function ChatList({
-  sessions,
-  chatId,
-  onNavigate,
-}: {
-  sessions: SessionSummary[];
-  chatId?: string;
-  onNavigate: () => void;
-}) {
-  const { t } = useI18n();
-  const items = groupChats(sessions).map((item, index, all) => ({
-    ...item,
-    startsGroup: index === 0 || all[index - 1]?.group !== item.group,
-  }));
-  return (
-    <VirtualList
-      items={items}
-      itemKey={({ chat }) => chat.sessionId}
-      label={t('chats')}
-      renderItem={({ chat, group, startsGroup }) => {
-        return (
-          <>
-            {startsGroup && <h2 className="chat-group-title">{t(group)}</h2>}
-            <a
-              className="chat-link"
-              href={`#/chats/${encodeURIComponent(chat.sessionId)}`}
-              onClick={onNavigate}
-              aria-current={chat.sessionId === chatId ? 'page' : undefined}
-            >
-              <span>{chat.title || t('untitledChat')}</span>
-              {chat.running === true && (
-                <span className="chat-running-dot" role="img" aria-label={t('shell.runningChats')} />
-              )}
-            </a>
-          </>
-        );
-      }}
-    />
-  );
-}
-
 function PrimaryNavigation({ onNavigate }: { onNavigate: () => void }) {
   const { t } = useI18n();
   const links = [
@@ -166,6 +125,7 @@ function ChatSearch({ query, onChange }: { query: string; onChange: (query: stri
       <input
         ref={search}
         type="search"
+        maxLength={1024}
         aria-label={t('search')}
         placeholder={t('search')}
         value={query}
@@ -212,13 +172,14 @@ export function Sidebar({
   onPreferences: () => void;
 }) {
   const { t } = useI18n();
-  const { sessions } = useConnection();
+  const { sessions, status } = useConnection();
+  const { owner } = usePlugins();
   const [query, setQuery] = useState('');
   const [runningOnly, setRunningOnly] = useState(false);
   const visible = sessions.filter(
     (chat) =>
       (!runningOnly || chat.running === true) &&
-      (chat.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+      (chat.title || t('untitledChat')).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
   return (
     <div className="sidebar-content">
@@ -227,7 +188,15 @@ export function Sidebar({
       <PrimaryNavigation onNavigate={onNavigate} />
       <ChatFilters sessions={sessions} runningOnly={runningOnly} onChange={setRunningOnly} />
       <nav className="chat-navigation" aria-label={t('chatNavigation')}>
-        {visible.length ? (
+        {query.trim() && owner && status === 'connected' ? (
+          <ChatSearchResults
+            query={query}
+            sessions={sessions}
+            runningOnly={runningOnly}
+            chatId={chatId}
+            onNavigate={onNavigate}
+          />
+        ) : visible.length ? (
           <ChatList sessions={visible} chatId={chatId} onNavigate={onNavigate} />
         ) : (
           <p className="sidebar-empty">{t('noChats')}</p>

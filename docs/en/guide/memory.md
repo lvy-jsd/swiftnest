@@ -2,7 +2,13 @@
 
 Open **Memory** from the App's main menu on desktop, phone or web. Add, edit or delete individual facts, or open a topic to edit its Markdown. Rejected changes show the server's reason. All Apps share the central server's memory; Apps do not keep a separate memory store.
 
-The assistant can use `remember` (text and an optional topic), `forget` (entry text or id), and `recall` (list everything, search with `query`, or read a whole `topic`). Saving an identical entry in the same location quietly reports that it was already saved. There is no automatic consolidation in this version.
+The assistant can use `remember` (text and an optional topic), `forget` (entry text or id), and `recall` (list everything, search with `query`, or read a whole `topic`). Saving an identical entry in the same location quietly reports that it was already saved.
+
+**Remember important things automatically** is on by default. After a chat has been quiet for two minutes, its own main model reviews only the new messages for durable owner preferences, people, projects and standing instructions. Existing facts are supplied so newer contradictory facts can replace them by ID. There is no additional model service: memory stays on the server, and reviews use the chat's existing model (a cloud model still sends the review to that same provider). The response must have a strict JSON structure. Individual operations that contain suspected secrets, exceed storage limits or target unknown entries are skipped, with only the skipped count logged. Valid operations and the review cursor are saved in one transaction, so rejected facts are not repeatedly reviewed. A concurrent change to existing memory rejects the proposal for a later retry.
+
+Use the switch on the Memory page to stop or resume reviews. **Recently remembered automatically** shows the latest 50 current auto-saved facts with dates; one tap deletes a fact through the usual delete path. Topic editing is under **More memory options**. The server persists the switch and each chat's review cursor in `memory/auto.json`; facts and cursor advance in one recoverable transaction. Only one review runs at a time across all chats; queued chats wait for a fresh quiet period if a new turn arrives. Restarts also check quiet stored chats that have not been reopened. The enable time is persisted: first startup excludes old history, and re-enabling starts with new messages, without back-filling the off period. New turns cancel an ongoing review. Failed reviews log a content-free warning, retry once after a minute, and then wait for a new turn, a switch change or restart. A review never runs during an active turn.
+
+The initial default can be set with `memory: { auto: false }` or `SWIFTNEST_MEMORY_AUTO=false` (the environment takes precedence over YAML). An explicit switch choice saved in the App takes precedence over this default. Both configuration values accept only booleans. Suspected secrets are never saved; as with manual memory, review the facts and delete anything you do not want kept.
 
 A session freezes its memory block on its first prompt render. Later saves do not change that session's system prompt, preserving the prefix cache. The prompt tells the assistant to call `recall` before saying it does not know a past preference or fact. New sessions see the latest memory; `recall` always reads current memory.
 
@@ -24,3 +30,5 @@ memory:
 ```
 
 Or use `SWIFTNEST_MEMORY=false`. Existing memory remains on the server. The owner-only HTTP API uses the same signed session and Host/Origin admission as the other App APIs: `GET /swiftnest/api/memory`, `POST /add`, `/edit`, `/delete`, and `GET`/`POST /topic` under that prefix. `packages/api` exposes the corresponding typed methods.
+
+Automatic memory adds owner-only `GET`/`POST /swiftnest/api/memory/auto` (`{ enabled: boolean }`) and `GET /swiftnest/api/memory/auto/recent`. The client methods are `memoryAutoSettings`, `setMemoryAuto`, and `recentAutoMemory`; deletion uses `deleteMemory`.

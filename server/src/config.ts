@@ -1,3 +1,4 @@
+import { ChatSearchSettingsSchema, type ChatSearchSettings } from '@swiftnest/api';
 import { relayConfig, type RelayConfig } from '@swiftnest/channel';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
@@ -78,10 +79,11 @@ export interface ServerConfig {
   /** Where photos go when nothing else can read them and the owner agreed; defaults to {@link FREE_VISION}. */
   freeVision?: FreeVisionService;
   files?: { quotaBytes: number };
-  /** Optional download mirrors and an administrator-owned local instrument library. */
-  media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string };
+  /** Optional media resources; upload consent is supplied by ModelManager from saved Models settings. */
+  media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string; geminiUploads?: boolean };
   /** Built-in central memory: on without installing or configuring a plugin. */
-  memory?: { enabled: boolean };
+  memory?: { enabled: boolean; auto?: boolean };
+  search?: ChatSearchSettings;
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -147,9 +149,15 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (
     fromFile.memory !== undefined &&
-    (!fromFile.memory || typeof fromFile.memory !== 'object' || typeof fromFile.memory.enabled !== 'boolean')
+    (!fromFile.memory ||
+      typeof fromFile.memory !== 'object' ||
+      Array.isArray(fromFile.memory) ||
+      (fromFile.memory.enabled === undefined
+        ? fromFile.memory.auto === undefined
+        : typeof fromFile.memory.enabled !== 'boolean'))
   )
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
+  validateMemoryAuto(fromFile.memory?.auto, env.SWIFTNEST_MEMORY_AUTO);
   const pluginLocks = parsePluginsEnv(env.SWIFTNEST_PLUGINS);
   const config: ServerConfig = {
     relay: checkedRelayConfig(
@@ -175,7 +183,12 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     memory: {
       enabled:
         env.SWIFTNEST_MEMORY === undefined ? (fromFile.memory?.enabled ?? true) : env.SWIFTNEST_MEMORY === 'true',
+      auto:
+        env.SWIFTNEST_MEMORY_AUTO === undefined
+          ? (fromFile.memory?.auto ?? true)
+          : env.SWIFTNEST_MEMORY_AUTO === 'true',
     },
+    search: loadSearch(fromFile.search, env),
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
     media: fromFile.media,
@@ -210,6 +223,9 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 
 export function validate(config: ServerConfig): void {
   checkedRelayConfig(config.relay);
+  validateMemoryAuto(config.memory?.auto);
+  if (!ChatSearchSettingsSchema.safeParse(config.search ?? {}).success)
+    throw new ServerFailure(text('chatSearchInvalidSettings'));
   if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
@@ -258,6 +274,14 @@ function validateFreeVision(service: FreeVisionService): void {
     throw new ServerFailure(text('freeVisionInvalid'));
 }
 
+function validateMemoryAuto(value: unknown, environment?: string): void {
+  if (
+    (value !== undefined && typeof value !== 'boolean') ||
+    (environment !== undefined && !['true', 'false'].includes(environment))
+  )
+    throw new ServerFailure(text('memoryAutoMustBoolean'));
+}
+
 function validateMediaUrl(
   value: string | undefined,
   key: 'media.model_mirror_invalid' | 'media.soundfont_url_invalid',
@@ -269,4 +293,28 @@ function validateMediaUrl(
   } catch {
     throw new ServerFailure(text(key));
   }
+}
+
+function loadSearch(value: unknown, env: NodeJS.ProcessEnv): ChatSearchSettings {
+  const parsed = ChatSearchSettingsSchema.safeParse(value ?? {});
+  if (!parsed.success) throw new ServerFailure(text('chatSearchInvalidSettings'));
+  const settings = parsed.data;
+  const booleans = [
+    ['SWIFTNEST_SEARCH', settings, 'enabled'],
+    ['SWIFTNEST_SEARCH_SEMANTIC', settings, 'semantic'],
+    ['SWIFTNEST_SEARCH_CLOUD_EMBEDDINGS', settings.embeddings, 'cloudConsent'],
+  ] as const;
+  for (const [name, target, key] of booleans) {
+    const value = env[name];
+    if (value === undefined) continue;
+    if (!['true', 'false'].includes(value)) throw new ServerFailure(text('chatSearchInvalidSettings'));
+    Object.assign(target, { [key]: value === 'true' });
+  }
+  if (env.SWIFTNEST_SEARCH_EMBEDDING_SOURCE !== undefined)
+    Object.assign(settings.embeddings, { source: env.SWIFTNEST_SEARCH_EMBEDDING_SOURCE });
+  if (env.SWIFTNEST_SEARCH_EMBEDDING_MODEL !== undefined)
+    settings.embeddings.model = env.SWIFTNEST_SEARCH_EMBEDDING_MODEL;
+  const result = ChatSearchSettingsSchema.safeParse(settings);
+  if (!result.success) throw new ServerFailure(text('chatSearchInvalidSettings'));
+  return result.data;
 }

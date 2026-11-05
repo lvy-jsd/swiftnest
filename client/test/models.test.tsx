@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ModelsView } from '@swiftnest/api';
 import { pairingReturn } from '../src/App';
+import { MediaGeminiSettings } from '../src/models';
 import { ApplyStatus } from '../src/applyPanel';
 import { I18nProvider, translate } from '../src/i18n';
 import {
@@ -33,6 +34,7 @@ const view: ModelsView = {
   providers: [deepseek, google],
   expert: { provider: 'deepseek', model: 'deepseek-v4-flash' },
   expertApproval: 'ask',
+  geminiUploads: false,
   vision: { needed: true, readers: ['deepseek'], free: 'ask' },
   pending: false,
   apply: { state: 'idle' },
@@ -88,4 +90,17 @@ describe('model apply', () => {
     expect(pairingReturn('#/pair', true)).toBe('/plugins');
     expect(pairingReturn('#/pair', false)).toBe('/');
   });
+});
+
+it.each(['en', 'zh-CN'] as const)('explains the default-off Google switch and key guidance in %s', (locale) => {
+  const html = renderToStaticMarkup(
+    <I18nProvider initialLocale={locale}>
+      <MediaGeminiSettings view={view} disabled={false} save={() => {}} addKey={() => {}} />
+    </I18nProvider>,
+  );
+  expect(html).toContain(translate(locale, 'media.gemini_uploads_switch'));
+  expect(html).toContain(translate(locale, 'media.gemini_uploads_help'));
+  expect(html).toContain(translate(locale, 'media.gemini_uploads_add_key'));
+  expect(html).toContain('aria-checked="false"');
+  expect(html).not.toContain('type="password"');
 });

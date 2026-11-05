@@ -1632,3 +1632,32 @@ details.plugin-card summary {
     width: 100%;
   }
 }
+
+.memory-auto-settings {
+  padding: var(--space-xl);
+}
+
+.memory-auto-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--min-target);
+  cursor: pointer;
+}
+
+.chat-search-snippet {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+}
+.chat-search-snippet mark {
+  background: var(--color-surface3);
+  color: inherit;
+}
+.chat-search-settings {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
