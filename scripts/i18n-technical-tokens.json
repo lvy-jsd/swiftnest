@@ -498,6 +498,17 @@
     "round",
     "tool-delivery",
     "tool-trace__duration",
-    "virtual-list transcript"
+    "virtual-list transcript",
+    "{minutes}",
+    "unit",
+    "minute",
+    "long",
+    "approval-card__header",
+    "approval-card__risk",
+    "approval-card__tool",
+    "approval-card__reason",
+    "approval-card__metadata",
+    "approval-card__expiry",
+    "device-actions approval-card__actions"
   ]
 }
