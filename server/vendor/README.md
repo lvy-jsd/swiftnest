@@ -2,7 +2,7 @@
 
 `tool-ultra.package-lock.json` locks the npm workspace dependencies for
 `https://github.com/lvy-jsd/dsh-tool-ultra` at commit
-`19c59e9efe5b999fc34df4c5b7a3b22a911293e0` (Apache-2.0). That source deliberately
+`727f9e41f611c3781d8693ecf76e926fcf4bb1c7` (Apache-2.0). That source deliberately
 omits a lockfile. Swiftnest copies this file into its isolated checkout before
 `npm ci`; no Tool Ultra package is fetched from npm. DSH peers are linked from
 the Server's pinned host, using upstream's `postinstall` script.
@@ -19,7 +19,7 @@ then generate the lock with `npm install --package-lock-only --package-lock=true
 then run the opt-in installation/kernel/device/approval e2e test. Never edit
 package defaults here: they are read from the pinned source's patch files.
 
-The existing lock is reused for this pin: `1b353b7`..`19c59e9` touches only the core source (a 2-line `wireTokens` accounting fix) and two unit tests, so no manifest or dependency graph changed. Regenerate the lock whenever a future pin changes a manifest.
+The existing lock is reused for this pin: `19c59e9`..`727f9e4` touches only the core source (the observe-only `tools/result` meter), its service type, one unit test and a DESIGN.md note, so no manifest or dependency graph changed. Regenerate the lock whenever a future pin changes a manifest.
 
 The media pack now uses `sherpa-onnx-node` with its platform-specific CPU
 binaries. Transformers.js, `onnxruntime-node` and `onnxruntime-web` are no longer
