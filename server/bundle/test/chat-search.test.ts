@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ChatIndex, type SearchEvent } from '../src/chat-search/store.js';
-import { chunkText, fullTextQuery, fuseRanks, snippet } from '../src/chat-search/text.js';
+import { chunkText, fuseRanks, queryParts, snippet } from '../src/chat-search/text.js';
 import { ChatSearch, type SearchSources } from '../src/chat-search/service.js';
 import { SqliteVectors, cosine } from '../src/chat-search/vectors.js';
 
@@ -45,10 +45,10 @@ it('chunks Unicode without splitting surrogate pairs and retains boundary phrase
   const long = chunkText(`${'a'.repeat(1500)}跨边界词组${'b'.repeat(1700)}`);
   expect(long.some((chunk) => chunk.includes('跨边界词组'))).toBe(true);
 });
-it('quotes FTS syntax and uses escaped LIKE for short Chinese, English and wildcard literals', () => {
-  expect(fullTextQuery('杭州旅行 BICYCLE 中 a % _ \\')).toEqual({
-    match: '"杭州旅行" AND "bicycle"',
-    short: ['%中%', '%a%', '%\\%%', '%\\_%', '%\\\\%'],
+it('splits on punctuation and keeps FTS syntax and LIKE wildcards literal', () => {
+  expect(queryParts('杭州旅行 BICYCLE, 中 a? % _ \\')).toEqual({
+    phrases: ['bicycle'],
+    grams: ['杭州', '州旅', '旅行', '中', 'a'],
   });
   const store = index();
   store.consume({ id: 'one' }, [user(0, '杭州旅行 bicycle ab 100% a_b "quoted" NEAR(x) OR -test * 斜\\杠')]);
@@ -71,10 +71,40 @@ it('quotes FTS syntax and uses escaped LIKE for short Chinese, English and wildc
     expect(() => store.results(query, 20)).not.toThrow();
   }
   expect(store.results('杭州', 20)).toHaveLength(1);
-  expect(store.results('%', 20)).toHaveLength(1);
-  expect(store.results('x_y', 20)).toEqual([]);
+  expect(store.results('%', 20)).toEqual([]);
+  expect(store.results('100%', 20)).toHaveLength(1);
+  expect(store.results('zq_qz', 20)).toEqual([]);
   expect(store.results('bicycle 杭', 20)).toHaveLength(1);
   expect(store.results('missing', 20)).toEqual([]);
+});
+it('finds CJK chats by overlapping bigrams and English chats by OR-ed phrases', () => {
+  const store = index();
+  store.consume({ id: 'cjk' }, [user(0, '我们周六去了那家叫川味小馆的餐厅')]);
+  store.consume({ id: 'en' }, [user(0, 'a restaurant called Blue Door')]);
+  const cjk = store.results('上周我们说的那个餐厅叫什么', 20);
+  expect(cjk.map((row) => row.sessionId)).toContain('cjk');
+  expect(cjk[0]!.highlights.map(([start, end]) => cjk[0]!.snippet.slice(start, end))).toContain('餐厅');
+  expect(store.results('what restaurant called', 20).map((row) => row.sessionId)).toContain('en');
+  expect(store.results('What restaurant was it called?', 20).map((row) => row.sessionId)).toContain('en');
+});
+it('ranks a doc containing every query word first among several docs', () => {
+  const store = index();
+  store.consume({ id: 'full' }, [user(0, 'the restaurant called Blue Door on Saturday')]);
+  store.consume({ id: 'partial' }, [user(0, 'Blue Door')]);
+  store.consume({ id: 'other' }, [user(0, 'a restaurant review')]);
+  const results = store.results('restaurant called Blue Door', 20);
+  expect(results[0]!.sessionId).toBe('full');
+  expect(results).toHaveLength(3);
+});
+it('caps FTS phrases at 12 and grams at 24, and returns nothing for an empty query', () => {
+  const cjk = Array.from({ length: 30 }, (_, i) => String.fromCodePoint(0x4e00 + i)).join('');
+  const parts = queryParts(`${Array.from({ length: 20 }, (_, i) => `word${i}`).join(' ')} ${cjk}`);
+  expect(parts.phrases).toHaveLength(12);
+  expect(parts.grams).toHaveLength(24);
+  expect(queryParts('   ')).toEqual({ phrases: [], grams: [] });
+  const store = index();
+  store.consume({ id: 'one' }, [user(0, '杭州旅行')]);
+  expect(store.results('   ', 20)).toEqual([]);
 });
 it('uses BM25 ordering, title changes, text-only human/assistant messages, and message-level deduplication', () => {
   const store = index();

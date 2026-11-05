@@ -10,24 +10,35 @@ export function chunkText(text: string, size = 1600, overlap = 160): string[] {
   return chunks;
 }
 
-export function queryTerms(query: string): string[] {
-  return [...new Set(query.trim().toLowerCase().split(/\s+/u).filter(Boolean))].slice(0, 12);
+const TERM_SEPARATOR = /[\s\p{P}\p{S}]+/u;
+const CJK_RUN = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7A3\uF900-\uFAFF]+/gu;
+
+export interface QueryParts {
+  phrases: string[];
+  grams: string[];
 }
 
-/** All values stay bound parameters; quoted phrases make operators and punctuation literal. */
-export function fullTextQuery(query: string) {
-  const terms = queryTerms(query);
-  return {
-    match: terms
-      .filter((term) => [...term].length >= 3)
-      .map((term) => `"${term.replaceAll('"', '""')}"`)
-      .join(' AND '),
-    short: terms.filter((term) => [...term].length < 3).map((term) => `%${term.replace(/[\\%_]/g, '\\$&')}%`),
-  };
+/** Punctuation separates terms; CJK runs become overlapping bigrams and short terms become grams; the rest are FTS phrases. */
+export function queryParts(query: string): QueryParts {
+  const phrases: string[] = [];
+  const grams: string[] = [];
+  for (const term of query.toLowerCase().split(TERM_SEPARATOR).filter(Boolean)) {
+    for (const part of term.replace(CJK_RUN, ' ').split(/\s+/u).filter(Boolean)) {
+      if ([...part].length >= 3) phrases.push(part);
+      else grams.push(part);
+    }
+    for (const run of term.matchAll(CJK_RUN)) {
+      const chars = [...run[0]];
+      for (let at = 0; at + 1 < chars.length; at += 1) grams.push(chars.slice(at, at + 2).join(''));
+      if (chars.length === 1) grams.push(chars[0]!);
+    }
+  }
+  return { phrases: [...new Set(phrases)].slice(0, 12), grams: [...new Set(grams)].slice(0, 24) };
 }
 
 export function snippet(text: string, query: string) {
-  const terms = queryTerms(query);
+  const { phrases, grams } = queryParts(query);
+  const terms = [...phrases, ...grams];
   const lower = text.toLowerCase();
   const first = Math.min(...terms.map((term) => lower.indexOf(term)).filter((offset) => offset >= 0));
   let start = Number.isFinite(first) ? Math.max(0, first - 65) : 0;

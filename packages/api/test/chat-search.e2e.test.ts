@@ -66,3 +66,41 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
   },
   120_000,
 );
+
+it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
+  'lexical bigram search finds a CJK chat with semantic search off',
+  async () => {
+    const harness = new ChatSearchHarness();
+    try {
+      await harness.start();
+      const client = harness.client;
+      const chat = await client.createSession();
+      const first = await harness.turn(chat.sessionId, '我们周六去了那家叫川味小馆的餐厅');
+      expect(first.filter((event) => event.type === 'error')).toEqual([]);
+      const settings = (await client.chatSearchStatus()).settings;
+      await client.configureChatSearch({ ...settings, semantic: false });
+      await expect.poll(async () => (await client.chatSearchStatus()).settings.semantic).toBe(false);
+      await expect
+        .poll(async () =>
+          (await client.searchChats('上周我们说的那个餐厅叫什么')).some((row) => row.sessionId === chat.sessionId),
+        )
+        .toBe(true);
+      const fresh = await client.createSession();
+      const events = await harness.turn(fresh.sessionId, 'lookup:上周我们说的那个餐厅叫什么');
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool-result',
+            isError: false,
+            text: expect.stringContaining(chat.sessionId),
+          }),
+        ]),
+      );
+    } catch (error) {
+      throw new Error(`${String(error)}\n${harness.logs.slice(-70).join('\n')}`, { cause: error });
+    } finally {
+      await harness.close();
+    }
+  },
+  120_000,
+);

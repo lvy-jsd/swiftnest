@@ -2,7 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChatSearchResult, ChatSearchSettings } from '@swiftnest/protocol';
-import { chunkText, fullTextQuery, fuseRanks, snippet } from './text.js';
+import { chunkText, fuseRanks, queryParts, snippet } from './text.js';
 
 export interface SearchHeader {
   id: string;
@@ -124,23 +124,37 @@ export class ChatIndex {
   saveSettings(settings: ChatSearchSettings) {
     this.db.prepare("INSERT OR REPLACE INTO metadata(key,value) VALUES ('settings',?)").run(JSON.stringify(settings));
   }
-  lexical(query: string, limit = 100): number[] {
-    const { match, short } = fullTextQuery(query);
-    const where = short.map(() => "(m.text LIKE ? ESCAPE '\\' OR m.title LIKE ? ESCAPE '\\')");
-    const args: SQLInputValue[] = short.flatMap((term) => [term, term]);
-    if (match) {
-      where.unshift('chats MATCH ?');
-      args.unshift(match);
-    }
-    const from = match ? 'chats JOIN messages m ON m.id=chats.rowid' : 'messages m';
+  /** FTS phrases and LIKE grams rank separately; more matched terms rank higher. */
+  lexical(query: string, limit = 100): [number[], number[]] {
+    const { phrases, grams } = queryParts(query);
+    return [this.fullText(phrases, limit), this.gramMatches(grams, limit)];
+  }
+  private fullText(phrases: string[], limit: number): number[] {
+    if (!phrases.length) return [];
+    const match = phrases.map((phrase) => `"${phrase.replaceAll('"', '""')}"`).join(' OR ');
     return this.db
-      .prepare(`SELECT m.id FROM ${from} WHERE ${where.join(' AND ') || '0'}
-      ORDER BY ${match ? 'bm25(chats)' : 'm.time DESC'},m.id LIMIT ?`)
+      .prepare(
+        `SELECT m.id FROM chats JOIN messages m ON m.id=chats.rowid
+        WHERE chats MATCH ? ORDER BY bm25(chats), m.id LIMIT ?`,
+      )
+      .all(match, limit)
+      .map((row) => row.id as number);
+  }
+  private gramMatches(grams: string[], limit: number): number[] {
+    if (!grams.length) return [];
+    const score = grams.map(() => "(m.text LIKE ? ESCAPE '\\' OR m.title LIKE ? ESCAPE '\\')").join(' + ');
+    const args: SQLInputValue[] = grams.flatMap((gram) => [likePattern(gram), likePattern(gram)]);
+    return this.db
+      .prepare(
+        `SELECT m.id, ${score} AS score FROM messages m GROUP BY m.id HAVING score > 0
+        ORDER BY score DESC, m.time DESC, m.id LIMIT ?`,
+      )
       .all(...args, limit)
       .map((row) => row.id as number);
   }
   results(query: string, limit: number, semantic: number[] = []): ChatSearchResult[] {
-    const ids = fuseRanks(this.lexical(query), semantic);
+    const [ftsIds, gramIds] = this.lexical(query);
+    const ids = fuseRanks(ftsIds, gramIds, semantic);
     const seen = new Set<string>();
     const results: ChatSearchResult[] = [];
     for (const id of ids) {
@@ -171,6 +185,10 @@ export class ChatIndex {
       throw error;
     }
   }
+}
+
+function likePattern(gram: string): string {
+  return `%${gram.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
 function messageText(content: unknown): string {
