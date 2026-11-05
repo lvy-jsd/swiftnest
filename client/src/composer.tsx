@@ -7,6 +7,7 @@ import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent } from './photo
 import { preparePhotos } from './photoEncode';
 import { isPhoto, roomFor } from './photoState';
 import { hasPrecisePointer } from './runtime';
+import { ChatIcon } from './components/ChatIcon';
 import { icons } from './design/icons';
 import { IconButton } from './components/IconButton';
 
@@ -93,26 +94,39 @@ function ComposerInput({ model }: { model: ReturnType<typeof useSendDraft> }) {
   );
 }
 
-function ComposerForm({ model, disabled }: { model: ReturnType<typeof useSendDraft>; disabled: boolean }) {
+function ComposerForm({
+  model,
+  disabled,
+  chat,
+}: {
+  model: ReturnType<typeof useSendDraft>;
+  disabled: boolean;
+  chat: boolean;
+}) {
   const { t } = useI18n();
   const Send = icons.send;
   return (
     <form
-      className="composer card"
+      className={`composer card${chat ? ' composer--chat' : ''}`}
       onSubmit={(event) => {
         event.preventDefault();
         if (!disabled) void model.send();
       }}
     >
-      <PhotoButton disabled={roomFor(model.draft.photos) === 0} add={(files) => void model.add(files)} />
+      <PhotoButton
+        lineIcon={chat}
+        disabled={roomFor(model.draft.photos) === 0}
+        add={(files) => void model.add(files)}
+      />
       <ComposerInput model={model} />
       <IconButton
         type="submit"
         variant="primary"
+        className="composer-send"
         disabled={disabled || (!model.draft.text.trim() && !model.draft.photos.length)}
         aria-label={t('send')}
       >
-        <Send size={24} />
+        {chat ? <ChatIcon name="send" /> : <Send size={24} />}
       </IconButton>
     </form>
   );
@@ -141,9 +155,9 @@ export function Composer({
       {draft.failed && <p role="alert">{t('sendFailed')}</p>}
       {draft.photoFailed && <p role="alert">{t('photoFailed')}</p>}
       {consent.failed && <p role="alert">{t('pluginsRequestFailed')}</p>}
-      <PhotoDrafts drafts={draft.photos} remove={(id) => state.remove(draftKey, [id])} />
+      <PhotoDrafts lineIcon={draftKey !== 'home'} drafts={draft.photos} remove={(id) => state.remove(draftKey, [id])} />
       <PhotoConsent consent={consent} />
-      <ComposerForm model={model} disabled={disabled} />
+      <ComposerForm model={model} disabled={disabled} chat={draftKey !== 'home'} />
     </div>
   );
 }

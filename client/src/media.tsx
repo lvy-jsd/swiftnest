@@ -4,6 +4,7 @@ import { Card } from './components/Card';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { SendFile } from './transfers';
+import { ChatIcon } from './components/ChatIcon';
 
 type AttachmentSource = { path: string } | { sessionId: string; image: MessageImage };
 
@@ -73,12 +74,23 @@ function Preview({ url, name, image }: { url: string; name: string; image?: Mess
   return null;
 }
 
-function Attachment({ file }: { file: ChatAttachment }) {
+function Attachment({ file, count }: { file: ChatAttachment; count: number }) {
   const { t } = useI18n();
   const { url, failed } = useAttachment(file);
   return (
     <Card className="media-attachment">
-      <strong>{file.name}</strong>
+      <div className="delivered-file">
+        <ChatIcon name="file" />
+        <div className="delivered-file__copy">
+          <strong>{file.name}</strong>
+          <p>{t(count === 1 ? 'chat.deliveredFile' : 'chat.deliveredFiles').replace('{count}', String(count))}</p>
+        </div>
+        {url && (
+          <a className="delivered-file__view" href={url} target="_blank" rel="noreferrer">
+            {t('chat.viewFile')}
+          </a>
+        )}
+      </div>
       {url && <Preview url={url} name={file.name} />}
       {failed && <p role="alert">{t('media.preview_failed')}</p>}
       {url && (
@@ -131,7 +143,7 @@ export function ToolAttachments({
         (call) => ['audio_transcribe', 'video_understand'].includes(call.name ?? '') && call.text === undefined,
       ) && <p role="status">{t('media.model_downloading')}</p>}
       {[...files.values()].map((file) => (
-        <Attachment key={file.path} file={file} />
+        <Attachment key={file.path} file={file} count={files.size} />
       ))}
     </>
   );

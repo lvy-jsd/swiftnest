@@ -6,13 +6,22 @@ import { useEffect, useRef, useState } from 'react';
 import type { ModelsView } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
+import { ChatIcon } from './components/ChatIcon';
 import { icons } from './design/icons';
 import { needsFreeVisionAnswer, type PhotoDraft } from './photoState';
 import { Button } from './components/Button';
 import { IconButton } from './components/IconButton';
 import { Card } from './components/Card';
 
-export function PhotoButton({ disabled, add }: { disabled: boolean; add: (files: FileList) => void }) {
+export function PhotoButton({
+  disabled,
+  add,
+  lineIcon = false,
+}: {
+  disabled: boolean;
+  add: (files: FileList) => void;
+  lineIcon?: boolean;
+}) {
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
   const Photo = icons.photo;
@@ -30,13 +39,21 @@ export function PhotoButton({ disabled, add }: { disabled: boolean; add: (files:
         }}
       />
       <IconButton variant="ghost" aria-label={t('photoAdd')} disabled={disabled} onClick={() => input.current?.click()}>
-        <Photo size={24} />
+        {lineIcon ? <ChatIcon name="attach" /> : <Photo size={24} />}
       </IconButton>
     </>
   );
 }
 
-export function PhotoDrafts({ drafts, remove }: { drafts: readonly PhotoDraft[]; remove: (id: string) => void }) {
+export function PhotoDrafts({
+  drafts,
+  remove,
+  lineIcon = false,
+}: {
+  drafts: readonly PhotoDraft[];
+  remove: (id: string) => void;
+  lineIcon?: boolean;
+}) {
   const { t } = useI18n();
   const Close = icons.close;
   if (!drafts.length) return null;
@@ -46,7 +63,7 @@ export function PhotoDrafts({ drafts, remove }: { drafts: readonly PhotoDraft[];
         <li key={draft.id}>
           <img src={draft.url} alt={draft.name ?? t('photo')} />
           <IconButton variant="ghost" aria-label={t('photoRemove')} onClick={() => remove(draft.id)}>
-            <Close size={16} />
+            {lineIcon ? <ChatIcon name="close" /> : <Close size={16} />}
           </IconButton>
         </li>
       ))}

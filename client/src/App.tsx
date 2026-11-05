@@ -4,15 +4,13 @@ import { PageNavigationProvider } from './components/PageNavigation';
 import { Preferences } from './preferences';
 import { Sidebar } from './shell';
 import { Home } from './home';
-import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
 import { Composer, ComposerProvider } from './composer';
 import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
-import { ApprovalCard } from './approvals';
 import { ApprovalInboxProvider } from './inboxState';
 import { ApprovalBadge, ApprovalInboxPage } from './inbox';
-import { localizedError, type SwiftnestClient } from '@swiftnest/api';
+import type { SwiftnestClient } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
@@ -27,7 +25,8 @@ import { useI18n } from './i18n';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
 import { readyClientAfter, watchChatSession } from './chatSession';
-import type { ChatRow } from './chat';
+import { chatTimeline } from './chatPresentation';
+import { EmptyChat, TranscriptRow } from './chatTranscript';
 
 export { chatFromHash } from './shellNavigation';
 
@@ -132,60 +131,12 @@ function Thinking() {
     </p>
   );
 }
-function TranscriptRow({ row, sessionId }: { row: ChatRow; sessionId: string }) {
-  const { t, locale } = useI18n();
-  const { assistantName } = useConnection();
-  if (row.kind === 'message') {
-    if (!row.text && !row.images?.length) return null;
-    const author = row.role === 'user' ? t('you') : (assistantName ?? t('assistant'));
-    return (
-      <article
-        className={`message${row.role === 'user' ? ' message--own' : ''}`}
-        data-streaming={!row.final || undefined}
-      >
-        <div className="message__body">
-          <strong>{author}</strong>
-          <MessagePhotos sessionId={sessionId} images={row.images} />
-          {row.text && <p>{row.text}</p>}
-        </div>
-      </article>
-    );
-  }
-  if (row.kind === 'approval') return <ApprovalCard request={row} />;
-  if (row.kind === 'error') {
-    const failure = localizedError({ code: row.code, message: row.text }, locale);
-    return (
-      <p className="inline-error" role="alert">
-        {failure.message}
-        <br />
-        {failure.hint} ({failure.code})
-      </p>
-    );
-  }
-  if (row.kind === 'tools')
-    return (
-      <div>
-        <ToolAttachments calls={row.calls} />
-        <details key={String(row.finished)} className="event-card">
-          <summary>
-            {t(row.finished ? 'ranTools' : 'runningTools').replace('{count}', String(Object.keys(row.calls).length))}
-          </summary>
-          <pre>{JSON.stringify(row.calls, null, 2)}</pre>
-        </details>
-      </div>
-    );
-  return (
-    <details className="event-card">
-      <summary>{t('unknownEvent')}</summary>
-      <pre>{JSON.stringify(row.event, null, 2)}</pre>
-    </details>
-  );
-}
 function useChatSession(sessionId: string) {
   const { t } = useI18n();
   const { store, status } = useConnection();
   const { client } = store;
   const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
+  const [timeline, recordTime] = useReducer(chatTimeline, {});
   const [readyClient, setReadyClient] = useState<SwiftnestClient>();
   // A language switch must not drop and re-follow the chat, so `t` is read but not a dependency.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
@@ -194,6 +145,7 @@ function useChatSession(sessionId: string) {
     return watchChatSession(client, sessionId, {
       ready: (ready) => setReadyClient((current) => readyClientAfter(current, ready, client)),
       event(event) {
+        recordTime(event);
         dispatch(event);
         if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
       },
@@ -203,12 +155,24 @@ function useChatSession(sessionId: string) {
       },
     });
   }, [client, sessionId, status, store]);
-  return { state, dispatch, ready: !!client && status === 'connected' && readyClient === client };
+  return { state, dispatch, timeline, ready: !!client && status === 'connected' && readyClient === client };
 }
 
 type ChatSession = ReturnType<typeof useChatSession>;
-function ChatTranscript({ sessionId, state }: Pick<ChatSession, 'state'> & { sessionId: string }) {
+function ChatTranscript({
+  sessionId,
+  state,
+  timeline,
+  blank,
+}: Pick<ChatSession, 'state' | 'timeline'> & { sessionId: string; blank: boolean }) {
   const { t } = useI18n();
+  if (blank && !state.rows.length && !state.waiting)
+    return (
+      // biome-ignore lint/a11y/useSemanticElements: matches the virtual transcript's list semantics
+      <div className="virtual-list transcript" role="list" aria-label={t('messages')}>
+        <EmptyChat sessionId={sessionId} />
+      </div>
+    );
   return (
     <VirtualList
       items={state.rows}
@@ -216,7 +180,7 @@ function ChatTranscript({ sessionId, state }: Pick<ChatSession, 'state'> & { ses
       label={t('messages')}
       followEnd
       className="transcript"
-      renderItem={(row) => <TranscriptRow row={row} sessionId={sessionId} />}
+      renderItem={(row) => <TranscriptRow row={row} sessionId={sessionId} timeline={timeline} />}
     />
   );
 }
@@ -232,10 +196,11 @@ function ChatDetail({
 }) {
   const { t } = useI18n();
   const { status, sessions } = useConnection();
-  const { state, ready } = useChatSession(sessionId);
+  const { state, timeline, ready } = useChatSession(sessionId);
+  const session = sessions.find((session) => session.sessionId === sessionId);
   return (
     <DetailPage
-      title={sessions.find((session) => session.sessionId === sessionId)?.title || t('untitledChat')}
+      title={session?.title || t('untitledChat')}
       subtitle={t(state.waiting ? 'thinking' : status)}
       onBack={onBack}
       onTitleClick={onOptions}
@@ -244,7 +209,7 @@ function ChatDetail({
       <DeviceApprovals />
       <TransferCards compact />
       <LiveDeviceButton />
-      <ChatTranscript sessionId={sessionId} state={state} />
+      <ChatTranscript sessionId={sessionId} state={state} timeline={timeline} blank={session?.blank === true} />
       {state.waiting && <Thinking />}
       <Composer draftKey={sessionId} waiting={state.waiting} ready={ready} />
     </DetailPage>

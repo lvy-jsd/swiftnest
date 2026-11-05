@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
 import { icons } from '../design/icons';
 import { IconButton } from './IconButton';
+import { ChatIcon } from './ChatIcon';
 import { usePageNavigation } from './PageNavigation';
 import { useConnection } from '../connection';
 
@@ -15,7 +16,7 @@ export type PageHeaderProps = {
   children?: ReactNode;
 };
 
-function MenuButton() {
+function MenuButton({ chat }: { chat: boolean }) {
   const navigation = usePageNavigation();
   const { t } = useI18n();
   const Menu = icons.menu;
@@ -27,7 +28,7 @@ function MenuButton() {
       aria-expanded={navigation.drawer}
       onClick={navigation.openDrawer}
     >
-      <Menu size={24} />
+      {chat ? <ChatIcon name="menu" /> : <Menu size={24} />}
     </IconButton>
   );
 }
@@ -35,11 +36,10 @@ function MenuButton() {
 function NewChatButton({ onClick }: { onClick: () => void }) {
   const { t } = useI18n();
   const { status } = useConnection();
-  const Write = icons.write;
   if (status !== 'connected') return null;
   return (
     <IconButton className="page-header__new-chat" aria-label={t('newChat')} onClick={onClick}>
-      <Write size={20} />
+      <ChatIcon name="write" />
     </IconButton>
   );
 }
@@ -87,13 +87,13 @@ export function PageHeader({ title, subtitle, large, onBack, onTitleClick, actio
   const Back = icons.back;
   const back = onBack && (
     <IconButton variant="ghost" onClick={onBack} aria-label={t('back')}>
-      <Back size={20} />
+      {onTitleClick ? <ChatIcon name="back" /> : <Back size={20} />}
     </IconButton>
   );
   return (
     <header className={`page-header glass${large ? ' page-header--large' : ''}`} data-chat={!!onTitleClick}>
       <div className="page-header__row">
-        <MenuButton />
+        <MenuButton chat={!!onTitleClick} />
         {!onTitleClick && back}
         <HeaderTitles title={title} subtitle={subtitle} onTitleClick={onTitleClick} />
         {onTitleClick && back}
