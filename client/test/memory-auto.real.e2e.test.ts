@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import type { Locator } from '@playwright/test';
+import { openNavigation } from './navigation';
 import { launchChromium } from './browser';
 import { MemoryHarness } from './fixtures/memoryHarness';
 import { webAppUrl } from '../../server/src/pairing';
@@ -25,10 +26,7 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !==
         page.on('pageerror', (error) => errors.push(error.message));
         await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
         const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-        await page
-          .getByRole('main')
-          .getByRole('link', { name: t('memory'), exact: true })
-          .click();
+        await (await openNavigation(page, locale)).getByRole('link', { name: t('memory'), exact: true }).click();
         const toggle = page.getByRole('switch', { name: t('memoryAutoSwitch') });
         await toggle.waitFor();
         expect(await toggle.isChecked()).toBe(true);

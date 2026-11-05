@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, it } from 'vitest';
 import { ChatSearchHarness, OLD_CHAT_TEXT } from './fixtures/chatSearchHarness';
+import { openNavigation, openPreferences } from './navigation';
 import { launchChromium } from './browser';
 import { webAppUrl } from '../../server/src/pairing';
 import { translate, type Locale, type StringKey } from '../src/i18n';
@@ -42,12 +43,19 @@ it.skipIf(!runs).each([
 async function searchAndOpen(page: Page, id: string, locale: Locale) {
   const main = page.getByRole('main');
   const t = (key: StringKey) => translate(locale, key);
-  const search = main.getByRole('searchbox', { name: t('search') });
+  const sidebar = await openNavigation(page, locale);
+  expect(await page.getByRole('searchbox').count()).toBe(1);
+  const search = sidebar.getByRole('searchbox', { name: t('search') });
   await search.fill('杭州');
-  const results = main.getByRole('list', { name: t('chatSearchResults') });
+  const results = sidebar.getByRole('list', { name: t('chatSearchResults') });
   await results.getByRole('link').first().waitFor();
   expect(await results.locator('mark').first().textContent()).toBe('杭州');
   expect(await results.locator('time').first().getAttribute('dateTime')).toBeTruthy();
+  expect(await sidebar.locator('.chat-group-title').count()).toBeGreaterThan(0);
+  await sidebar.getByRole('button', { name: t('shell.runningChats'), exact: true }).click();
+  await sidebar.getByText(t('chatSearchEmpty'), { exact: true }).waitFor();
+  expect(await sidebar.locator('.chat-link').count()).toBe(0);
+  await sidebar.getByRole('button', { name: t('shell.allChats'), exact: true }).click();
   await search.fill('bicycle');
   await expect.poll(() => results.locator('mark').first().textContent()).toBe('bicycle');
   await results.getByRole('link').first().click();
@@ -56,7 +64,7 @@ async function searchAndOpen(page: Page, id: string, locale: Locale) {
 }
 
 async function searchSidebar(page: Page, id: string, locale: Locale) {
-  const sidebar = page.getByRole('complementary');
+  const sidebar = await openNavigation(page, locale);
   const t = (key: StringKey) => translate(locale, key);
   await sidebar.getByRole('searchbox', { name: t('search') }).fill('orchard');
   const results = sidebar.getByRole('list', { name: t('chatSearchResults') });
@@ -67,10 +75,7 @@ async function searchSidebar(page: Page, id: string, locale: Locale) {
     .getByRole('main')
     .getByRole('button', { name: t('back') })
     .click();
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: t('devices'), exact: true })
-    .click();
+  await (await openNavigation(page, locale)).getByRole('link', { name: t('devices'), exact: true }).click();
   await sidebar.getByRole('searchbox', { name: t('search') }).fill('杭州');
   await expect.poll(() => results.locator('mark').first().textContent()).toBe('杭州');
   await results.getByRole('link').first().click();
@@ -79,7 +84,7 @@ async function searchSidebar(page: Page, id: string, locale: Locale) {
 
 async function advancedSettings(page: Page, locale: Locale, harness: ChatSearchHarness) {
   const t = (key: StringKey) => translate(locale, key);
-  await page.getByRole('button', { name: t('chatActions') }).click();
+  await openPreferences(page, locale);
   const advanced = page.locator('details').filter({ has: page.getByText(t('chatSearchAdvanced'), { exact: true }) });
   expect(await advanced.getAttribute('open')).toBeNull();
   await advanced.locator('summary').click();

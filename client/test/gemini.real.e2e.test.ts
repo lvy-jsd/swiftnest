@@ -10,6 +10,7 @@ import { loadConfig } from '../../server/src/config';
 import { startKernel } from '../../server/src/kernel';
 import { webAppUrl } from '../../server/src/pairing';
 import { translate, type Locale } from '../src/i18n';
+import { openSettingsPage } from './navigation';
 import { launchChromium } from './browser';
 
 const KEY = 'google-fake-browser-key-wxyz';
@@ -99,10 +100,7 @@ it.skipIf(!enabled).each(['en', 'zh-CN'] as const)(
       page.on('pageerror', (error) => errors.push(error.message));
       await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale);
       await page.goto(webAppUrl(running.kernel.url, running.kernel.token));
-      await page
-        .getByRole('main')
-        .getByRole('link', { name: translate(locale, 'modelsTitle'), exact: true })
-        .click();
+      await openSettingsPage(page, 'shell.models', locale);
       await page.getByText(translate(locale, 'media.gemini_uploads_help'), { exact: true }).waitFor();
       await addGoogleKey(page, locale);
       await toggleAndApply(page, locale, running.boots);

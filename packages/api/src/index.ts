@@ -246,6 +246,11 @@ export class SwiftnestClient {
     if (this.channel.pairing) await this.rememberChannel(this.channel.pairing, this.channel.relaySecret, pairing.key);
   }
 
+  /** True only while connected through Noise or HTTPS (including secure WebSockets). */
+  get connectionEncrypted(): boolean {
+    return this.state === 'connected' && (!!this.channel || this.root?.protocol === 'https:');
+  }
+
   get connectionPath(): 'lan' | 'relay' {
     return this.channel?.viaRelay ? 'relay' : 'lan';
   }

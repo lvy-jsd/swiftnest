@@ -49,8 +49,10 @@ export function catalogKeys() {
   const keys = [];
   (function visit(node) {
     if (!node || typeof node !== 'object') return;
-    if (node.type === 'ObjectProperty' && node.key.type === 'Identifier' && node.value.type === 'StringLiteral')
-      keys.push(node.key.name);
+    if (node.type === 'ObjectProperty' && node.value.type === 'StringLiteral') {
+      if (node.key.type === 'Identifier') keys.push(node.key.name);
+      else if (node.key.type === 'StringLiteral') keys.push(node.key.value);
+    }
     for (const [key, value] of Object.entries(node)) {
       if (key === 'loc') continue;
       if (Array.isArray(value)) for (const child of value) visit(child);

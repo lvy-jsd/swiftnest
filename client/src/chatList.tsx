@@ -1,67 +1,85 @@
-import { useState } from 'react';
-import type { SessionSummary } from '@swiftnest/api';
-import { useConnection } from './connection';
-import { usePlugins } from './plugins';
+import { localizedError, type SessionSummary, type ChatSearchResult } from '@swiftnest/api';
 import { useI18n } from './i18n';
-import { icons } from './design/icons';
 import { VirtualList } from './components/VirtualList';
-import { ChatSearchResults } from './chatSearch';
+import { ResultSnippet, useChatSearch } from './chatSearch';
+import { groupChats } from './shellState';
 
-/** Each visible chat list owns its query, including the desktop sidebar on other pages. */
-export function ChatList({ selected }: { selected?: string }) {
-  const { sessions, status } = useConnection();
-  const { owner } = usePlugins();
+type ChatItem = SessionSummary & { result?: ChatSearchResult };
+type ChatListProps = {
+  sessions: readonly ChatItem[];
+  chatId?: string;
+  onNavigate: () => void;
+};
+
+/** Normal chats and historical matches share the shell's compact grouped rows. */
+export function ChatList({ sessions, chatId, onNavigate }: ChatListProps) {
   const { t } = useI18n();
-  const [query, setQuery] = useState('');
-  const Search = icons.search;
-  const visible = sessions.filter((item) =>
-    (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-  );
+  const searching = sessions.some((chat) => chat.result);
+  const items = groupChats(sessions).map((item, index, all) => ({
+    ...item,
+    startsGroup: index === 0 || all[index - 1]?.group !== item.group,
+  }));
   return (
-    <>
-      <label className="search-field">
-        <Search size={24} aria-hidden="true" />
-        <input
-          type="search"
-          value={query}
-          maxLength={1024}
-          placeholder={t('search')}
-          aria-label={t('search')}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
-      {query.trim() && owner && status === 'connected' ? (
-        <ChatSearchResults query={query} />
-      ) : visible.length ? (
-        <VirtualList
-          items={visible}
-          itemKey={(item) => item.sessionId}
-          label={t('chats')}
-          renderItem={(item) => <ChatLink chat={item} selected={item.sessionId === selected} />}
-        />
-      ) : (
-        <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>
+    <VirtualList
+      items={items}
+      itemKey={({ chat }) => chat.result?.id ?? chat.sessionId}
+      label={t(searching ? 'chatSearchResults' : 'chats')}
+      renderItem={({ chat, group, startsGroup }) => (
+        <>
+          {startsGroup && <h2 className="chat-group-title">{t(group)}</h2>}
+          <ChatLink chat={chat} selected={chat.sessionId === chatId} onNavigate={onNavigate} />
+        </>
       )}
-    </>
+    />
   );
 }
 
-function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?: boolean }) {
+function ChatLink({ chat, selected, onNavigate }: { chat: ChatItem; selected: boolean; onNavigate: () => void }) {
   const { t, locale } = useI18n();
-  const ChatIcon = icons.chat;
   return (
     <a
       className="chat-link"
       href={`#/chats/${encodeURIComponent(chat.sessionId)}`}
+      onClick={onNavigate}
       aria-current={selected ? 'page' : undefined}
     >
-      <span className="avatar">
-        <ChatIcon size={24} weight="regular" aria-hidden="true" />
+      <span>
+        {chat.title || t('untitledChat')}
+        {chat.result && (
+          <>
+            <ResultSnippet result={chat.result} />
+            <time dateTime={new Date(chat.result.time).toISOString()}>
+              {new Date(chat.result.time).toLocaleString(locale)}
+            </time>
+          </>
+        )}
       </span>
-      <span className="chat-link__copy">
-        <strong>{chat.title || t('untitledChat')}</strong>
-        <time dateTime={new Date(chat.updatedAt).toISOString()}>{new Date(chat.updatedAt).toLocaleString(locale)}</time>
-      </span>
+      {chat.running === true && <span className="chat-running-dot" role="img" aria-label={t('shell.runningChats')} />}
     </a>
   );
+}
+
+export function ChatSearchResults({
+  query,
+  sessions,
+  runningOnly,
+  ...navigation
+}: ChatListProps & { query: string; runningOnly: boolean }) {
+  const { t } = useI18n();
+  const { results, error, busy } = useChatSearch(query);
+  const chats = results
+    .map((result) => ({
+      running: false,
+      blank: false,
+      ...sessions.find((chat) => chat.sessionId === result.sessionId),
+      sessionId: result.sessionId,
+      title: result.title,
+      updatedAt: result.time,
+      result,
+    }))
+    .filter((chat) => !runningOnly || chat.running === true);
+  if (error) return <p role="alert">{localizedError(error).message}</p>;
+  if (busy) return <p role="status">{t('chatSearchSearching')}</p>;
+  if (!chats.length) return <p role="status">{t('chatSearchEmpty')}</p>;
+  return <ChatList sessions={chats} {...navigation} />;
 }

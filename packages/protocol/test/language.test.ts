@@ -2,7 +2,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { defaultLanguage, language, localizedError, message, messageEn, messageZh } from '../src/language';
 import { STRINGS, detectLang } from '../../cli/src/i18n';
-import { lintUI, violations } from '../../../scripts/i18n-lint.mjs';
+import { catalogKeys, lintUI, violations } from '../../../scripts/i18n-lint.mjs';
 const placeholders = (s: string) => (s.match(/\{\d+\}/g) ?? []).sort();
 it('requires zh keys and matching placeholders for all server/API messages and CLI strings', () => {
   expect(Object.keys(messageZh).sort()).toEqual(Object.keys(messageEn).sort());
@@ -41,6 +41,12 @@ it('shows prose without catalog text as is, or as a plain sentence naming its co
   });
   expect(localizedError({ code: 'X', message: '磁盘已满' }, 'zh-CN').message).toBe('磁盘已满');
   expect(localizedError(new Error('boom'), 'en')).toMatchObject({ code: 'SWIFTNEST_FAILED', message: 'boom' });
+});
+it('recognizes namespaced catalog keys without allowing uncatalogued prose', () => {
+  const keys = new Set(catalogKeys());
+  expect(keys.has('home.plan')).toBe(true);
+  expect(violations("const suggestion = { key: 'home.plan' };", keys)).toEqual([]);
+  expect(violations("const suggestion = { key: 'Untranslated suggestion' };", keys)).toHaveLength(1);
 });
 it('rejects new prose in JSX, attributes, expressions and template strings while allowing technical tokens', () => {
   const allowed = new Set(['MCP']);

@@ -1,3 +1,4 @@
+import { openNavigation, openPreferences } from './navigation';
 import { testTls } from './fixtures/tls';
 /** Build first. Opt-in; no downloads and no external model credentials. */
 import { launchChromium } from './browser';
@@ -116,7 +117,8 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await page.goto(new URL('app/chats/deep-link', kernel.url).href);
       await page.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
       await page.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
-      await page.getByRole('button', { name: 'New chat', exact: true }).waitFor();
+      await expect.poll(() => page!.getByRole('button', { name: 'New chat', exact: true }).isEnabled()).toBe(true);
+      expect(await page.locator('.sidebar .identity-row [role="status"]').innerText()).toBe('Connected · Encrypted');
       expect(page.url()).not.toContain('token');
       expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual([
         'swiftnest.channelPins',
@@ -124,6 +126,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         'swiftnest.serverRoot',
       ]);
       await page.getByRole('button', { name: 'New chat', exact: true }).click();
+      expect(page.url()).not.toContain('#/chats/');
       const composer = page.getByRole('textbox', { name: 'Write a message' });
       await composer.fill('hi');
       await page.getByRole('button', { name: 'Send message' }).click();
@@ -152,7 +155,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       expect(await transcript.locator('[data-streaming="true"]').count()).toBe(0);
       if (process.env.SWIFTNEST_WEB_SCREENSHOT) await page.screenshot({ path: process.env.SWIFTNEST_WEB_SCREENSHOT });
       await page.getByRole('button', { name: 'Go back' }).click();
-      await page.getByRole('main').locator('a[href^="#/chats/"]').first().click();
+      await (await openNavigation(page)).locator('a[href^="#/chats/"]').first().click();
       await expect
         .poll(() =>
           transcript
@@ -164,7 +167,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       // Device management and owner approvals through the real same-origin proxy, at phone width.
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole('button', { name: 'Go back' }).click();
-      await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click();
+      await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
       await page.getByRole('button', { name: 'Pair a device', exact: true }).click();
       const pairingCard = page.getByRole('article', { name: 'Pair a device' });
       await pairingCard.locator('output').waitFor();
@@ -193,13 +196,13 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await expect.poll(() => kernel!.devices.nest.tasks.get(write.id)?.state).toBe('succeeded');
       expect(await readFile(args.path, 'utf8')).toBe(args.content);
       await page.getByRole('button', { name: 'Go back' }).click();
-      await page.getByRole('main').locator('a[href^="#/chats/"]').first().click();
+      await (await openNavigation(page)).locator('a[href^="#/chats/"]').first().click();
       const denied = await kernel.devices.nest.call(
         'browser-device__files__write',
         { ...args, content: 'Do not write' },
         { id: 'browser-test' },
       );
-      await page.getByRole('link', { name: 'Approvals · 1 pending', exact: true }).click();
+      await (await openNavigation(page)).getByRole('link', { name: 'Approvals · 1 pending', exact: true }).click();
       await page
         .getByRole('list', { name: 'Approvals', exact: true })
         .getByRole('button', { name: 'Deny', exact: true })
@@ -207,7 +210,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await expect.poll(() => kernel!.devices.nest.tasks.get(denied.id)?.state).toBe('denied');
       expect(await readFile(args.path, 'utf8')).toBe(args.content);
       await page.getByRole('button', { name: 'Go back' }).click();
-      await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click();
+      await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
       await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
       const revoke = page.getByRole('dialog', { name: 'Revoke device' });
       await revoke.waitFor();
@@ -217,7 +220,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await page.getByText('No paired devices yet.', { exact: true }).waitFor();
       await page.getByRole('button', { name: 'Go back' }).click();
       // Cross-device language sync, explicit English system locale, and persistence.
-      await page.getByRole('button', { name: 'Open preferences' }).first().click();
+      await openPreferences(page);
       const relayForm = page
         .locator('details')
         .filter({ has: page.getByText('Advanced: access away from home', { exact: true }) });
@@ -235,7 +238,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await relayForm.locator('summary').click();
       await page.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await page.getByRole('button', { name: '完成', exact: true }).click();
-      await page.getByRole('heading', { name: '聊天', exact: true }).waitFor();
+      await page.getByRole('button', { name: '帮我安排一天的计划', exact: true }).waitFor();
       const second = await browser.newPage({
         locale: 'en-US',
         viewport: { width: 390, height: 844 },
@@ -244,24 +247,24 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await second.goto(new URL('app/', kernel.url).href);
       await second.getByRole('link', { name: '配对服务器', exact: true }).waitFor();
       // Save an offline English choice and reload it, before choosing Chinese for pairing.
-      await second.getByRole('button', { name: '打开偏好设置' }).first().click();
+      await openPreferences(second, 'zh-CN');
       await second.getByLabel('语言', { exact: true }).selectOption('en');
       await second.reload();
       await second.getByRole('link', { name: 'Pair server', exact: true }).waitFor();
-      await second.getByRole('button', { name: 'Open preferences' }).first().click();
+      await openPreferences(second);
       await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await second.getByRole('button', { name: '完成', exact: true }).click();
       await second.goto(webAppUrl(kernel.url, kernel.token, kernel.channelPairing));
-      await second.getByRole('button', { name: '新建聊天', exact: true }).waitFor();
-      await second.getByRole('button', { name: '打开偏好设置' }).first().click();
+      await second.getByRole('button', { name: '帮我安排一天的计划', exact: true }).waitFor();
+      await openPreferences(second, 'zh-CN');
       await second.getByLabel('语言', { exact: true }).selectOption('en');
-      await page.getByRole('heading', { name: 'Chats', exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Help me plan my day', exact: true }).waitFor();
       await second.reload();
-      await second.getByRole('button', { name: 'New chat', exact: true }).waitFor();
+      await second.getByRole('button', { name: 'Help me plan my day', exact: true }).waitFor();
       expect(await second.locator('html').getAttribute('lang')).toBe('en');
-      expect(await second.getByRole('link', { name: 'Pair server', exact: true }).count()).toBe(0);
+      await expect.poll(() => second.getByRole('link', { name: 'Pair server', exact: true }).count()).toBe(0);
       // Return to Chinese and record the phone-width default view.
-      await second.getByRole('button', { name: 'Open preferences' }).first().click();
+      await openPreferences(second);
       await second.getByLabel('Language', { exact: true }).selectOption('zh-CN');
       await second.getByRole('button', { name: '完成', exact: true }).click();
       await second.screenshot({ path: join(home, 'language-zh-CN-390.png'), animations: 'disabled' });
@@ -269,7 +272,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       expect(errors).toEqual([]);
       // A phone viewport and a keyboard-sized resize keep the composer visible. The language dance above left the
       // first page on the chat list in Chinese, so reopen the chat and find the composer in either language.
-      await page
+      await (await openNavigation(page, 'en'))
         .getByRole('link', { name: /Hello from Swiftnest/ })
         .first()
         .click();
@@ -284,7 +287,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
       }
       await page.getByRole('button', { name: /^(Go back|返回)$/ }).click();
-      await page.getByRole('button', { name: /^(Open preferences|打开偏好设置)$/ }).click();
+      await openPreferences(page);
       await page.getByRole('dialog').waitFor({ state: 'visible' });
       await page.keyboard.press('Escape');
       await page.getByRole('dialog').waitFor({ state: 'hidden' });

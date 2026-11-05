@@ -1,4 +1,11 @@
 import {
+  BirdIcon,
+  ArrowsLeftRightIcon,
+  BookOpenIcon,
+  ListIcon,
+  CalendarIcon,
+  PencilSimpleIcon,
+  LightbulbIcon,
   ArrowLeftIcon,
   ArrowUpIcon,
   ChatCircleIcon,
@@ -8,12 +15,18 @@ import {
   ImageIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  UserCircleIcon,
   XIcon,
 } from '@phosphor-icons/react';
 
 /** Screens reference semantic roles here; default weight is regular, 24 px. */
 export const icons = {
+  brand: BirdIcon,
+  menu: ListIcon,
+  transfer: ArrowsLeftRightIcon,
+  memory: BookOpenIcon,
+  plan: CalendarIcon,
+  write: PencilSimpleIcon,
+  ideas: LightbulbIcon,
   back: ArrowLeftIcon,
   send: ArrowUpIcon,
   chat: ChatCircleIcon,
@@ -24,6 +37,5 @@ export const icons = {
   settings: GearSixIcon,
   search: MagnifyingGlassIcon,
   add: PlusIcon,
-  avatar: UserCircleIcon,
   photo: ImageIcon,
 } as const;

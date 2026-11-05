@@ -5,6 +5,7 @@ import { expect, it } from 'vitest';
 import { ApprovalHarness } from './fixtures/approvalHarness.js';
 import { webAppUrl } from '../../server/src/pairing.js';
 import { launchChromium } from './browser.js';
+import { openNavigation } from './navigation';
 
 it.skipIf(process.env.SWIFTNEST_E2E !== '1' || process.env.SWIFTNEST_WEB_E2E !== '1')(
   'real App shows the shared inbox everywhere and settles from another device at desktop and 390px',
@@ -62,10 +63,12 @@ async function answerAndReopenChat(page: Page, harness: ApprovalHarness, session
   const list = page.getByRole('list', { name: 'Approvals', exact: true });
   const dsh = list.getByRole('article').filter({ hasText: 'Read the shared report?' });
   await dsh.getByRole('button', { name: 'Approve', exact: true }).click();
+  await openNavigation(page);
   await page.getByRole('link', { name: 'Approvals · 1 pending', exact: true }).waitFor();
   // Another authenticated App answers the remaining request.
   await harness.client!.answerDeviceApproval(deviceId, true);
   await page.getByRole('link', { name: 'Approvals · 0 pending', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
   await page.getByText('Nothing needs your approval.', { exact: true }).waitFor();
   expect(await readFile(join(harness.home, 'approved.txt'), 'utf8')).toBe('Approved from inbox');
   await page.evaluate((id) => {
@@ -79,7 +82,9 @@ async function answerAndReopenChat(page: Page, harness: ApprovalHarness, session
     await page.evaluate((path) => {
       location.hash = path;
     }, path);
+    await openNavigation(page);
     await page.getByRole('link', { name: 'Approvals · 0 pending', exact: true }).waitFor();
+    await page.keyboard.press('Escape');
   }
 }
 async function checkSettings(page: Page, harness: ApprovalHarness) {
