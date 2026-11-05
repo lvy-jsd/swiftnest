@@ -1,3 +1,4 @@
+import { ChatSearchSettingsSchema, type ChatSearchSettings } from '@swiftnest/api';
 import { relayConfig, type RelayConfig } from '@swiftnest/channel';
 import { text } from '@swiftnest/core';
 import { ServerFailure } from './i18n.js';
@@ -82,6 +83,7 @@ export interface ServerConfig {
   media?: { modelMirror?: string; soundfont?: string; soundfontUrl?: string; geminiUploads?: boolean };
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean; auto?: boolean };
+  search?: ChatSearchSettings;
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -186,6 +188,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
           ? (fromFile.memory?.auto ?? true)
           : env.SWIFTNEST_MEMORY_AUTO === 'true',
     },
+    search: loadSearch(fromFile.search, env),
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
     media: fromFile.media,
@@ -221,6 +224,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 export function validate(config: ServerConfig): void {
   checkedRelayConfig(config.relay);
   validateMemoryAuto(config.memory?.auto);
+  if (!ChatSearchSettingsSchema.safeParse(config.search ?? {}).success)
+    throw new ServerFailure(text('chatSearchInvalidSettings'));
   if (config.memory !== undefined && (!config.memory || typeof config.memory.enabled !== 'boolean'))
     throw new ServerFailure(text('memoryEnabledMustBoolean'));
   if (config.assistantName !== undefined && typeof config.assistantName !== 'string')
@@ -288,4 +293,28 @@ function validateMediaUrl(
   } catch {
     throw new ServerFailure(text(key));
   }
+}
+
+function loadSearch(value: unknown, env: NodeJS.ProcessEnv): ChatSearchSettings {
+  const parsed = ChatSearchSettingsSchema.safeParse(value ?? {});
+  if (!parsed.success) throw new ServerFailure(text('chatSearchInvalidSettings'));
+  const settings = parsed.data;
+  const booleans = [
+    ['SWIFTNEST_SEARCH', settings, 'enabled'],
+    ['SWIFTNEST_SEARCH_SEMANTIC', settings, 'semantic'],
+    ['SWIFTNEST_SEARCH_CLOUD_EMBEDDINGS', settings.embeddings, 'cloudConsent'],
+  ] as const;
+  for (const [name, target, key] of booleans) {
+    const value = env[name];
+    if (value === undefined) continue;
+    if (!['true', 'false'].includes(value)) throw new ServerFailure(text('chatSearchInvalidSettings'));
+    Object.assign(target, { [key]: value === 'true' });
+  }
+  if (env.SWIFTNEST_SEARCH_EMBEDDING_SOURCE !== undefined)
+    Object.assign(settings.embeddings, { source: env.SWIFTNEST_SEARCH_EMBEDDING_SOURCE });
+  if (env.SWIFTNEST_SEARCH_EMBEDDING_MODEL !== undefined)
+    settings.embeddings.model = env.SWIFTNEST_SEARCH_EMBEDDING_MODEL;
+  const result = ChatSearchSettingsSchema.safeParse(settings);
+  if (!result.success) throw new ServerFailure(text('chatSearchInvalidSettings'));
+  return result.data;
 }

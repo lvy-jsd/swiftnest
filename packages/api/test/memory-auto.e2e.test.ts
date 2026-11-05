@@ -20,6 +20,9 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       await expect.poll(async () => (await harness.client.recentAutoMemory()).length, { timeout: 15_000 }).toBe(1);
       const original = (await harness.client.recentAutoMemory())[0]!;
       expect(original).toMatchObject({ text: 'Prefers tea', source: 'auto', added: expect.any(String) });
+      await expect
+        .poll(async () => (await harness.client.searchChats('tea')).some((row) => row.sessionId === first.sessionId))
+        .toBe(true);
       const second = await harness.client.createSession();
       await harness.turn(second.sessionId, 'I now prefer coffee instead of tea.');
       await expect
@@ -34,6 +37,9 @@ it.skipIf(process.env.SWIFTNEST_E2E !== '1')(
       ]);
       await harness.client.setMemoryAuto(false);
       await harness.turn(second.sessionId, 'Please remember that I like water.');
+      await expect
+        .poll(async () => (await harness.client.searchChats('water')).some((row) => row.sessionId === second.sessionId))
+        .toBe(true);
       await new Promise((resolve) => setTimeout(resolve, 3500));
       expect(harness.autoReviews).toHaveLength(2);
       await harness.client.setMemoryAuto(true);

@@ -1330,3 +1330,27 @@ details.plugin-card summary {
   min-height: var(--min-target);
   cursor: pointer;
 }
+
+.chat-search-snippet {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+}
+.chat-search-snippet mark {
+  background: var(--color-surface3);
+  color: inherit;
+}
+.chat-search-settings {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.chat-search-results .chat-link__copy > span {
+  display: block;
+}
+.chat-search-results strong {
+  overflow-wrap: anywhere;
+}

@@ -1,3 +1,5 @@
+import { ChatList } from './chatList';
+import { ChatSearchAdvanced } from './chatSearchSettings';
 import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
 import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
@@ -13,7 +15,6 @@ import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent, PointerEvent } from 'react';
-import type { SessionSummary } from '@swiftnest/api';
 import { Button } from './components/Button';
 import { IconButton } from './components/IconButton';
 import { AppearanceSettings } from './components/AppearanceSettings';
@@ -111,31 +112,13 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
             onChange={(event) => theme.setReduceTransparency(event.target.checked)}
           />
         </label>
+        <ChatSearchAdvanced />
         <RelaySettings />
       </div>
     </Sheet>
   );
 }
 
-function ChatLink({ chat, selected = false }: { chat: SessionSummary; selected?: boolean }) {
-  const { t, locale } = useI18n();
-  const ChatIcon = icons.chat;
-  return (
-    <a
-      className="chat-link"
-      href={`#/chats/${encodeURIComponent(chat.sessionId)}`}
-      aria-current={selected ? 'page' : undefined}
-    >
-      <span className="avatar">
-        <ChatIcon size={24} weight="regular" aria-hidden="true" />
-      </span>
-      <span className="chat-link__copy">
-        <strong>{chat.title || t('untitledChat')}</strong>
-        <time dateTime={new Date(chat.updatedAt).toISOString()}>{new Date(chat.updatedAt).toLocaleString(locale)}</time>
-      </span>
-    </a>
-  );
-}
 /** `quiet` hides the row while all is well (the chat header already shows the server). */
 function ConnectionStatus({ quiet = false }: { quiet?: boolean }) {
   const { status, root, error } = useConnection();
@@ -428,11 +411,10 @@ function goHome() {
 function AppContent() {
   const { t } = useI18n();
   const { reducedMotion } = useTheme();
-  const { store, sessions, status } = useConnection();
+  const { store, status } = useConnection();
   const { owner } = usePlugins();
   const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '#/' : window.location.hash));
   const [preferences, setPreferences] = useState(false);
-  const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -445,9 +427,6 @@ function AppContent() {
   const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
     Avatar = icons.avatar;
-  const visibleChats = sessions.filter((item) =>
-    (item.title || t('untitledChat')).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-  );
   // Read current state without re-registering the async native listener on every
   // route/sheet change. StrictMode may clean up before registration resolves.
   const consumeBack = useRef<() => boolean>(() => false);
@@ -577,12 +556,7 @@ function AppContent() {
           {t('memory')}
         </a>
         <nav aria-label={t('chatNavigation')}>
-          <VirtualList
-            items={sessions}
-            itemKey={(s) => s.sessionId}
-            label={t('chats')}
-            renderItem={(item) => <ChatLink chat={item} selected={item.sessionId === chatId} />}
-          />
+          <ChatList selected={chatId} />
         </nav>
       </aside>
       <main
@@ -664,25 +638,7 @@ function AppContent() {
                   {t('newChat')}
                 </Button>
               )}
-              <label className="search-field">
-                <input
-                  type="search"
-                  value={query}
-                  placeholder={t('search')}
-                  aria-label={t('search')}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              {visibleChats.length ? (
-                <VirtualList
-                  items={visibleChats}
-                  itemKey={(s) => s.sessionId}
-                  label={t('chats')}
-                  renderItem={(item) => <ChatLink chat={item} />}
-                />
-              ) : (
-                <p className="empty-state">{t(status === 'connected' ? 'noChats' : 'pairHelp')}</p>
-              )}
+              <ChatList />
             </HubPage>
           )}
         </div>

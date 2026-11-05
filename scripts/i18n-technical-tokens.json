@@ -410,6 +410,13 @@
     "page page--hub devices-page",
     "google",
     "expert",
-    "media-gemini-help"
+    "media-gemini-help",
+    "chat-search-snippet",
+    "chat-search-settings",
+    "load",
+    "rebuild",
+    "local",
+    "cloud",
+    "chat-search-results"
   ]
 }

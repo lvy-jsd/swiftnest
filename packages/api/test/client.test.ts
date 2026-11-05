@@ -62,6 +62,7 @@ function harness(
     legacyHeaders?: boolean;
     deviceSlug?: string;
     memory?: (url: string, init: RequestInit) => Response;
+    search?: (url: string, init: RequestInit) => Response;
     devices?: (url: string, init: RequestInit) => Response;
     nativePairingStore?: ClientOptions['nativePairingStore'];
     native?: (url: string, init: RequestInit) => Response;
@@ -90,6 +91,7 @@ function harness(
     if (url.includes('/swiftnest/native/'))
       return options.native?.(url, init) ?? Response.json({ credential: 'N'.repeat(43) });
     if (url.endsWith('/swiftnest/api/chat')) return Response.json({ accepted: true });
+    if (url.includes('/swiftnest/api/search')) return options.search?.(url, init) ?? Response.json([]);
     if (url.includes('/swiftnest/api/memory'))
       return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
@@ -600,4 +602,40 @@ it('preserves a native credential on temporary server failure, and forgets it on
   });
   expect(store.save).toHaveBeenCalledWith('https://server.test/', undefined);
   expect(revoked.factory).not.toHaveBeenCalled();
+});
+
+it('uses authenticated conversation search endpoints and preserves settings and errors', async () => {
+  const { client, calls } = harness({
+    search: (_url, init) =>
+      init.method === 'POST' && String(init.body).includes('false')
+        ? Response.json({ text: { key: 'chatSearchDisabled' } }, { status: 503 })
+        : Response.json([]),
+  });
+  await client.connect('http://localhost:3077/mount/connect?token=test');
+  try {
+    await client.searchChats('杭州 bicycle', 7);
+    await client.chatSearchStatus();
+    await client.rebuildChatSearch();
+    await expect(
+      client.configureChatSearch({
+        enabled: false,
+        semantic: false,
+        embeddings: { source: 'local', cloudConsent: false },
+      }),
+    ).rejects.toMatchObject({ text: { key: 'chatSearchDisabled' } });
+    const requests = calls.filter((call) => call.url.includes('/swiftnest/api/search'));
+    expect(requests.map((call) => new URL(call.url).pathname)).toEqual([
+      '/mount/swiftnest/api/search',
+      '/mount/swiftnest/api/search/status',
+      '/mount/swiftnest/api/search/rebuild',
+      '/mount/swiftnest/api/search/settings',
+    ]);
+    expect(new URL(requests[0]!.url).searchParams.get('query')).toBe('杭州 bicycle');
+    expect(new URL(requests[0]!.url).searchParams.get('limit')).toBe('7');
+    expect(
+      requests.every((request) => (request.init.headers as Record<string, string>).cookie === 'dsh_api=secret'),
+    ).toBe(true);
+  } finally {
+    client.close();
+  }
 });
