@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `1b353b7e281201514512d8c0afaa840ade1247ca`; Tool Ultra is not published to npm.
+Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `19c59e9efe5b999fc34df4c5b7a3b22a911293e0`; Tool Ultra is not published to npm.
 
 ## Install and enable
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
-Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-1b353b7e2812`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
+Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-19c59e9efe5b`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
 
 First installation also downloads image and local speech runtime dependencies from npm; the size depends on your system. These are separate from the speech model downloaded on first transcription. After a network timeout, restore the connection and retry the same installation command.
 
