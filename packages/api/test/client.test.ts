@@ -243,30 +243,11 @@ describe('independent API client', () => {
     await expect(h.client.sendMessage('a', 'hi')).rejects.toBeInstanceOf(ApiError);
     h.client.close();
   });
-  it('forwards approvals/questions, correlates answers, and rejects cancelled requests', async () => {
+  it('forwards questions, correlates answers, and rejects cancelled requests', async () => {
     const h = harness();
     await h.client.connect(pairing);
     const sub = await h.client.follow('a');
     try {
-      h.socket.interaction({
-        type: 'waterfall',
-        event: 'approval/request',
-        agentId: 'a',
-        eventId: 'approval-1',
-        request: { toolName: 'shell', reason: 'Run command' },
-      });
-      expect((await sub.next()).value).toMatchObject({
-        type: 'approval-request',
-        requestId: 'approval-1',
-        toolName: 'shell',
-      });
-      await h.client.answerApproval('approval-1', 'rejected');
-      expect(h.calls.at(-1)?.body).toMatchObject({
-        method: '$events/result',
-        payload: {
-          args: { clientId: 'peer-1', eventId: 'approval-1', outcome: { kind: 'result', value: 'rejected' } },
-        },
-      });
       h.socket.interaction({
         type: 'waterfall',
         event: 'user-questions/request',
@@ -280,7 +261,7 @@ describe('independent API client', () => {
       expect(h.calls.at(-1)?.body.payload.args.outcome.value).toEqual(answer);
       h.socket.interaction({
         type: 'waterfall',
-        event: 'approval/request',
+        event: 'user-questions/request',
         agentId: 'a',
         eventId: 'approval-2',
         request: { toolName: 'shell' },
@@ -288,7 +269,7 @@ describe('independent API client', () => {
       await sub.next();
       h.socket.interaction({ type: 'cancel', eventId: 'approval-2' });
       expect((await sub.next()).value).toMatchObject({ type: 'interaction-cancelled', requestId: 'approval-2' });
-      await expect(h.client.answerApproval('approval-2', 'allowed-once')).rejects.toMatchObject({
+      await expect(h.client.answerQuestion('approval-2', { answers: [] })).rejects.toMatchObject({
         code: 'interaction-expired',
       });
     } finally {
@@ -334,7 +315,7 @@ describe('independent API client', () => {
     try {
       h.socket.interaction({
         type: 'waterfall',
-        event: 'approval/request',
+        event: 'user-questions/request',
         agentId: 'a',
         eventId: 'withdrawn',
         request: { toolName: 'shell' },
@@ -346,7 +327,7 @@ describe('independent API client', () => {
       );
       h.socket.interaction({
         type: 'waterfall',
-        event: 'approval/request',
+        event: 'user-questions/request',
         agentId: 'other',
         eventId: 'unfollowed',
         request: { toolName: 'shell' },

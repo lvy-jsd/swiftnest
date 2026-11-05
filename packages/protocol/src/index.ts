@@ -192,6 +192,15 @@ export type TaskSnapshot = z.infer<typeof TaskSnapshot>;
 // ---------------------------------------------------------------- audit
 
 export const AuditEntry = z.object({
+  approval: z
+    .object({
+      kind: z.enum(['dsh', 'device', 'transfer']),
+      state: z.enum(['pending', 'allowed', 'denied', 'expired']),
+      answeredBy: z.string(),
+      answeringDevice: z.string(),
+      automatic: z.boolean(),
+    })
+    .optional(),
   at: z.string(),
   taskId: z.string(),
   client: ClientRef,
@@ -337,3 +346,5 @@ export type * from './memory.js';
 export * from './native-pairing.js';
 
 export * from './chat-search.js';
+
+export * from './approvals.js';

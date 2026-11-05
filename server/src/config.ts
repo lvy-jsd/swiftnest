@@ -1,3 +1,4 @@
+import { ApprovalSettingsSchema, type ApprovalSettings } from '@swiftnest/core';
 import { ChatSearchSettingsSchema, type ChatSearchSettings } from '@swiftnest/api';
 import { relayConfig, type RelayConfig } from '@swiftnest/channel';
 import { text } from '@swiftnest/core';
@@ -56,6 +57,7 @@ export const FREE_VISION: FreeVisionService = {
 };
 
 export interface ServerConfig {
+  approvals?: ApprovalSettings;
   relay?: RelayConfig;
   lang?: 'zh-CN' | 'en';
   /** Everything Swiftnest owns lives here; DSH's home is `<home>/dsh`. */
@@ -188,6 +190,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
           ? (fromFile.memory?.auto ?? true)
           : env.SWIFTNEST_MEMORY_AUTO === 'true',
     },
+    approvals: checkedApprovals(fromFile.approvals),
     search: loadSearch(fromFile.search, env),
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
@@ -222,6 +225,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
 }
 
 export function validate(config: ServerConfig): void {
+  checkedApprovals(config.approvals);
   checkedRelayConfig(config.relay);
   validateMemoryAuto(config.memory?.auto);
   if (!ChatSearchSettingsSchema.safeParse(config.search ?? {}).success)
@@ -317,4 +321,10 @@ function loadSearch(value: unknown, env: NodeJS.ProcessEnv): ChatSearchSettings 
   const result = ChatSearchSettingsSchema.safeParse(settings);
   if (!result.success) throw new ServerFailure(text('chatSearchInvalidSettings'));
   return result.data;
+}
+
+function checkedApprovals(value: unknown): ApprovalSettings {
+  const parsed = ApprovalSettingsSchema.safeParse(value ?? {});
+  if (!parsed.success) throw new ServerFailure(text('inboxInvalidSettings'));
+  return parsed.data;
 }

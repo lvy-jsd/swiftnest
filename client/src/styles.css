@@ -1354,3 +1354,29 @@ details.plugin-card summary {
 .chat-search-results strong {
   overflow-wrap: anywhere;
 }
+
+.inbox-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* The approval inbox reuses the existing page and card surfaces. */
+.inbox-badge {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-self: flex-end;
+  background: var(--color-surface1);
+}
+.approval-card details > summary {
+  min-height: var(--min-target);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.approval-card pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

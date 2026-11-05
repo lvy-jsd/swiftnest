@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Duplex } from 'node:stream';
 import { Readable } from 'node:stream';
@@ -9,7 +10,7 @@ export interface DeviceConnection {
   admit(request: {
     headers: IncomingMessage['headers'];
     socket?: IncomingMessage['socket'];
-  }): { peer: { principal: { kind: string } } } | { rejection: number };
+  }): { peer: { principal: { kind: string }; approvalDevice?: string } } | { rejection: number };
 }
 
 /** TLS may terminate in the kernel or a trusted local reverse proxy. Never trust a browser forwarded-proto header. */
@@ -24,7 +25,7 @@ export const DEVICES_PREFIX = '/swiftnest/api/devices';
 export const PLUGINS_PREFIX = '/swiftnest/api/plugins';
 export const MODELS_PREFIX = '/swiftnest/api/models';
 /** The owner-only parts of the loopback admin API this proxy forwards. */
-export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX, MODELS_PREFIX];
+export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX, MODELS_PREFIX, '/swiftnest/api/approvals'];
 
 export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string, invalidate?: () => void) {
   const target = new URL(endpoint);
@@ -79,6 +80,12 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
         // Only the bounded JSON bodies of `forwardsBody` routes are forwarded, after owner admission.
         headers: {
           authorization: `Bearer ${token}`,
+          'x-swiftnest-answering-device':
+            ('peer' in admission ? admission.peer.approvalDevice : undefined) ??
+            createHash('sha256')
+              .update(req.headers.cookie ?? 'web')
+              .digest('hex')
+              .slice(0, 24),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         body,
@@ -110,6 +117,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
 /** Owner routes whose small JSON body the proxy forwards; every other request goes without one. */
 function forwardsBody(pathname: string): boolean {
   return (
+    pathname === '/swiftnest/api/approvals/settings' ||
     [`${DEVICES_PREFIX}/transfers`, `${DEVICES_PREFIX}/preferences`, `${MODELS_PREFIX}/settings`].includes(pathname) ||
     /^\/swiftnest\/api\/models\/keys\/[^/]+$/.test(pathname)
   );

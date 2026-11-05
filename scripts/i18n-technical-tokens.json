@@ -417,6 +417,18 @@
     "rebuild",
     "local",
     "cloud",
-    "chat-search-results"
+    "chat-search-results",
+    "#/approvals",
+    "dsh",
+    "device",
+    "transfer",
+    "inbox-badge button button--ghost",
+    "approval-card",
+    "{count}",
+    "approvals",
+    "ApprovalInboxProvider required",
+    "inbox-frame",
+    "page__body card-groups",
+    "card-groups"
   ]
 }

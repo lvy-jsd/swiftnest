@@ -1,4 +1,4 @@
-import type { ChatAttachment, DisplayReason, MessageImage, SwiftnestEvent } from '@swiftnest/api';
+import type { ChatAttachment, MessageImage, SwiftnestEvent } from '@swiftnest/api';
 
 export type ChatRow =
   | {
@@ -27,9 +27,6 @@ export type ChatRow =
       id: string;
       requestId: string;
       toolName: string;
-      reason?: string;
-      displayReason?: DisplayReason;
-      settled: boolean;
     }
   | { kind: 'error'; id: string; text: string; code?: string }
   | { kind: 'unknown'; id: string; event: unknown };
@@ -43,12 +40,8 @@ export interface ChatState {
 export const emptyChat = (): ChatState => ({ rows: [], waiting: false, seen: new Set() });
 
 /** Durable messages are authoritative; attempts keep a stable row key while text grows. */
-export function chatReducer(
-  state: ChatState,
-  event: SwiftnestEvent | { type: 'waiting' } | { type: 'approval-answered'; requestId: string },
-): ChatState {
+export function chatReducer(state: ChatState, event: SwiftnestEvent | { type: 'waiting' }): ChatState {
   if (event.type === 'waiting') return { ...state, waiting: true };
-  if (event.type === 'approval-answered') return settleApproval(state, event.requestId);
   const key = event.seq === undefined ? undefined : `${event.type}:${event.seq}`;
   if (key && state.seen.has(key)) return state;
   const next = { ...state, rows: [...state.rows], seen: new Set(state.seen) };
@@ -62,14 +55,11 @@ export function chatReducer(
           id: `approval:${event.requestId}`,
           requestId: event.requestId,
           toolName: event.toolName,
-          reason: event.reason,
-          ...(event.displayReason ? { displayReason: event.displayReason } : {}),
-          settled: false,
         });
       }
       break;
     case 'interaction-cancelled':
-      return settleApproval(next, event.requestId);
+      return next;
     case 'user-message':
       if (!next.rows.some((r) => r.id === event.messageId))
         next.rows.push({
@@ -186,13 +176,4 @@ export function chatReducer(
       next.rows.push({ kind: 'unknown', id: `event:${next.rows.length}`, event });
   }
   return next;
-}
-
-function settleApproval(state: ChatState, requestId: string): ChatState {
-  return {
-    ...state,
-    rows: state.rows.map((row) =>
-      row.kind === 'approval' && row.requestId === requestId ? { ...row, settled: true } : row,
-    ),
-  };
 }
