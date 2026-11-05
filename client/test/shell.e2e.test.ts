@@ -56,24 +56,54 @@ async function settingsRoutes(page: Page, locale: Locale) {
   }
 }
 
-async function checkShell(page: Page, locale: Locale, width: number, mode: 'light' | 'dark') {
+async function checkHomeNavigation(page: Page, locale: Locale) {
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-  await page.emulateMedia({ colorScheme: mode });
-  const label = `shell-${locale}-${mode}-${width}`;
   await page.getByRole('button', { name: t('home.plan'), exact: true }).waitFor();
   await page.getByRole('button', { name: t('home.plan'), exact: true }).click();
   expect(await page.getByRole('textbox', { name: t('composer') }).inputValue()).toBe(t('home.plan'));
+  await page.getByRole('button', { name: t('newChat'), exact: true }).click();
+  expect(page.url()).not.toContain('#/chats/');
+  expect(await page.getByRole('textbox', { name: t('composer') }).inputValue()).toBe(t('home.plan'));
+  await expect
+    .poll(() => page.locator('[data-composer]').evaluate((element) => element === document.activeElement))
+    .toBe(true);
   const nav = await openNavigation(page, locale);
+  await page.keyboard.press('Control+k');
+  expect(await nav.getByRole('searchbox').evaluate((element) => element === document.activeElement)).toBe(true);
   expect(await nav.locator('a[href="#/models"], a[href="#/plugins"]').count()).toBe(0);
-  await nav.getByRole('button', { name: t('shell.runningChats'), exact: true }).click();
+  const running = nav.getByRole('button', { name: t('shell.runningChats'), exact: true });
+  await running.click();
+  expect(await running.getAttribute('aria-pressed')).toBe('true');
+  expect(await running.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    await running.evaluate((element) => getComputedStyle(element.closest('.sidebar-content')!).color),
+  );
   expect(await nav.locator('.chat-link').count()).toBe(0);
   await nav.getByRole('button', { name: t('shell.allChats'), exact: true }).click();
   await nav.getByRole('searchbox').fill('no-matching-session');
   expect(await nav.locator('.chat-link').count()).toBe(0);
   await nav.getByRole('searchbox').fill('');
   expect(await nav.locator('.chat-link').count()).toBeGreaterThan(0);
-  if (width === 390) await page.keyboard.press('Escape');
+  if (page.viewportSize()?.width === 390) await page.keyboard.press('Escape');
+}
+
+async function checkDraftRoutes(page: Page, locale: Locale) {
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+  const composer = page.getByRole('textbox', { name: t('composer') });
+  await composer.fill(t('home.explain'));
+  await page.getByRole('button', { name: t('newChat'), exact: true }).click();
+  await expect.poll(() => composer.inputValue()).toBe(t('home.plan'));
+  await (await openNavigation(page, locale)).locator('.chat-link').first().click();
+  await expect.poll(() => composer.inputValue()).toBe(t('home.explain'));
+  await page.getByRole('button', { name: t('back'), exact: true }).click();
+}
+
+async function checkShell(page: Page, locale: Locale, width: number, mode: 'light' | 'dark') {
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+  await page.emulateMedia({ colorScheme: mode });
+  const label = `shell-${locale}-${mode}-${width}`;
+  await checkHomeNavigation(page, locale);
+  await page.mouse.click(width - 12, 200);
   await capture(page, `${label}-home`);
   if (width === 390) await checkDrawer(page, locale, label);
   await settingsRoutes(page, locale);
@@ -86,7 +116,7 @@ async function checkShell(page: Page, locale: Locale, width: number, mode: 'ligh
     expect(box!.y + box!.height).toBeLessThanOrEqual(440);
     await page.setViewportSize({ width, height: 844 });
   }
-  await page.getByRole('button', { name: t('back'), exact: true }).click();
+  await checkDraftRoutes(page, locale);
 }
 
 it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
@@ -102,6 +132,15 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         const errors: string[] = [];
         page.on('pageerror', (error) => errors.push(error.message));
         await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
+        await page.getByRole('button', { name: translate(locale, 'home.plan'), exact: true }).waitFor();
+        expect(await page.locator('#main-content').evaluate((element) => getComputedStyle(element).outlineStyle)).toBe(
+          'none',
+        );
+        await expect
+          .poll(() => page.locator('.sr-only').textContent())
+          .toBe(await page.locator('.home-greeting h1').textContent());
+        await page.keyboard.press('Tab');
+        expect(await page.locator(':focus-visible').count()).toBeGreaterThan(0);
         await page.getByRole('button', { name: translate(locale, 'home.plan'), exact: true }).click();
         await page.getByRole('button', { name: translate(locale, 'send'), exact: true }).click();
         const messages = page.getByRole('list', { name: translate(locale, 'messages') });

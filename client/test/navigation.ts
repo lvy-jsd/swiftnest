@@ -3,7 +3,6 @@ import { translate, type Locale } from '../src/i18n';
 
 /** Exercise the visible navigation at either breakpoint. */
 export async function openNavigation(page: Page, locale: Locale = 'en') {
-  await page.locator('.phone-header:visible, .sidebar:visible').first().waitFor();
   const menu = page.getByRole('button', { name: translate(locale, 'shell.openNavigation'), exact: true });
   if ((page.viewportSize()?.width ?? 1440) < 600) {
     await menu.waitFor();
@@ -11,6 +10,7 @@ export async function openNavigation(page: Page, locale: Locale = 'en') {
     if (!(await drawer.isVisible())) await menu.click();
     return drawer;
   }
+  await page.locator('.sidebar').waitFor();
   return page.locator('.sidebar');
 }
 

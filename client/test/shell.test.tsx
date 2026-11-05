@@ -137,13 +137,7 @@ it('groups rendered chat rows and marks only actual running sessions', () => {
     <English>
       <ConnectionProvider store={store}>
         <DeviceHubProvider>
-          <Sidebar
-            chatId="active"
-            creating={false}
-            onNewChat={() => {}}
-            onNavigate={() => {}}
-            onPreferences={() => {}}
-          />
+          <Sidebar chatId="active" onNewChat={() => {}} onNavigate={() => {}} onPreferences={() => {}} />
         </DeviceHubProvider>
       </ConnectionProvider>
     </English>,

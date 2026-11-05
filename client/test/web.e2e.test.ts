@@ -126,7 +126,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         'swiftnest.serverRoot',
       ]);
       await page.getByRole('button', { name: 'New chat', exact: true }).click();
-      await page.getByRole('list', { name: 'Messages', exact: true }).waitFor();
+      expect(page.url()).not.toContain('#/chats/');
       const composer = page.getByRole('textbox', { name: 'Write a message' });
       await composer.fill('hi');
       await page.getByRole('button', { name: 'Send message' }).click();

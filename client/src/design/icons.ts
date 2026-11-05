@@ -1,4 +1,5 @@
 import {
+  BirdIcon,
   ArrowsLeftRightIcon,
   BookOpenIcon,
   ListIcon,
@@ -19,6 +20,7 @@ import {
 
 /** Screens reference semantic roles here; default weight is regular, 24 px. */
 export const icons = {
+  brand: BirdIcon,
   menu: ListIcon,
   transfer: ArrowsLeftRightIcon,
   memory: BookOpenIcon,

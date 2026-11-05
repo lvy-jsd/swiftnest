@@ -34,14 +34,18 @@ export function Sheet({ open, onClose, title, children, actions, presentation = 
   const Close = icons.close;
   useEffect(() => {
     const element = dialog.current;
-    if (open && !element?.open) element?.showModal();
-    else if (!open && element?.open) element.close();
-  }, [open]);
+    if (open && !element?.open) {
+      element?.showModal();
+      if (presentation === 'drawer') element?.focus({ preventScroll: true });
+    } else if (!open && element?.open) element.close();
+  }, [open, presentation]);
   return (
     <dialog
       ref={dialog}
+      tabIndex={-1}
       className={presentation}
-      aria-labelledby={titleId}
+      aria-labelledby={presentation === 'sheet' ? titleId : undefined}
+      aria-label={presentation === 'drawer' ? title : undefined}
       onClose={() => {
         if (open) onClose();
       }}
@@ -49,12 +53,14 @@ export function Sheet({ open, onClose, title, children, actions, presentation = 
       onKeyDown={trapDialogFocus}
     >
       {presentation === 'sheet' && <div className="sheet__grabber" aria-hidden="true" />}
-      <header className="sheet__header">
-        <h1 id={titleId}>{title}</h1>
-        <IconButton variant="ghost" aria-label={t('close')} onClick={onClose}>
-          <Close size={24} />
-        </IconButton>
-      </header>
+      {presentation === 'sheet' && (
+        <header className="sheet__header">
+          <h1 id={titleId}>{title}</h1>
+          <IconButton variant="ghost" aria-label={t('close')} onClick={onClose}>
+            <Close size={24} />
+          </IconButton>
+        </header>
+      )}
       <div className="sheet__content">{children}</div>
       {actions && <footer className="sheet__actions">{actions}</footer>}
     </dialog>

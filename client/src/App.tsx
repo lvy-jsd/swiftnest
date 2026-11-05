@@ -1,12 +1,12 @@
 import { useShellNavigation, useChatSwipe, goHome, type ShellNavigation } from './shellNavigation';
-import { useTheme } from './design/theme';
+import { useChatSwipeStyle, useRouteTransition } from './shellNavigation';
+import { PageNavigationProvider } from './components/PageNavigation';
 import { Preferences } from './preferences';
 import { Sidebar } from './shell';
 import { Home } from './home';
 import { MessagePhotos, ToolAttachments } from './media';
 import { ModelsPage } from './models';
-import { PhotoButton, PhotoConsent, PhotoDrafts, usePhotoConsent, usePhotoDrafts } from './photos';
-import { isPhoto } from './photoState';
+import { Composer, ComposerProvider } from './composer';
 import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
@@ -16,14 +16,12 @@ import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
 import { IconButton } from './components/IconButton';
 import { Sheet } from './components/Sheet';
 import { DetailPage, FormPage } from './components/pages';
 import { VirtualList } from './components/VirtualList';
 import { icons } from './design/icons';
 import { useI18n } from './i18n';
-import { hasPrecisePointer } from './runtime';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
 import type { ChatRow } from './chat';
@@ -231,100 +229,6 @@ function useChatSession(sessionId: string) {
 }
 
 type ChatSession = ReturnType<typeof useChatSession>;
-type InitialMessage = { initialMessage?: string; onInitialMessageConsumed: () => void };
-type ChatDraftProps = InitialMessage & { sessionId: string; ready: boolean; dispatch: ChatSession['dispatch'] };
-
-function useChatDraft({ sessionId, ready, dispatch, initialMessage, onInitialMessageConsumed }: ChatDraftProps) {
-  const { t } = useI18n();
-  const { store } = useConnection();
-  const { client } = store;
-  const [draft, setDraft] = useState(initialMessage ?? '');
-  const pendingMessage = useRef(initialMessage);
-  const photos = usePhotoDrafts();
-  useEffect(() => {
-    if (!ready || !client || !pendingMessage.current) return;
-    const text = pendingMessage.current;
-    pendingMessage.current = undefined;
-    onInitialMessageConsumed();
-    setDraft('');
-    dispatch({ type: 'waiting' });
-    void client.sendMessage(sessionId, text).catch(() => {
-      setDraft(text);
-      dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') });
-    });
-  }, [ready, client, sessionId, t, onInitialMessageConsumed, dispatch]);
-  function send(event: FormEvent) {
-    event.preventDefault();
-    if ((!draft.trim() && !photos.drafts.length) || !ready || !client) return;
-    const text = draft.trim();
-    setDraft('');
-    dispatch({ type: 'waiting' });
-    void client.sendMessage(sessionId, text, photos.take()).catch(() => {
-      dispatch({ type: 'error', sessionId, code: 'send-failed', message: t('sendFailed') });
-    });
-  }
-  return { draft, setDraft, photos, send };
-}
-
-function ChatInput({
-  draft,
-  setDraft,
-  photos,
-}: Pick<ReturnType<typeof useChatDraft>, 'draft' | 'setDraft' | 'photos'>) {
-  const { t } = useI18n();
-  return (
-    <textarea
-      aria-label={t('composer')}
-      placeholder={t('composer')}
-      rows={1}
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onPaste={(event) => {
-        const pasted = [...event.clipboardData.files].filter(isPhoto);
-        if (!pasted.length) return;
-        event.preventDefault();
-        void photos.add(pasted);
-      }}
-      onKeyDown={(event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-          event.preventDefault();
-          event.currentTarget.form?.requestSubmit();
-        }
-      }}
-    />
-  );
-}
-
-function ChatComposer({ waiting, ...props }: ChatDraftProps & { waiting: boolean }) {
-  const { t } = useI18n();
-  const { status } = useConnection();
-  const { draft, setDraft, photos, send } = useChatDraft(props);
-  const consent = usePhotoConsent(photos.drafts.length > 0);
-  const [hasKeyboard] = useState(hasPrecisePointer);
-  const Send = icons.send;
-  return (
-    <div className="composer-area">
-      {waiting && <Thinking />}
-      {(waiting || hasKeyboard) && <p className="composer-notice">{t(waiting ? 'queueHelp' : 'sendHelp')}</p>}
-      {photos.failed && <p role="alert">{t('photoFailed')}</p>}
-      <PhotoDrafts drafts={photos.drafts} remove={photos.remove} />
-      <PhotoConsent consent={consent} />
-      <form className="composer card" onSubmit={send}>
-        <PhotoButton disabled={photos.full || status !== 'connected'} add={(files) => void photos.add(files)} />
-        <ChatInput draft={draft} setDraft={setDraft} photos={photos} />
-        <IconButton
-          type="submit"
-          variant="primary"
-          disabled={(!draft.trim() && !photos.drafts.length) || !props.ready || status !== 'connected'}
-          aria-label={t('send')}
-        >
-          <Send size={24} />
-        </IconButton>
-      </form>
-    </div>
-  );
-}
-
 function ChatTranscript({
   sessionId,
   state,
@@ -353,33 +257,28 @@ function ChatDetail({
   sessionId,
   onBack,
   onOptions,
-  ...initial
-}: InitialMessage & {
+}: {
   sessionId: string;
   onBack: () => void;
   onOptions: () => void;
 }) {
   const { t } = useI18n();
-  const { status, root, sessions } = useConnection();
+  const { status, sessions } = useConnection();
   const { state, dispatch, ready } = useChatSession(sessionId);
-  const Options = icons.settings;
   return (
     <DetailPage
       title={sessions.find((session) => session.sessionId === sessionId)?.title || t('untitledChat')}
-      subtitle={root || t(status)}
+      subtitle={t(state.waiting ? 'thinking' : status)}
       onBack={onBack}
-      action={
-        <IconButton variant="ghost" aria-label={t('chatActions')} onClick={onOptions}>
-          <Options size={24} />
-        </IconButton>
-      }
+      onTitleClick={onOptions}
     >
       <ConnectionStatus quiet />
       <DeviceApprovals compact />
       <TransferCards compact />
       <LiveDeviceButton />
       <ChatTranscript sessionId={sessionId} state={state} dispatch={dispatch} />
-      <ChatComposer sessionId={sessionId} waiting={state.waiting} ready={ready} dispatch={dispatch} {...initial} />
+      {state.waiting && <Thinking />}
+      <Composer draftKey={sessionId} waiting={state.waiting} ready={ready} />
     </DetailPage>
   );
 }
@@ -387,50 +286,36 @@ export function App() {
   return (
     <DeviceHubProvider>
       <PluginsProvider>
-        <AppContent />
+        <ComposerProvider>
+          <AppContent />
+        </ComposerProvider>
       </PluginsProvider>
     </DeviceHubProvider>
   );
 }
 function AppRoutes({ navigation }: { navigation: ShellNavigation }) {
-  const { hash, chatId, initialMessage, consumeInitialMessage, openPreferences, creating, newChat } = navigation;
+  const { page, chatId, openPreferences } = navigation;
   const { status } = useConnection();
-  if (hash.startsWith('#/models')) return <ModelsPage onBack={goHome} />;
-  if (hash.startsWith('#/plugins')) return <PluginsPage onBack={goHome} />;
-  if (hash.startsWith('#/memory')) return <MemoryPage key={status} onBack={goHome} />;
-  if (hash.startsWith('#/transfers')) return <TransfersPage onBack={goHome} />;
-  if (hash.startsWith('#/devices')) return <DevicesPage onBack={goHome} />;
-  if (hash.startsWith('#/pair')) return <PairPage onBack={goHome} />;
-  if (chatId)
-    return (
-      <ChatDetail
-        key={`${chatId}:${status}`}
-        sessionId={chatId}
-        initialMessage={initialMessage?.id === chatId ? initialMessage.text : undefined}
-        onInitialMessageConsumed={consumeInitialMessage}
-        onBack={goHome}
-        onOptions={openPreferences}
-      />
-    );
+  if (page === 'models') return <ModelsPage onBack={goHome} />;
+  if (page === 'plugins') return <PluginsPage onBack={goHome} />;
+  if (page === 'memory') return <MemoryPage key={status} onBack={goHome} />;
+  if (page === 'transfers') return <TransfersPage onBack={goHome} />;
+  if (page === 'devices') return <DevicesPage onBack={goHome} />;
+  if (page === 'pair') return <PairPage onBack={goHome} />;
+  if (chatId) return <ChatDetail key={chatId} sessionId={chatId} onBack={goHome} onOptions={openPreferences} />;
   return (
     <>
       <ConnectionStatus quiet />
-      <Home creating={creating} onSend={newChat} />
+      <Home />
     </>
   );
 }
 
 function ShellSidebar({ navigation }: { navigation: ShellNavigation }) {
   const { t } = useI18n();
-  const { chatId, creating, newChat, closeDrawer, openPreferences, drawer } = navigation;
+  const { chatId, newChat, closeDrawer, openPreferences, drawer } = navigation;
   const content = (
-    <Sidebar
-      chatId={chatId}
-      creating={creating}
-      onNewChat={() => void newChat()}
-      onNavigate={closeDrawer}
-      onPreferences={openPreferences}
-    />
+    <Sidebar chatId={chatId} onNewChat={newChat} onNavigate={closeDrawer} onPreferences={openPreferences} />
   );
   return (
     <>
@@ -446,6 +331,9 @@ function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
   const { t } = useI18n();
   const Menu = icons.menu;
   const Settings = icons.settings;
+  const Write = icons.write;
+  const { status } = useConnection();
+  if (navigation.page !== 'home') return null;
   return (
     <header className="phone-header">
       <IconButton
@@ -455,10 +343,16 @@ function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
       >
         <Menu size={24} />
       </IconButton>
-      <span>{t('appName')}</span>
-      <IconButton aria-label={t('openPreferences')} onClick={navigation.openPreferences}>
-        <Settings size={24} />
-      </IconButton>
+      <div className="phone-header__actions">
+        {status === 'connected' && (
+          <IconButton aria-label={t('newChat')} onClick={navigation.newChat}>
+            <Write size={20} />
+          </IconButton>
+        )}
+        <IconButton aria-label={t('openPreferences')} onClick={navigation.openPreferences}>
+          <Settings size={24} />
+        </IconButton>
+      </div>
     </header>
   );
 }
@@ -480,30 +374,47 @@ function SkipLink() {
   );
 }
 
+function RouteAnnouncement({ hash }: { hash: string }) {
+  const [title, setTitle] = useState('');
+  const { t } = useI18n();
+  // Read the rendered heading so route announcements and visible titles stay in sync.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: announce every route change
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const headings = document.getElementById('main-content')?.querySelectorAll('h1') ?? [];
+      const heading = [...headings].find((element) => element.getClientRects().length > 0);
+      const label = heading?.textContent || t('appName');
+      setTitle(label);
+      document.title = `${label} · ${t('appName')}`;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash, t]);
+  return (
+    <span className="sr-only" role="status">
+      {title}
+    </span>
+  );
+}
+
 function AppContent() {
   const navigation = useShellNavigation();
-  const { reducedMotion } = useTheme();
   const { offset, ...swipeHandlers } = useChatSwipe(navigation.chatId, navigation.hash);
-  const style =
-    offset && !reducedMotion
-      ? ({ transform: `translateX(${offset}px)`, animation: 'none' } as CSSProperties)
-      : undefined;
+  const style = useChatSwipeStyle(offset);
+  const routeView = useRouteTransition(navigation.routeKey);
   return (
     <div className="app-shell">
       <LanguageSync />
       <SkipLink />
+      <RouteAnnouncement hash={navigation.hash} />
       <ShellSidebar navigation={navigation} />
-      <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
-        <PhoneHeader navigation={navigation} />
-        <div
-          key={navigation.hash}
-          className="route-view"
-          data-direction={navigation.chatId ? 'forward' : 'back'}
-          style={style}
-        >
-          <AppRoutes navigation={navigation} />
-        </div>
-      </main>
+      <PageNavigationProvider value={navigation}>
+        <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
+          <PhoneHeader navigation={navigation} />
+          <div ref={routeView} className="route-view" style={style}>
+            <AppRoutes navigation={navigation} />
+          </div>
+        </main>
+      </PageNavigationProvider>
       <Preferences open={navigation.preferences} onClose={navigation.closePreferences} />
     </div>
   );

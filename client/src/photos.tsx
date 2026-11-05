@@ -3,51 +3,14 @@
  * sending; and see the photos already in a conversation.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { ImageInput, ModelsView } from '@swiftnest/api';
+import type { ModelsView } from '@swiftnest/api';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { icons } from './design/icons';
-import { preparePhotos } from './photoEncode';
-import { isPhoto, needsFreeVisionAnswer, roomFor, type PhotoDraft } from './photoState';
+import { needsFreeVisionAnswer, type PhotoDraft } from './photoState';
 import { Button } from './components/Button';
 import { IconButton } from './components/IconButton';
 import { Card } from './components/Card';
-
-/** Photos waiting to go with the next message. */
-export function usePhotoDrafts() {
-  const [drafts, setDrafts] = useState<PhotoDraft[]>([]);
-  const [failed, setFailed] = useState(false);
-  const current = useRef(drafts);
-  current.current = drafts;
-  useEffect(
-    () => () => {
-      for (const draft of current.current) URL.revokeObjectURL(draft.url);
-    },
-    [],
-  );
-  async function add(files: Iterable<File>) {
-    const images = [...files].filter(isPhoto).slice(0, roomFor(current.current));
-    const { ok, failed: someFailed } = await preparePhotos(images);
-    setFailed(someFailed);
-    setDrafts((list) => [...list, ...ok].slice(0, list.length + roomFor(list)));
-  }
-  function remove(id: string) {
-    setDrafts((list) => {
-      const removed = list.find((draft) => draft.id === id);
-      if (removed) URL.revokeObjectURL(removed.url);
-      return list.filter((draft) => draft.id !== id);
-    });
-  }
-  /** Hand the photos to a message and clear the previews. */
-  function take(): ImageInput[] {
-    const taken = current.current.map(({ mediaType, data, name }) => ({ mediaType, data, ...(name ? { name } : {}) }));
-    for (const draft of current.current) URL.revokeObjectURL(draft.url);
-    setDrafts([]);
-    setFailed(false);
-    return taken;
-  }
-  return { drafts, failed, add, remove, take, full: roomFor(drafts) === 0 };
-}
 
 export function PhotoButton({ disabled, add }: { disabled: boolean; add: (files: FileList) => void }) {
   const { t } = useI18n();
@@ -105,7 +68,7 @@ export function usePhotoConsent(active: boolean) {
     store.client
       .listModels()
       .then((view) => !ended && setVision(view.vision))
-      .catch(() => {});
+      .catch(() => !ended && setFailed(true));
     return () => {
       ended = true;
     };
@@ -119,7 +82,7 @@ export function usePhotoConsent(active: boolean) {
       setFailed(true);
     }
   }
-  return { asking: active && !!vision && needsFreeVisionAnswer(vision), failed, answer };
+  return { checking: active && !vision, asking: active && !!vision && needsFreeVisionAnswer(vision), failed, answer };
 }
 
 /** The one-time question: may photos go to the free photo reading service? */

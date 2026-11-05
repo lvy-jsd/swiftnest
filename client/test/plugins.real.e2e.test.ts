@@ -89,7 +89,13 @@ async function startApplyKernel(home: string, modelUrl: string, logs: string[], 
 
 async function createChat(page: Page) {
   await (await openNavigation(page)).getByRole('button', { name: 'New chat', exact: true }).click();
-  await page.getByRole('list', { name: 'Messages', exact: true }).waitFor();
+  expect(page.url()).not.toContain('#/chats/');
+  await page.getByRole('textbox', { name: 'Write a message' }).fill('hi before restart');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await page
+    .getByRole('list', { name: 'Messages', exact: true })
+    .getByText('Reply after real restart.', { exact: true })
+    .waitFor();
   const route = page.url().split('#')[1]!;
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
   const links = (await openNavigation(page)).locator('a[href^="#/chats/"]');
@@ -108,10 +114,11 @@ async function chatAfterRestart(page: Page, route: string) {
   await page.getByRole('textbox', { name: 'Write a message' }).fill('hi after restart');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   const messages = page.getByRole('list', { name: 'Messages' });
-  await messages.getByText('Reply after real restart.', { exact: true }).waitFor();
+  await messages.getByText('hi after restart', { exact: true }).waitFor();
+  await expect.poll(() => messages.getByText('Reply after real restart.', { exact: true }).count()).toBe(2);
   await expect.poll(() => messages.locator('[data-streaming="true"]').count()).toBe(0);
   expect(await messages.getByText('hi after restart', { exact: true }).count()).toBe(1);
-  expect(await messages.getByText('Reply after real restart.', { exact: true }).count()).toBe(1);
+  expect(await messages.getByText('Reply after real restart.', { exact: true }).count()).toBe(2);
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
   await expect.poll(async () => (await openNavigation(page)).locator('a[href^="#/chats/"]').count()).toBe(1);
 }
@@ -189,10 +196,12 @@ async function nativeChatAfterRestart(native: ConnectionStore, sessionId: string
     if (event.type === 'assistant-end') break;
   }
   stream.close();
-  expect(events.filter((e) => e.type === 'user-message' && e.text === 'native after restart')).toHaveLength(1);
+  for (const text of ['hi before restart', 'hi after restart', 'native after restart'])
+    expect(events.filter((event) => event.type === 'user-message' && event.text === text)).toHaveLength(1);
   const replies = events.filter((e) => e.type === 'assistant-message' && e.text === 'Reply after real restart.');
-  expect(replies).toHaveLength(2);
-  expect(new Set(replies.map((e) => e.type === 'assistant-message' && e.messageId)).size).toBe(2);
+  // First-send creation adds a real pre-restart turn to the two post-restart turns.
+  expect(replies).toHaveLength(3);
+  expect(new Set(replies.map((e) => e.type === 'assistant-message' && e.messageId)).size).toBe(3);
   expect(await native.client!.listSessions()).toHaveLength(1);
 }
 async function rotateAndRestart(kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {

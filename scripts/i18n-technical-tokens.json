@@ -429,6 +429,19 @@
     " live-surface--phone",
     "live-body",
     "live-stage",
-    "page page--hub devices-page"
+    "page page--hub devices-page",
+    "phone-header__actions",
+    "[data-composer]",
+    "brand-mark home-emblem",
+    "brand-mark",
+    "k",
+    "new-chat",
+    "h1",
+    "sr-only",
+    "page-header__menu",
+    "page-header__new-chat",
+    "chat-title",
+    "chat-title__name",
+    "chat-title__status"
   ]
 }

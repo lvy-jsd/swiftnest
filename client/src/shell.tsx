@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionSummary } from '@swiftnest/api';
 import { Button } from './components/Button';
 import { Chip } from './components/Chip';
@@ -9,6 +9,16 @@ import { useDevices } from './devices';
 import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { groupChats } from './shellState';
+import { hasPrecisePointer } from './runtime';
+
+export function BrandMark({ emblem = false }: { emblem?: boolean }) {
+  const Nest = icons.brand;
+  return (
+    <span className={emblem ? 'brand-mark home-emblem' : 'brand-mark'}>
+      <Nest size={emblem ? 32 : 20} weight="fill" aria-hidden="true" />
+    </span>
+  );
+}
 
 export function OnlineSummary() {
   const { devices, error } = useDevices();
@@ -65,11 +75,11 @@ export function ChatFilters({
   if (!sessions.some((chat) => typeof chat.running === 'boolean')) return null;
   return (
     <fieldset className="chip-group" aria-label={t('shell.chatFilters')}>
-      <Chip selected={!runningOnly} onClick={() => onChange(false)}>
+      <Chip aria-label={t('shell.allChats')} selected={!runningOnly} onClick={() => onChange(false)}>
         {t('shell.allChats')}
       </Chip>
-      <Chip selected={runningOnly} onClick={() => onChange(true)}>
-        {t('shell.runningChats')}
+      <Chip aria-label={t('shell.runningChats')} selected={runningOnly} onClick={() => onChange(true)}>
+        {t('shell.runningChats')} <span>{sessions.filter((chat) => chat.running).length}</span>
       </Chip>
     </fieldset>
   );
@@ -136,24 +146,75 @@ function PrimaryNavigation({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+function ChatSearch({ query, onChange }: { query: string; onChange: (query: string) => void }) {
+  const { t } = useI18n();
+  const Search = icons.search;
+  const search = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
+      if (!search.current?.getClientRects().length) return;
+      event.preventDefault();
+      search.current.focus();
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+  return (
+    <label className="search-field">
+      <Search size={20} aria-hidden="true" />
+      <input
+        ref={search}
+        type="search"
+        aria-label={t('search')}
+        placeholder={t('search')}
+        value={query}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hasPrecisePointer() && (
+        <kbd>
+          {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+            ? t('shell.searchShortcutCommand')
+            : t('shell.searchShortcutControl')}
+        </kbd>
+      )}
+    </label>
+  );
+}
+
+function BrandRow({ onNewChat }: { onNewChat: () => void }) {
+  const { t } = useI18n();
+  const { status } = useConnection();
+  const Write = icons.write;
+  return (
+    <div className="sidebar__brand">
+      <BrandMark />
+      <strong>{t('appName')}</strong>
+      {status === 'connected' && (
+        <Button className="new-chat" variant="primary" onClick={onNewChat}>
+          <Write size={16} aria-hidden="true" />
+          {t('newChat')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar({
   chatId,
-  creating,
   onNewChat,
   onNavigate,
   onPreferences,
 }: {
   chatId?: string;
-  creating: boolean;
   onNewChat: () => void;
   onNavigate: () => void;
   onPreferences: () => void;
 }) {
   const { t } = useI18n();
-  const { sessions, status } = useConnection();
+  const { sessions } = useConnection();
   const [query, setQuery] = useState('');
   const [runningOnly, setRunningOnly] = useState(false);
-  const Search = icons.search;
   const visible = sessions.filter(
     (chat) =>
       (!runningOnly || chat.running === true) &&
@@ -161,22 +222,8 @@ export function Sidebar({
   );
   return (
     <div className="sidebar-content">
-      <div className="sidebar__brand">
-        <strong>{t('appName')}</strong>
-        <Button variant="primary" disabled={creating || status !== 'connected'} onClick={onNewChat}>
-          {t('newChat')}
-        </Button>
-      </div>
-      <label className="search-field">
-        <Search size={20} aria-hidden="true" />
-        <input
-          type="search"
-          aria-label={t('search')}
-          placeholder={t('search')}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
+      <BrandRow onNewChat={onNewChat} />
+      <ChatSearch query={query} onChange={setQuery} />
       <PrimaryNavigation onNavigate={onNavigate} />
       <ChatFilters sessions={sessions} runningOnly={runningOnly} onChange={setRunningOnly} />
       <nav className="chat-navigation" aria-label={t('chatNavigation')}>

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DeviceApprovals } from './devices';
 import { TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
-import { IconButton } from './components/IconButton';
-import { useConnection } from './connection';
+import { Composer, useComposerDraft } from './composer';
+import { BrandMark } from './shell';
 import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { greetingKey } from './shellState';
@@ -36,71 +36,17 @@ function Greeting() {
     const timer = setInterval(() => setHour(new Date().getHours()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const Nest = icons.chat;
   return (
     <div className="home-greeting">
-      <span className="home-emblem">
-        <Nest size={32} aria-hidden="true" />
-      </span>
+      <BrandMark emblem />
       <h1>{t(greetingKey(hour))}</h1>
       <OnlineSummary />
     </div>
   );
 }
 
-function HomeComposer({
-  draft,
-  setDraft,
-  composer,
-  creating,
-  onSend,
-}: {
-  draft: string;
-  setDraft: (value: string) => void;
-  composer: React.RefObject<HTMLTextAreaElement | null>;
-  creating: boolean;
-  onSend: (text: string) => Promise<boolean>;
-}) {
-  const { t } = useI18n();
-  const { status } = useConnection();
-  const Send = icons.send;
-  return (
-    <form
-      className="composer card"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (draft.trim() && !creating && status === 'connected') void onSend(draft.trim());
-      }}
-    >
-      <textarea
-        ref={composer}
-        rows={1}
-        aria-label={t('composer')}
-        placeholder={t('composer')}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
-          }
-        }}
-      />
-      <IconButton
-        type="submit"
-        variant="primary"
-        aria-label={t('send')}
-        disabled={!draft.trim() || status !== 'connected' || creating}
-      >
-        <Send size={24} />
-      </IconButton>
-    </form>
-  );
-}
-
-export function Home({ onSend, creating }: { onSend: (text: string) => Promise<boolean>; creating: boolean }) {
-  const [draft, setDraft] = useState('');
-  const composer = useRef<HTMLTextAreaElement>(null);
+export function Home() {
+  const { setText } = useComposerDraft('home');
   return (
     <section className="home">
       <div className="home-notices">
@@ -112,12 +58,12 @@ export function Home({ onSend, creating }: { onSend: (text: string) => Promise<b
         <Greeting />
         <Suggestions
           onChoose={(text) => {
-            setDraft(text);
-            composer.current?.focus();
+            setText(text);
+            document.querySelector<HTMLTextAreaElement>('[data-composer]')?.focus();
           }}
         />
       </div>
-      <HomeComposer draft={draft} setDraft={setDraft} composer={composer} creating={creating} onSend={onSend} />
+      <Composer draftKey="home" />
     </section>
   );
 }
