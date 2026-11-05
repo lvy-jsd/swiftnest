@@ -16,7 +16,13 @@ it('re-follows an ended session stream, reports readiness and cancels the pendin
   const stop = watchChatSession(clientWith(follow), 'chat', updates);
   await vi.advanceTimersByTimeAsync(0);
   expect(updates.ready).toHaveBeenLastCalledWith(true);
-  const event = { type: 'assistant-message', sessionId: 'chat', messageId: 'reply', text: 'old reply', seq: 2 } as const;
+  const event = {
+    type: 'assistant-message',
+    sessionId: 'chat',
+    messageId: 'reply',
+    text: 'old reply',
+    seq: 2,
+  } as const;
   first.push(event);
   first.end();
   await vi.advanceTimersByTimeAsync(0);
