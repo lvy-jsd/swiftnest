@@ -1,18 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import type { Device, DeviceApproval, DevicePairingCandidate, SwiftnestClient, Transfer } from '@swiftnest/api';
+import type { Device, DevicePairingCandidate, SwiftnestClient, Transfer } from '@swiftnest/api';
 import { useConnection } from '../connection';
 
 type HubData = {
   transfers: Transfer[];
   devices: Device[];
-  approvals: DeviceApproval[];
   candidates: DevicePairingCandidate[];
 };
 type Hub = HubData & { error: boolean; busy: boolean; act: (action: () => Promise<unknown>) => Promise<boolean> };
-const empty: HubData = { transfers: [], devices: [], approvals: [], candidates: [] };
+const empty: HubData = { transfers: [], devices: [], candidates: [] };
 const Context = createContext<Hub | null>(null);
 
-function useDeviceWatch(client: SwiftnestClient | undefined, refresh: () => Promise<void>, fail: () => void) {
+export function useDeviceWatch(
+  client: SwiftnestClient | undefined,
+  refresh: () => Promise<void>,
+  fail: () => void,
+  kind: 'devices' | 'approvals' = 'devices',
+) {
   useEffect(() => {
     if (!client) return;
     const abort = new AbortController();
@@ -26,7 +30,9 @@ function useDeviceWatch(client: SwiftnestClient | undefined, refresh: () => Prom
     void sync();
     async function watch() {
       try {
-        const stream = await client!.watchDevices({ signal: abort.signal });
+        const stream = await (kind === 'approvals'
+          ? client!.watchApprovals({ signal: abort.signal })
+          : client!.watchDevices({ signal: abort.signal }));
         await sync();
         for await (const _ of stream) {
           if (abort.signal.aborted) break;
@@ -43,7 +49,7 @@ function useDeviceWatch(client: SwiftnestClient | undefined, refresh: () => Prom
       clearInterval(poll);
       clearTimeout(retry);
     };
-  }, [client, refresh, fail]);
+  }, [client, refresh, fail, kind]);
 }
 
 function useHubData() {
@@ -63,16 +69,15 @@ function useHubData() {
   const refresh = useCallback(async () => {
     if (!client) return;
     const current = ++version.current;
-    const [devices, approvals, candidates, transfers] = await Promise.all([
+    const [devices, candidates, transfers] = await Promise.all([
       client.listDevices(),
-      client.listDeviceApprovals(),
       client.listDevicePairings(),
       client.listTransfers(),
     ]);
     if (store.client !== client || current !== version.current) return;
     await store.updateDeviceContext(devices);
     if (store.client !== client || current !== version.current) return;
-    setData({ devices, approvals, candidates, transfers });
+    setData({ devices, candidates, transfers });
     setError(false);
   }, [client, store]);
   useDeviceWatch(client, refresh, fail);

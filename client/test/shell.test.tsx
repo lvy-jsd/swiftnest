@@ -9,6 +9,7 @@ import { ChatFilters, IdentityRow, Sidebar } from '../src/shell';
 import { groupChats, greetingKey } from '../src/shellState';
 import { Suggestions } from '../src/home';
 import { Preferences } from '../src/preferences';
+import { ApprovalInboxProvider } from '../src/inboxState';
 import { PluginsProvider } from '../src/plugins';
 import { ThemeProvider } from '../src/design/theme';
 
@@ -111,8 +112,10 @@ it('offers four translated suggestions and settings ListRows', () => {
       <English>
         <ConnectionProvider>
           <PluginsProvider>
-            <Suggestions onChoose={() => {}} />
-            <Preferences open={true} onClose={() => {}} />
+            <ApprovalInboxProvider>
+              <Suggestions onChoose={() => {}} />
+              <Preferences open={true} onClose={() => {}} />
+            </ApprovalInboxProvider>
           </PluginsProvider>
         </ConnectionProvider>
       </English>
@@ -141,7 +144,9 @@ it('groups rendered chat rows and marks only actual running sessions', () => {
       <ConnectionProvider store={store}>
         <PluginsProvider>
           <DeviceHubProvider>
-            <Sidebar chatId="active" onNewChat={() => {}} onNavigate={() => {}} onPreferences={() => {}} />
+            <ApprovalInboxProvider>
+              <Sidebar chatId="active" onNewChat={() => {}} onNavigate={() => {}} onPreferences={() => {}} />
+            </ApprovalInboxProvider>
           </DeviceHubProvider>
         </PluginsProvider>
       </ConnectionProvider>

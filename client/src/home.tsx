@@ -50,7 +50,7 @@ export function Home() {
   return (
     <section className="home">
       <div className="home-notices">
-        <DeviceApprovals compact />
+        <DeviceApprovals />
         <TransferCards compact />
         <LiveDeviceButton />
       </div>

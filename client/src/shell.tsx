@@ -10,6 +10,7 @@ import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { usePlugins } from './plugins';
 import { hasPrecisePointer } from './runtime';
+import { ApprovalBadge } from './inbox';
 
 export function BrandMark({ emblem = false }: { emblem?: boolean }) {
   const Nest = icons.brand;
@@ -202,6 +203,7 @@ export function Sidebar({
           <p className="sidebar-empty">{t('noChats')}</p>
         )}
       </nav>
+      <ApprovalBadge />
       <IdentityRow onPreferences={onPreferences} />
     </div>
   );

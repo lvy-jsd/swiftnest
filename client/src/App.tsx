@@ -10,6 +10,8 @@ import { Composer, ComposerProvider } from './composer';
 import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
+import { ApprovalInboxProvider } from './inboxState';
+import { ApprovalBadge, ApprovalInboxPage } from './inbox';
 import { localizedError, type SwiftnestClient } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
@@ -130,15 +132,7 @@ function Thinking() {
     </p>
   );
 }
-function TranscriptRow({
-  row,
-  sessionId,
-  onAnswered,
-}: {
-  row: ChatRow;
-  sessionId: string;
-  onAnswered: (requestId: string) => void;
-}) {
+function TranscriptRow({ row, sessionId }: { row: ChatRow; sessionId: string }) {
   const { t, locale } = useI18n();
   const { assistantName } = useConnection();
   if (row.kind === 'message') {
@@ -157,7 +151,7 @@ function TranscriptRow({
       </article>
     );
   }
-  if (row.kind === 'approval') return <ApprovalCard request={row} onAnswered={onAnswered} />;
+  if (row.kind === 'approval') return <ApprovalCard request={row} />;
   if (row.kind === 'error') {
     const failure = localizedError({ code: row.code, message: row.text }, locale);
     return (
@@ -213,11 +207,7 @@ function useChatSession(sessionId: string) {
 }
 
 type ChatSession = ReturnType<typeof useChatSession>;
-function ChatTranscript({
-  sessionId,
-  state,
-  dispatch,
-}: Pick<ChatSession, 'state' | 'dispatch'> & { sessionId: string }) {
+function ChatTranscript({ sessionId, state }: Pick<ChatSession, 'state'> & { sessionId: string }) {
   const { t } = useI18n();
   return (
     <VirtualList
@@ -226,13 +216,7 @@ function ChatTranscript({
       label={t('messages')}
       followEnd
       className="transcript"
-      renderItem={(row) => (
-        <TranscriptRow
-          row={row}
-          sessionId={sessionId}
-          onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })}
-        />
-      )}
+      renderItem={(row) => <TranscriptRow row={row} sessionId={sessionId} />}
     />
   );
 }
@@ -248,7 +232,7 @@ function ChatDetail({
 }) {
   const { t } = useI18n();
   const { status, sessions } = useConnection();
-  const { state, dispatch, ready } = useChatSession(sessionId);
+  const { state, ready } = useChatSession(sessionId);
   return (
     <DetailPage
       title={sessions.find((session) => session.sessionId === sessionId)?.title || t('untitledChat')}
@@ -257,10 +241,10 @@ function ChatDetail({
       onTitleClick={onOptions}
     >
       <ConnectionStatus quiet />
-      <DeviceApprovals compact />
+      <DeviceApprovals />
       <TransferCards compact />
       <LiveDeviceButton />
-      <ChatTranscript sessionId={sessionId} state={state} dispatch={dispatch} />
+      <ChatTranscript sessionId={sessionId} state={state} />
       {state.waiting && <Thinking />}
       <Composer draftKey={sessionId} waiting={state.waiting} ready={ready} />
     </DetailPage>
@@ -269,17 +253,20 @@ function ChatDetail({
 export function App() {
   return (
     <DeviceHubProvider>
-      <PluginsProvider>
-        <ComposerProvider>
-          <AppContent />
-        </ComposerProvider>
-      </PluginsProvider>
+      <ApprovalInboxProvider>
+        <PluginsProvider>
+          <ComposerProvider>
+            <AppContent />
+          </ComposerProvider>
+        </PluginsProvider>
+      </ApprovalInboxProvider>
     </DeviceHubProvider>
   );
 }
 function AppRoutes({ navigation }: { navigation: ShellNavigation }) {
   const { page, chatId, openPreferences } = navigation;
   const { status } = useConnection();
+  if (page === 'approvals') return <ApprovalInboxPage onBack={goHome} />;
   if (page === 'models') return <ModelsPage onBack={goHome} />;
   if (page === 'plugins') return <PluginsPage onBack={goHome} />;
   if (page === 'memory') return <MemoryPage key={status} onBack={goHome} />;
@@ -328,6 +315,7 @@ function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
         <Menu size={24} />
       </IconButton>
       <div className="phone-header__actions">
+        <ApprovalBadge />
         {status === 'connected' && (
           <IconButton aria-label={t('newChat')} onClick={navigation.newChat}>
             <Write size={20} />

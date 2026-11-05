@@ -13,6 +13,7 @@ import { relaySettings } from './relay-settings.js';
 import { CHANNEL_PATH, relayConfig } from '@swiftnest/channel';
 import { loadChannelIdentity } from './channel-identity.js';
 import { appChannel } from './channel.js';
+import { approvalAnswerer } from './approval-inbox.js';
 import { nativePairings, type NativeConnection } from './native-pairings.js';
 
 export const name = 'swiftnest-core';
@@ -33,7 +34,8 @@ interface WebRoute {
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
 }
 
-interface CoreContext {
+type ApprovalContext = Parameters<typeof approvalAnswerer>[0];
+interface CoreContext extends ApprovalContext {
   connection?: DeviceConnection;
   webServer: {
     getOrigin?(): string;
@@ -158,6 +160,7 @@ async function channelRoutes(ctx: CoreContext, config: CoreConfig): Promise<void
 }
 
 export async function apply(ctx: CoreContext, config: CoreConfig = {}): Promise<void> {
+  approvalAnswerer(ctx, config);
   ownerRoutes(ctx, config);
   await channelRoutes(ctx, config);
   const handler = appHandler(config.appDist);

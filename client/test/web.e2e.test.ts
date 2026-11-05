@@ -188,17 +188,13 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         id: 'browser-test',
         name: 'Browser requester',
       });
-      const approvalList = page.getByRole('list', { name: 'Waiting for approval', exact: true });
-      await approvalList.getByText('Browser requester', { exact: false }).waitFor();
+      const approvalList = page.getByRole('list', { name: 'Approvals', exact: true });
+      await approvalList.getByText('Browser requester', { exact: true }).waitFor();
+      await approvalList.getByText('Details', { exact: true }).click();
       expect(await approvalList.innerText()).toContain(args.content);
-      await approvalList.getByRole('button', { name: 'Review request', exact: true }).click();
-      await page
-        .getByRole('dialog', { name: 'Review request' })
-        .getByRole('button', { name: 'Approve', exact: true })
-        .click();
+      await approvalList.getByRole('button', { name: 'Approve', exact: true }).click();
       await expect.poll(() => kernel!.devices.nest.tasks.get(write.id)?.state).toBe('succeeded');
       expect(await readFile(args.path, 'utf8')).toBe(args.content);
-      await page.getByRole('dialog', { name: 'Review request' }).waitFor({ state: 'hidden' });
       await page.getByRole('button', { name: 'Go back' }).click();
       await (await openNavigation(page)).locator('a[href^="#/chats/"]').first().click();
       const denied = await kernel.devices.nest.call(
@@ -206,14 +202,13 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         { ...args, content: 'Do not write' },
         { id: 'browser-test' },
       );
-      await page.getByRole('button', { name: 'Waiting for approval · 1', exact: true }).click();
+      await (await openNavigation(page)).getByRole('link', { name: 'Approvals · 1 pending', exact: true }).click();
       await page
-        .getByRole('dialog', { name: 'Review request' })
+        .getByRole('list', { name: 'Approvals', exact: true })
         .getByRole('button', { name: 'Deny', exact: true })
         .click();
       await expect.poll(() => kernel!.devices.nest.tasks.get(denied.id)?.state).toBe('denied');
       expect(await readFile(args.path, 'utf8')).toBe(args.content);
-      await page.getByRole('dialog', { name: 'Review request' }).waitFor({ state: 'hidden' });
       await page.getByRole('button', { name: 'Go back' }).click();
       await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
       await page.getByRole('button', { name: 'Revoke device', exact: true }).click();

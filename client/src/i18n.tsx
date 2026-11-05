@@ -358,6 +358,18 @@ export const en = {
   memoryAutoRecent: messageEn.memoryAutoRecent,
   memoryAutoEmpty: messageEn.memoryAutoEmpty,
   memoryAdvanced: messageEn.memoryAdvanced,
+  inboxTitle: messageEn.inboxTitle,
+  inboxPendingCount: messageEn.inboxPendingCount,
+  inboxDetails: messageEn.inboxDetails,
+  inboxExpires: messageEn.inboxExpires,
+  inboxEmpty: messageEn.inboxEmpty,
+  inboxRemind: messageEn.inboxRemind,
+  inboxAutoAllow: messageEn.inboxAutoAllow,
+  inboxTimeoutHelp: messageEn.inboxTimeoutHelp,
+  inboxChatTimeout: messageEn.inboxChatTimeout,
+  inboxDeviceTimeout: messageEn.inboxDeviceTimeout,
+  inboxTransferTimeout: messageEn.inboxTransferTimeout,
+  inboxAdvanced: messageEn.inboxAdvanced,
 } as const;
 export type StringKey = keyof typeof en;
 export type Locale = 'en' | 'zh-CN';
@@ -704,6 +716,18 @@ export const zhCN: Record<StringKey, string> = {
   memoryAutoRecent: messageZh.memoryAutoRecent,
   memoryAutoEmpty: messageZh.memoryAutoEmpty,
   memoryAdvanced: messageZh.memoryAdvanced,
+  inboxTitle: messageZh.inboxTitle,
+  inboxPendingCount: messageZh.inboxPendingCount,
+  inboxDetails: messageZh.inboxDetails,
+  inboxExpires: messageZh.inboxExpires,
+  inboxEmpty: messageZh.inboxEmpty,
+  inboxRemind: messageZh.inboxRemind,
+  inboxAutoAllow: messageZh.inboxAutoAllow,
+  inboxTimeoutHelp: messageZh.inboxTimeoutHelp,
+  inboxChatTimeout: messageZh.inboxChatTimeout,
+  inboxDeviceTimeout: messageZh.inboxDeviceTimeout,
+  inboxTransferTimeout: messageZh.inboxTransferTimeout,
+  inboxAdvanced: messageZh.inboxAdvanced,
 };
 export const tables = { en, 'zh-CN': zhCN };
 export const translate = (locale: Locale, key: StringKey): string => tables[locale][key];

@@ -302,3 +302,22 @@ it('pins the server before sending a credential; wrong and revoked credentials a
     await new Promise<void>((resolve) => http.close(() => resolve()));
   }
 });
+
+it('allows only the owner inbox routes through the encrypted App channel', () => {
+  for (const path of ['/swiftnest/api/approvals', '/swiftnest/api/approvals/events'])
+    expect(channelRoute('GET', path)).toBe(true);
+  for (const path of [
+    '/swiftnest/api/approvals/settings',
+    '/swiftnest/api/approvals/dsh%3Arequest/allow',
+    '/swiftnest/api/approvals/task/deny',
+  ])
+    expect(channelRoute('POST', path)).toBe(true);
+  for (const [method, path] of [
+    ['GET', '/swiftnest/api/approvals/settings'],
+    ['GET', '/swiftnest/api/approvals/private/events'],
+    ['POST', '/swiftnest/control/approvals/request'],
+    ['POST', '/swiftnest/api/approvals/task/approve'],
+    ['DELETE', '/swiftnest/api/approvals'],
+  ])
+    expect(channelRoute(method!, path!)).toBe(false);
+});

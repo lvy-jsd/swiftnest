@@ -8,6 +8,7 @@ import type { DeviceConnection } from './devices.js';
 
 type Request = Pick<IncomingMessage, 'headers'> & Partial<Pick<IncomingMessage, 'socket'>>;
 interface NativePeer {
+  approvalDevice?: string;
   principal: { kind: string };
   interactions?: 'answer' | 'none';
   signal: AbortSignal;
@@ -78,6 +79,7 @@ class NativeAdmission {
       this.peers.set(record.id, entry);
       this.scheduleExpiry();
     }
+    entry.peer.approvalDevice = record.device ?? `app:${record.id}`;
     return entry.peer;
   }
   invalidate = () => {

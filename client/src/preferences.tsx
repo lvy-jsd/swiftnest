@@ -6,6 +6,7 @@ import { useTheme } from './design/theme';
 import { useI18n, type Locale } from './i18n';
 import { ChatSearchAdvanced } from './chatSearchSettings';
 import { RelaySettings } from './relaySettings';
+import { ApprovalSettingsFields } from './approvalSettings';
 
 function LanguageSetting() {
   const { t, locale, setLocale } = useI18n();
@@ -93,6 +94,7 @@ export function Preferences({ open, onClose }: { open: boolean; onClose: () => v
         <PreferencesNavigation onClose={onClose} />
         <DisplaySettings />
         <ChatSearchAdvanced />
+        <ApprovalSettingsFields />
         <RelaySettings />
       </div>
     </Sheet>

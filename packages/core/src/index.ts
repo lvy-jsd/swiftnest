@@ -30,3 +30,11 @@ export * from './remote.js';
 export * from './tasks.js';
 
 export * from './streams.js';
+export { ApprovalSettingsSchema, DshApprovalRequestSchema } from '@swiftnest/protocol';
+export type {
+  ApprovalActor,
+  ApprovalInboxView,
+  ApprovalItem,
+  ApprovalSettings,
+  TaskSnapshot,
+} from '@swiftnest/protocol';
