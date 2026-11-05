@@ -1,6 +1,7 @@
 import type { ApprovalItem } from '@swiftnest/api';
 import { Button } from './components/Button';
 import { Card } from './components/Card';
+import { ChatIcon } from './components/ChatIcon';
 import { DetailPage } from './components/pages';
 import { VirtualList } from './components/VirtualList';
 import { useConnection } from './connection';
@@ -25,27 +26,42 @@ export function InboxApproval({ item }: { item: ApprovalItem }) {
   const { store, status } = useConnection();
   const { busy, act, error } = useApprovalInbox();
   const answer = (allowed: boolean) => void act(() => store.client!.answerInboxApproval(item.id, allowed));
+  const remaining = new Date(item.expiresAt).getTime() - Date.now();
+  const expiry =
+    remaining > 0
+      ? t('inboxExpiresInMinutes').replace(
+          '{minutes}',
+          new Intl.NumberFormat(locale, { style: 'unit', unit: 'minute', unitDisplay: 'long' }).format(
+            Math.ceil(remaining / 60_000),
+          ),
+        )
+      : t('inboxExpired');
   return (
     <Card className="device-card approval-card" aria-label={t('toolApproval')}>
-      <strong>{item.requester}</strong>
-      <p>
+      <header className="approval-card__header">
+        <strong>{item.requester}</strong>
+        <span className="approval-card__risk" data-risk={item.risk}>
+          {t(item.risk)}
+        </span>
+      </header>
+      <p className="approval-card__tool">
         <code>{item.tool}</code>
       </p>
-      <p>{item.displayReason?.[locale] ?? item.summary}</p>
+      <p className="approval-card__reason">{item.displayReason?.[locale] ?? item.summary}</p>
+      <p className="approval-card__metadata">
+        {item.requester} · {item.device}
+      </p>
+      <p className="approval-card__expiry">
+        <ChatIcon name="clock" />
+        <time dateTime={item.expiresAt} title={new Date(item.expiresAt).toLocaleString(locale)}>
+          {expiry}
+        </time>
+      </p>
       <details>
         <summary>{t('inboxDetails')}</summary>
-        <p>
-          {t('requestedBy')}: {item.requester} · {item.device}
-        </p>
-        <p>
-          {t('risk')}: {t(item.risk)}
-        </p>
-        <p>
-          {t('inboxExpires')}: <time dateTime={item.expiresAt}>{new Date(item.expiresAt).toLocaleString(locale)}</time>
-        </p>
         <pre>{JSON.stringify(item.args, null, 2)}</pre>
       </details>
-      <div className="device-actions">
+      <div className="device-actions approval-card__actions">
         <Button disabled={busy || status !== 'connected'} onClick={() => answer(false)}>
           {t('deny')}
         </Button>
