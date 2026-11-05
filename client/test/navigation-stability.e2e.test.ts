@@ -3,6 +3,52 @@ import type { ElementHandle, Page } from '@playwright/test';
 import { MemoryHarness } from './fixtures/memoryHarness';
 import { launchChromium } from './browser';
 import { webAppUrl } from '../../server/src/pairing';
+import { openNavigation } from './navigation';
+
+it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
+  'opening a chat switches composers before hashchange so immediate input belongs to that chat',
+  async () => {
+    const harness = new MemoryHarness();
+    const browser = await launchChromium();
+    try {
+      await harness.start();
+      const { sessionId } = await harness.client.createSession();
+      await harness.turn(sessionId, 'first message');
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
+      await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
+      await page.waitForURL((url) => url.hash === '#/');
+      const composer = page.getByRole('textbox', { name: 'Write a message' });
+      await composer.fill('keep the home draft');
+      const drawer = await openNavigation(page);
+      const holdHashchange = await page.evaluateHandle(() => {
+        // Hold the queued notification; popstate still runs during native navigation.
+        const hold = (event: Event) => event.stopImmediatePropagation();
+        window.addEventListener('hashchange', hold, true);
+        return hold;
+      });
+      await drawer.locator(`a[href="#/chats/${sessionId}"]`).click();
+      await composer.fill('hi after restart');
+      expect(await page.locator('.page--detail textarea').count()).toBe(1);
+      expect(await page.locator('.page--detail textarea').inputValue()).toBe('hi after restart');
+      // Releasing hashchange must neither replace the composer nor move its draft.
+      const input = await composer.elementHandle();
+      await page.evaluate((hold) => {
+        window.removeEventListener('hashchange', hold, true);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, holdHashchange);
+      expect(await input!.evaluate((element) => element.isConnected)).toBe(true);
+      await page.getByRole('button', { name: 'Send message', exact: true }).click();
+      await page.getByRole('list', { name: 'Messages' }).getByText('hi after restart', { exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Go back', exact: true }).click();
+      await expect.poll(() => page.locator('.home textarea').inputValue()).toBe('keep the home draft');
+    } finally {
+      await browser.close();
+      await harness.close();
+    }
+  },
+  60_000,
+);
 
 async function watchResizeAnimations(page: Page) {
   await page.evaluate(() => {

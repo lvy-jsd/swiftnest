@@ -44,9 +44,15 @@ function useAndroidBack(consume: () => boolean) {
   }, []);
 }
 
-function subscribeToRoute(onChange: () => void) {
+export function subscribeToRoute(onChange: () => void) {
+  // Fragment navigation fires popstate synchronously; hashchange is queued. Waiting
+  // for hashchange leaves the previous page's composer accepting the next input.
+  window.addEventListener('popstate', onChange);
   window.addEventListener('hashchange', onChange);
-  return () => window.removeEventListener('hashchange', onChange);
+  return () => {
+    window.removeEventListener('popstate', onChange);
+    window.removeEventListener('hashchange', onChange);
+  };
 }
 
 function useRoute() {
