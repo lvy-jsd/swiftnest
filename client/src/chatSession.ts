@@ -6,6 +6,16 @@ type ChatObserver = {
   failed: () => void;
 };
 
+/** A late callback from a replaced client must not clear the new client's readiness. */
+export function readyClientAfter(
+  current: SwiftnestClient | undefined,
+  ready: boolean,
+  client: SwiftnestClient,
+): SwiftnestClient | undefined {
+  if (ready) return client;
+  return current === client ? undefined : current;
+}
+
 async function followChat(client: SwiftnestClient, sessionId: string, signal: AbortSignal, observer: ChatObserver) {
   const subscription = await client.follow(sessionId, { signal });
   try {
@@ -30,6 +40,7 @@ export function watchChatSession(client: SwiftnestClient, sessionId: string, obs
   const activeObserver: ChatObserver = {
     ...observer,
     ready(ready) {
+      if (signal.aborted) return;
       if (ready) {
         reportedFailure = false;
         delay = 500;
@@ -47,7 +58,7 @@ export function watchChatSession(client: SwiftnestClient, sessionId: string, obs
       }
     }
     if (signal.aborted) return;
-    observer.ready(false);
+    activeObserver.ready(false);
     retry = setTimeout(() => void follow(), delay);
     delay = Math.min(delay * 2, 8000);
   }

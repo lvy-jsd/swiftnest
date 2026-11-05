@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { SwiftnestClient, SwiftnestEvent } from '@swiftnest/api';
 import { Inbox } from '../../packages/api/src/transport';
-import { watchChatSession } from '../src/chatSession';
+import { readyClientAfter, watchChatSession } from '../src/chatSession';
 
 afterEach(() => vi.useRealTimers());
 const observer = () => ({ ready: vi.fn(), event: vi.fn(), failed: vi.fn() });
@@ -54,6 +54,27 @@ it('backs off failed openings without repeating the error and recovers on a fres
   expect(updates.ready).toHaveBeenLastCalledWith(true);
   stop();
   stream.close();
+});
+
+it('keeps a newer client ready when a replaced subscription reports a late failure', async () => {
+  vi.useFakeTimers();
+  const first = new Inbox<SwiftnestEvent>();
+  const follow = vi.fn().mockResolvedValueOnce(first);
+  const oldClient = clientWith(follow);
+  const newClient = clientWith(follow);
+  const updates = observer();
+  const stop = watchChatSession(oldClient, 'chat', updates);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(updates.ready).toHaveBeenLastCalledWith(true);
+  // A restart swaps the client and disposes the old watcher before its stream ends.
+  stop();
+  first.end();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(updates.ready).toHaveBeenLastCalledWith(true);
+  // Even if a late callback slips through a pending microtask, identity keeps the new client ready.
+  expect(readyClientAfter(newClient, false, oldClient)).toBe(newClient);
+  expect(readyClientAfter(newClient, true, newClient)).toBe(newClient);
+  expect(readyClientAfter(oldClient, false, oldClient)).toBeUndefined();
 });
 
 it('closes a late subscription without publishing readiness or replaying events after disposal', async () => {

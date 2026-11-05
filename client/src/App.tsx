@@ -26,7 +26,7 @@ import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
-import { watchChatSession } from './chatSession';
+import { readyClientAfter, watchChatSession } from './chatSession';
 import type { ChatRow } from './chat';
 
 export { chatFromHash } from './shellNavigation';
@@ -192,7 +192,7 @@ function useChatSession(sessionId: string) {
   useEffect(() => {
     if (!client || status !== 'connected') return;
     return watchChatSession(client, sessionId, {
-      ready: (ready) => setReadyClient(ready ? client : undefined),
+      ready: (ready) => setReadyClient((current) => readyClientAfter(current, ready, client)),
       event(event) {
         dispatch(event);
         if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
