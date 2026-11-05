@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import type { Page } from '@playwright/test';
 import { MemoryHarness } from './fixtures/memoryHarness';
 import { launchChromium } from './browser';
-import { openNavigation, openPreferences } from './navigation';
+import { openNavigation, openSettingsPage } from './navigation';
 import { webAppUrl } from '../../server/src/pairing';
 import { translate, type Locale } from '../src/i18n';
 
@@ -48,8 +48,7 @@ async function checkDrawer(page: Page, locale: Locale, label: string) {
 
 async function settingsRoutes(page: Page, locale: Locale) {
   for (const route of ['models', 'plugins'] as const) {
-    const preferences = await openPreferences(page, locale);
-    await preferences.getByRole('button', { name: translate(locale, `shell.${route}`), exact: true }).click();
+    const preferences = await openSettingsPage(page, `shell.${route}`, locale);
     await expect.poll(() => page.url().split('#')[1]).toBe(`/${route}`);
     expect(await preferences.isVisible()).toBe(false);
     await page.getByRole('button', { name: translate(locale, 'back'), exact: true }).click();

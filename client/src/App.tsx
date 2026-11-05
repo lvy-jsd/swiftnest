@@ -10,7 +10,7 @@ import { Composer, ComposerProvider } from './composer';
 import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalCard } from './approvals';
-import { localizedError } from '@swiftnest/api';
+import { localizedError, type SwiftnestClient } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
@@ -24,6 +24,7 @@ import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { useConnection } from './connection';
 import { chatReducer, emptyChat } from './chat';
+import { watchChatSession } from './chatSession';
 import type { ChatRow } from './chat';
 
 export { chatFromHash } from './shellNavigation';
@@ -191,41 +192,24 @@ function useChatSession(sessionId: string) {
   const { store, status } = useConnection();
   const { client } = store;
   const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
-  const [ready, setReady] = useState(false);
+  const [readyClient, setReadyClient] = useState<SwiftnestClient>();
   // A language switch must not drop and re-follow the chat, so `t` is read but not a dependency.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!client || status !== 'connected') return;
-    const controller = new AbortController();
-    let ended = false;
-    void (async () => {
-      try {
-        const subscription = await client.follow(sessionId, { signal: controller.signal });
-        if (ended) {
-          subscription.close();
-          return;
-        }
-        setReady(true);
-        for await (const event of subscription) {
-          if (ended) break;
-          dispatch(event);
-          if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
-        }
-        if (!ended) setReady(false);
-      } catch {
-        if (!ended) {
-          setReady(false);
-          if (!store.getSnapshot().pluginRestart)
-            dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') });
-        }
-      }
-    })();
-    return () => {
-      ended = true;
-      controller.abort();
-    };
+    return watchChatSession(client, sessionId, {
+      ready: (ready) => setReadyClient(ready ? client : undefined),
+      event(event) {
+        dispatch(event);
+        if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
+      },
+      failed() {
+        if (!store.getSnapshot().pluginRestart)
+          dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') });
+      },
+    });
   }, [client, sessionId, status, store]);
-  return { state, dispatch, ready };
+  return { state, dispatch, ready: !!client && status === 'connected' && readyClient === client };
 }
 
 type ChatSession = ReturnType<typeof useChatSession>;
