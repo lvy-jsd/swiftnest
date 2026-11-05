@@ -27,6 +27,7 @@ import { ModelManager } from './model-manager.js';
 import { ModelSettingsStore } from './model-settings.js';
 import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
 import { Preferences } from './preferences.js';
+import { ApprovalInbox } from './approval-inbox.js';
 import { Transfers } from './transfers.js';
 import { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
 import { handleNativePairing } from './native-pairings.js';
@@ -101,6 +102,13 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
   const streams = new Set<ServerResponse>();
   const publish = publisher(streams);
   const quota = config.files?.quotaBytes ?? 100 * 1024 ** 3;
+  const approvals = new ApprovalInbox(
+    nest,
+    join(config.home, 'approvals.json'),
+    config.approvals,
+    () => preferences.lang,
+    () => publish('approvals-changed'),
+  );
   const transfers = await Transfers.open(nest, config.home, quota, () => publish('transfers-changed'));
 
   const refresh = () => {
@@ -150,6 +158,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     nest,
     registry,
     transfers,
+    approvals,
     preferences,
     plugins,
     models,
@@ -163,6 +172,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
   let closing: Promise<void> | undefined;
   const close = (): Promise<void> =>
     (closing ??= (async () => {
+      await approvals.close();
       await transfers.close();
       for (const off of offEvents) off?.();
       nest.pairing.stop();

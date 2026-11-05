@@ -90,3 +90,45 @@ it('forwards a bounded transfer request only after owner admission; never proxie
   expect((await fetch(path, { method: 'POST', body: 'x'.repeat(32769) })).status).toBe(413);
   expect((await fetch(`${proxy}/swiftnest/control/devices/transfers`, { method: 'POST', body })).status).toBe(404);
 });
+
+it('keeps inbox settings owner-only and stamps the answering credential instead of trusting App identity headers', async () => {
+  const received: { path?: string; headers: any; body: string }[] = [];
+  const upstream = await listen(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    received.push({ path: req.url, headers: req.headers, body });
+    res.end('{}');
+  });
+  const admit = vi.fn().mockReturnValue({ rejection: 401 });
+  const proxyHandler = deviceProxy({ admit }, upstream, 'private-admin');
+  const proxy = await listen((req, res) => void proxyHandler(req, res));
+  const path = `${proxy}/swiftnest/api/approvals/settings`;
+  expect((await fetch(path, { method: 'POST', body: '{}' })).status).toBe(401);
+  admit.mockReturnValue({ peer: { principal: { kind: 'agent' } } });
+  expect((await fetch(path, { method: 'POST', body: '{}' })).status).toBe(403);
+  expect(received).toEqual([]);
+  admit.mockReturnValue({ peer: { principal: { kind: 'owner' } } });
+  for (const cookie of ['first-private-credential', 'second-private-credential']) {
+    expect(
+      (
+        await fetch(path, {
+          method: 'POST',
+          headers: { cookie, 'x-swiftnest-answering-device': 'forged' },
+          body: '{"remind":false}',
+        })
+      ).status,
+    ).toBe(200);
+  }
+  expect(received[0]!.body).toBe('{"remind":false}');
+  expect(received[0]!.headers.authorization).toBe('Bearer private-admin');
+  expect(received[0]!.headers['x-swiftnest-answering-device']).not.toBe('forged');
+  expect(received[0]!.headers['x-swiftnest-answering-device']).not.toBe(
+    received[1]!.headers['x-swiftnest-answering-device'],
+  );
+  expect(JSON.stringify(received)).not.toContain('private-credential');
+  admit.mockReturnValue({ peer: { principal: { kind: 'owner' }, approvalDevice: 'my-computer' } });
+  await fetch(path, { method: 'POST', body: '{}' });
+  expect(received.at(-1)!.headers['x-swiftnest-answering-device']).toBe('my-computer');
+  expect((await fetch(path, { method: 'POST', body: 'x'.repeat(32769) })).status).toBe(413);
+  expect((await fetch(`${proxy}/swiftnest/control/approvals/request`, { method: 'POST' })).status).toBe(404);
+});

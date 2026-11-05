@@ -1,3 +1,4 @@
+import { ApprovalInboxProvider } from '../../src/inboxState';
 /** Deterministic API fixtures for the devices layout. Production never imports this module. */
 import { createRoot } from 'react-dom/client';
 import type { Device, LiveUpdate, LiveView, ScreenFrame, SwiftnestClient } from '@swiftnest/api';
@@ -114,9 +115,13 @@ store.getSnapshot = () => state;
 store.updateDeviceContext = async () => {};
 store.client = {
   listDevices: async () => devices,
-  listDeviceApprovals: async () => [],
+  approvalInbox: async () => ({
+    items: [],
+    settings: { remind: true, autoAllowLowRisk: false, timeouts: { dsh: 600000, device: 600000, transfer: 600000 } },
+  }),
   listDevicePairings: async () => candidates,
   listTransfers: async () => [],
+  watchApprovals: async () => ({ async *[Symbol.asyncIterator]() {}, close() {} }),
   watchDevices: async ({ signal }: { signal: AbortSignal }) => ({
     async *[Symbol.asyncIterator]() {
       await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
@@ -151,7 +156,9 @@ createRoot(document.getElementById('root')!).render(
     <I18nProvider>
       <ConnectionProvider store={store}>
         <DeviceHubProvider>
-          <DevicesPage onBack={() => calls.push('back-page')} />
+          <ApprovalInboxProvider>
+            <DevicesPage onBack={() => calls.push('back-page')} />
+          </ApprovalInboxProvider>
         </DeviceHubProvider>
       </ConnectionProvider>
     </I18nProvider>

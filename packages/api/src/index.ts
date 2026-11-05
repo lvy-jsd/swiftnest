@@ -1,3 +1,11 @@
+import type { ApprovalInboxView, ApprovalSettings } from '@swiftnest/protocol';
+export {
+  ApprovalSettingsSchema,
+  type ApprovalItem,
+  type ApprovalKind,
+  type ApprovalInboxView,
+  type ApprovalSettings,
+} from '@swiftnest/protocol';
 import { AppChannel, pairingChannel, type ChannelPairing } from './channel.js';
 export type { ChannelPairing } from './channel.js';
 export {
@@ -12,6 +20,7 @@ export {
 } from '@swiftnest/protocol';
 export type { Language, Text } from '@swiftnest/protocol';
 import { defaultLanguage, text, isNativePairingCredential, NATIVE_PAIRING_COOKIE } from '@swiftnest/protocol';
+import { pumpDeviceEvents } from './device-events.js';
 import { LiveView } from './live.js';
 export * from './live.js';
 import type {
@@ -54,12 +63,11 @@ import type {
   SessionSummary,
   Subscription,
   SwiftnestEvent,
-  DisplayReason,
 } from './types.js';
 export type * from './types.js';
 export { ApiError } from './transport.js';
 
-type Pending = { sessionId: string; kind: 'approval' | 'question'; wait?: Inbox<unknown> };
+type Pending = { sessionId: string; wait?: Inbox<unknown> };
 
 export interface Preferences {
   lang: 'zh-CN' | 'en';
@@ -481,6 +489,15 @@ export class SwiftnestClient {
   revokeDevice(device: string): Promise<{ device: string }> {
     return this.deviceRequest(`/revoke/${encodeURIComponent(device)}`, 'POST');
   }
+  approvalInbox(): Promise<ApprovalInboxView> {
+    return this.ownerRequest('approvals');
+  }
+  answerInboxApproval(id: string, allowed: boolean): Promise<ApprovalInboxView> {
+    return this.ownerRequest(`approvals/${encodeURIComponent(id)}/${allowed ? 'allow' : 'deny'}`, 'POST');
+  }
+  updateApprovalSettings(settings: ApprovalSettings): Promise<ApprovalInboxView> {
+    return this.ownerRequest('approvals/settings', 'POST', undefined, settings);
+  }
   listDeviceApprovals(): Promise<DeviceApproval[]> {
     return this.deviceRequest('/approvals');
   }
@@ -491,8 +508,17 @@ export class SwiftnestClient {
     return this.deviceRequest(`/audit?limit=${encodeURIComponent(limit)}`);
   }
 
+  watchApprovals(options: { signal?: AbortSignal } = {}): Promise<DeviceSubscription> {
+    return this.watchOwnerEvents('approvals/events', options);
+  }
+  watchDevices(options: { signal?: AbortSignal } = {}): Promise<DeviceSubscription> {
+    return this.watchOwnerEvents('devices/events', options);
+  }
   /** Fetch-based SSE works with browser cookies and the native/manual-cookie carrier. */
-  async watchDevices(options: { signal?: AbortSignal } = {}): Promise<DeviceSubscription> {
+  private async watchOwnerEvents(
+    path: 'devices/events' | 'approvals/events',
+    options: { signal?: AbortSignal },
+  ): Promise<DeviceSubscription> {
     this.assertConnected();
     const abort = new AbortController();
     const signal = AbortSignal.any([abort.signal, this.lifetime.signal, ...(options.signal ? [options.signal] : [])]);
@@ -501,64 +527,17 @@ export class SwiftnestClient {
     signal.addEventListener('abort', onAbort, { once: true });
     try {
       signal.throwIfAborted();
-      const response = await this.streamRequest(this.url('swiftnest/api/devices/events'), {
+      const response = await this.streamRequest(this.url(`swiftnest/api/${path}`), {
         credentials: 'include',
         headers: this.headers(),
         signal,
       });
       if (!response.ok || !response.body)
         throw new ApiError('http-error', text('deviceEventsReturnedHttp', response.status));
-      void (async () => {
-        const reader = response.body!.getReader();
-        const cancel = () => {
-          void reader.cancel().catch(() => {});
-        };
-        signal.addEventListener('abort', cancel, { once: true });
-        if (signal.aborted) cancel();
-        try {
-          const decoder = new TextDecoder();
-          let buffer = '';
-          for (;;) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
-            if (buffer.length > 65536) throw new ApiError('protocol-error', text('deviceEventExceedsSizeLimit'));
-            for (let end = buffer.indexOf('\n\n'); end >= 0; end = buffer.indexOf('\n\n')) {
-              const frame = buffer.slice(0, end);
-              buffer = buffer.slice(end + 2);
-              const data = frame
-                .split('\n')
-                .filter((line) => line.startsWith('data:'))
-                .map((line) => line.slice(5).trimStart())
-                .join('\n');
-              if (!data) continue;
-              const event = JSON.parse(data) as DeviceEvent;
-              if (
-                ![
-                  'devices-changed',
-                  'approval-pending',
-                  'approvals-changed',
-                  'pairing-changed',
-                  'transfers-changed',
-                  'plugins-changed',
-                  'models-changed',
-                  'memory-changed',
-                ].includes(event.type)
-              )
-                throw new ApiError('protocol-error', text('unknownDeviceEvent'));
-              inbox.push(event);
-            }
-          }
-          inbox.end();
-        } catch (error) {
-          if (!signal.aborted) inbox.end(error instanceof Error ? error : new Error(String(error)));
-        } finally {
-          signal.removeEventListener('abort', cancel);
-          signal.removeEventListener('abort', onAbort);
-          reader.releaseLock();
-          abort.abort();
-        }
-      })();
+      void pumpDeviceEvents(response.body, inbox, signal).finally(() => {
+        signal.removeEventListener('abort', onAbort);
+        abort.abort();
+      });
       return inbox;
     } catch (error) {
       signal.removeEventListener('abort', onAbort);
@@ -748,9 +727,12 @@ export class SwiftnestClient {
   }
 
   async answerApproval(requestId: string, answer: ApprovalAnswer): Promise<void> {
-    this.getPending(requestId, 'approval');
-    await this.answerEvent(requestId, answer);
-    this.pending.delete(requestId);
+    // Durable chat events can arrive just before the kernel answerer registers the inbox entry.
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if ((await this.approvalInbox()).items.some((item) => item.id === requestId)) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await this.answerInboxApproval(requestId, answer === 'allowed-once');
   }
   /** A forwarded request id, or a durable call target for a continued/timed-out question. */
   async answerQuestion(target: string | { sessionId: string; callId: string }, answer: QuestionAnswer): Promise<void> {
@@ -763,7 +745,7 @@ export class SwiftnestClient {
       if (!accepted) throw new ApiError('interaction-expired', text('questionNoLongerAcceptsAnswer'));
       return;
     }
-    const pending = this.getPending(target, 'question');
+    const pending = this.getPending(target);
     await this.answerEvent(target, answer);
     pending.wait?.close();
     this.pending.delete(target);
@@ -796,13 +778,7 @@ export class SwiftnestClient {
           }
         } else if (frame.type === 'waterfall') {
           const sessionId = frame.agentId;
-          const kind =
-            frame.event === 'approval/request'
-              ? 'approval'
-              : frame.event === 'user-questions/request'
-                ? 'question'
-                : undefined;
-          if (!kind || !this.subscriptions.has(sessionId)) {
+          if (frame.event !== 'user-questions/request' || !this.subscriptions.has(sessionId)) {
             await this.rpc('$events/result', {
               clientId: this.clientId,
               eventId: frame.eventId,
@@ -810,31 +786,20 @@ export class SwiftnestClient {
             });
             continue;
           }
-          const pending: Pending = { sessionId, kind };
+          const pending: Pending = { sessionId };
           this.pending.set(frame.eventId, pending);
-          if (kind === 'approval')
-            this.emit({
-              sessionId,
-              type: 'approval-request',
-              requestId: frame.eventId,
-              toolName: String(frame.request.toolName),
-              reason: frame.request.reason as string | undefined,
-              displayReason: displayReasonOf(frame.request.displayReason),
-              callId: frame.request.callId as string | undefined,
-            });
-          else
-            void this.publishQuestion(frame, pending).catch((error) => {
-              if (this.pending.get(frame.eventId) !== pending) return;
-              this.pending.delete(frame.eventId);
-              pending.wait?.close();
-              this.emit(this.errorEvent(sessionId, error));
-              if (this.state === 'connected')
-                void this.rpc('$events/result', {
-                  clientId: this.clientId,
-                  eventId: frame.eventId,
-                  outcome: { kind: 'next' },
-                }).catch(() => {});
-            });
+          void this.publishQuestion(frame, pending).catch((error) => {
+            if (this.pending.get(frame.eventId) !== pending) return;
+            this.pending.delete(frame.eventId);
+            pending.wait?.close();
+            this.emit(this.errorEvent(sessionId, error));
+            if (this.state === 'connected')
+              void this.rpc('$events/result', {
+                clientId: this.clientId,
+                eventId: frame.eventId,
+                outcome: { kind: 'next' },
+              }).catch(() => {});
+          });
         }
       }
       if (this.state === 'connected') throw new ApiError('disconnected', text('interactionStreamEnded'));
@@ -890,10 +855,9 @@ export class SwiftnestClient {
         );
     }
   }
-  private getPending(id: string, kind: Pending['kind']): Pending {
+  private getPending(id: string): Pending {
     const pending = this.pending.get(id);
-    if (!pending || pending.kind !== kind)
-      throw new ApiError('interaction-expired', text('noMatchingPendingInteraction'));
+    if (!pending) throw new ApiError('interaction-expired', text('noMatchingPendingInteraction'));
     return pending;
   }
   private answerEvent(eventId: string, value: unknown): Promise<unknown> {
@@ -973,12 +937,4 @@ export async function connect(pairingUrl: string, options: ClientOptions = {}): 
   const client = new SwiftnestClient(options);
   await client.connect(pairingUrl);
   return client;
-}
-
-/** The request's per-language reason, when it has the shape DSH defines ({ en, ...locales }). */
-function displayReasonOf(value: unknown): DisplayReason | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
-  const copy = Object.fromEntries(entries);
-  return typeof copy.en === 'string' ? (copy as DisplayReason) : undefined;
 }

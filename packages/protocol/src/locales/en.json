@@ -733,5 +733,20 @@
   "chatSearchAutomatic": "Detect automatically",
   "chatSearchKeyHelp": "Add your OpenAI key in Models first. Your key stays on this server.",
   "chatSearchCloudConsent": "Use cloud embeddings: I agree to send my past chats and search queries to OpenAI. Provider charges may apply. Off by default.",
-  "chatSearchSemanticOff": "Search by meaning is turned off. Word search is available."
+  "chatSearchSemanticOff": "Search by meaning is turned off. Word search is available.",
+  "inboxTitle": "Approvals",
+  "inboxPendingCount": "Approvals · {count} pending",
+  "inboxDetails": "Details",
+  "inboxExpires": "Expires",
+  "inboxEmpty": "Nothing needs your approval.",
+  "inboxRemind": "Remind me when my approval is needed",
+  "inboxAutoAllow": "Automatically allow low-risk actions",
+  "inboxTimeoutHelp": "Waiting time in seconds. Unanswered requests are denied. Changes apply to new requests.",
+  "inboxChatTimeout": "Chat requests",
+  "inboxDeviceTimeout": "Device actions",
+  "inboxTransferTimeout": "File transfers",
+  "inboxInvalidSettings": "Choose a waiting time between 1 second and 24 hours.",
+  "inboxDeviceSummary": "Allow {1} on {0}?",
+  "inboxTransferSummary": "Receive a file on {0}?",
+  "inboxAdvanced": "Advanced options"
 }

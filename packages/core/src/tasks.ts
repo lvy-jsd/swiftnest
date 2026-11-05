@@ -50,6 +50,25 @@ interface Internal {
 }
 
 export class TaskManager {
+  private approvalHandler?: (id: string, allowed: boolean) => Promise<unknown>;
+  private approvalAdded?: (task: TaskSnapshot) => void;
+
+  manageApprovals(
+    added: (task: TaskSnapshot) => void,
+    answer: (id: string, allowed: boolean) => Promise<unknown>,
+  ): () => void {
+    this.approvalAdded = added;
+    this.approvalHandler = answer;
+    return () => {
+      this.approvalAdded = undefined;
+      this.approvalHandler = undefined;
+    };
+  }
+
+  async settleApproval(id: string, allowed: boolean, by: string | Text): Promise<TaskSnapshot> {
+    return allowed ? this.allowTask(id, by) : this.denyTask(id, text('deniedByOwner'));
+  }
+
   private tasks = new Map<string, Internal>();
   private events = new EventEmitter();
   private active = new Map<string, number>();
@@ -61,24 +80,10 @@ export class TaskManager {
 
   /** Submit a call. Resolves once the task is accepted (not when it finishes); use `wait` for the outcome. */
   async submit(req: CallRequest): Promise<TaskSnapshot> {
-    const args = req.args ?? {};
-    const now = new Date().toISOString();
-    const snap: TaskSnapshot = {
-      id: randomUUID(),
-      device: req.device,
-      capability: req.capability,
-      tool: req.tool,
-      args,
-      client: req.client,
-      state: 'queued',
-      risk: 'exec',
-      createdAt: now,
-      updatedAt: now,
-    };
+    const t = this.createTask(req);
+    const { snap } = t;
+    const args = snap.args;
     const conn = this.o.connection(req.device);
-    const timeoutMs = req.timeoutMs ?? this.o.defaultTimeout(req.device, req.capability, req.tool) ?? 30_000;
-    const t: Internal = { snap, timeoutMs };
-    this.tasks.set(snap.id, t);
     if (!conn) {
       await this.finish(t, 'failed', {
         error: new SwiftnestFailure(
@@ -97,8 +102,35 @@ export class TaskManager {
       await this.finish(t, 'failed', { error: SwiftnestFailure.from(e, 'CLASSIFY_FAILED') });
       return this.snapshot(snap.id);
     }
+    await this.applyDecision(t, req, rating);
+    return this.snapshot(snap.id);
+  }
+
+  private createTask(req: CallRequest): Internal {
+    const args = req.args ?? {};
+    const now = new Date().toISOString();
+    const snap: TaskSnapshot = {
+      id: randomUUID(),
+      device: req.device,
+      capability: req.capability,
+      tool: req.tool,
+      args,
+      client: req.client,
+      state: 'queued',
+      risk: 'exec',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const timeoutMs = req.timeoutMs ?? this.o.defaultTimeout(req.device, req.capability, req.tool) ?? 30_000;
+    const t: Internal = { snap, timeoutMs };
+    this.tasks.set(snap.id, t);
+    return t;
+  }
+
+  private async applyDecision(t: Internal, req: CallRequest, rating: Classification): Promise<void> {
+    const { snap } = t;
     snap.risk = rating.risk;
-    const decision = await this.o.policy.decide({ ...req, args, ...rating });
+    const decision = await this.o.policy.decide({ ...req, args: snap.args, ...rating });
     snap.reason = decision.reason;
     snap.reasonText = decision.reasonText;
     await this.record(t);
@@ -112,17 +144,26 @@ export class TaskManager {
       });
     } else if (decision.action === 'ask') {
       await this.transition(t, 'pending_approval');
+      this.approvalAdded?.(this.snapshot(snap.id));
+      if (this.approvalHandler) return;
       t.approvalTimer = setTimeout(() => {
         void this.deny(snap.id, text('approvalExpired'));
       }, this.o.approvalTimeoutMs ?? 600_000);
     } else {
       void this.run(t);
     }
-    return this.snapshot(snap.id);
   }
 
   /** A person approved a pending call. */
   async approve(taskId: string, by: string | Text = 'owner'): Promise<TaskSnapshot> {
+    if (this.approvalHandler) {
+      await this.approvalHandler(taskId, true);
+      return this.snapshot(taskId);
+    }
+    return this.allowTask(taskId, by);
+  }
+
+  private async allowTask(taskId: string, by: string | Text): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval')
       throw new SwiftnestFailure('NOT_PENDING', text('taskNotWaitingApproval', taskId, t.snap.state));
@@ -136,6 +177,14 @@ export class TaskManager {
   }
 
   async deny(taskId: string, why: string | Text = text('deniedByOwner')): Promise<TaskSnapshot> {
+    if (this.approvalHandler) {
+      await this.approvalHandler(taskId, false);
+      return this.snapshot(taskId);
+    }
+    return this.denyTask(taskId, why);
+  }
+
+  private async denyTask(taskId: string, why: string | Text): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval') return this.snapshot(taskId);
     clearTimeout(t.approvalTimer);

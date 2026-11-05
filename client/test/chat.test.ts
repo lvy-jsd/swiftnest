@@ -122,7 +122,7 @@ it('replays sent photos and generated media together without duplicating transcr
   expect(state.waiting).toBe(false);
 });
 
-it('keeps risk-gate approvals actionable until answered or cancelled', () => {
+it('keeps chat approval references without a separate decision state', () => {
   const event = {
     sessionId: 'chat',
     type: 'approval-request',
@@ -137,14 +137,10 @@ it('keeps risk-gate approvals actionable until answered or cancelled', () => {
       id: 'approval:risk',
       requestId: 'risk',
       toolName: 'tools_load',
-      reason: event.reason,
-      settled: false,
     },
   ]);
   expect(chatReducer(pending, event).rows).toHaveLength(1);
-  const answered = chatReducer(pending, { type: 'approval-answered', requestId: 'risk' });
   const cancelled = chatReducer(pending, { sessionId: 'chat', type: 'interaction-cancelled', requestId: 'risk' });
-  expect(answered.rows[0]).toMatchObject({ settled: true });
-  expect(cancelled.rows).toEqual(answered.rows);
-  expect(pending.rows[0]).toMatchObject({ settled: false });
+  expect(cancelled.rows).toEqual(pending.rows);
+  expect(pending.rows[0]).not.toHaveProperty('settled');
 });

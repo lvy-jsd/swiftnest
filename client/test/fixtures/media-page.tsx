@@ -1,3 +1,4 @@
+import { ApprovalInboxProvider } from '../../src/inboxState';
 /** Browser-only fixture: render the real attachment and transfer components. */
 import { createRoot } from 'react-dom/client';
 import type { SwiftnestClient } from '@swiftnest/api';
@@ -16,9 +17,13 @@ const client = {
   listDevices: async () => [
     { device: 'phone', slug: 'phone', name: 'Phone', paired: true, online: true, capabilities: [] },
   ],
-  listDeviceApprovals: async () => [],
+  approvalInbox: async () => ({
+    items: [],
+    settings: { remind: true, autoAllowLowRisk: false, timeouts: { dsh: 600000, device: 600000, transfer: 600000 } },
+  }),
   listDevicePairings: async () => [],
   listTransfers: async () => [],
+  watchApprovals: async () => ({ async *[Symbol.asyncIterator]() {}, close() {} }),
   watchDevices: async () => ({
     async *[Symbol.asyncIterator]() {
       await new Promise(() => {});
@@ -61,14 +66,16 @@ createRoot(document.getElementById('root')!).render(
     <I18nProvider initialLocale={locale}>
       <ConnectionProvider store={store}>
         <DeviceHubProvider>
-          <MessagePhotos
-            sessionId="photos"
-            images={[
-              { attachmentId: 'stored', mediaType: 'image/png', name: 'sent.png', width: 1, height: 1 },
-              { attachmentId: 'missing', mediaType: 'image/png' },
-            ]}
-          />
-          <ToolAttachments calls={calls} />
+          <ApprovalInboxProvider>
+            <MessagePhotos
+              sessionId="photos"
+              images={[
+                { attachmentId: 'stored', mediaType: 'image/png', name: 'sent.png', width: 1, height: 1 },
+                { attachmentId: 'missing', mediaType: 'image/png' },
+              ]}
+            />
+            <ToolAttachments calls={calls} />
+          </ApprovalInboxProvider>
         </DeviceHubProvider>
       </ConnectionProvider>
     </I18nProvider>

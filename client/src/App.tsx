@@ -7,12 +7,15 @@ import { isPhoto } from './photoState';
 import { RelaySettings } from './relaySettings';
 import { PluginsProvider, PluginsPage, usePlugins } from './plugins';
 import { MemoryPage } from './memory';
+import { ApprovalInboxProvider } from './inboxState';
+import { ApprovalBadge, ApprovalInboxPage } from './inbox';
+import { ApprovalSettingsFields } from './approvalSettings';
 import { ApprovalCard } from './approvals';
 import { localizedError } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
-import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
+import { DeviceHubProvider, DevicesPage } from './devices';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent, PointerEvent } from 'react';
 import { Button } from './components/Button';
@@ -112,6 +115,7 @@ function Preferences({ open, onClose }: { open: boolean; onClose: () => void }) 
             onChange={(event) => theme.setReduceTransparency(event.target.checked)}
           />
         </label>
+        <ApprovalSettingsFields />
         <ChatSearchAdvanced />
         <RelaySettings />
       </div>
@@ -205,15 +209,7 @@ function Thinking() {
     </p>
   );
 }
-function TranscriptRow({
-  row,
-  sessionId,
-  onAnswered,
-}: {
-  row: ChatRow;
-  sessionId: string;
-  onAnswered: (requestId: string) => void;
-}) {
+function TranscriptRow({ row, sessionId }: { row: ChatRow; sessionId: string }) {
   const { t, locale } = useI18n();
   const { assistantName } = useConnection();
   if (row.kind === 'message') {
@@ -232,7 +228,7 @@ function TranscriptRow({
       </article>
     );
   }
-  if (row.kind === 'approval') return <ApprovalCard request={row} onAnswered={onAnswered} />;
+  if (row.kind === 'approval') return <ApprovalCard request={row} />;
   if (row.kind === 'error') {
     const failure = localizedError({ code: row.code, message: row.text }, locale);
     return (
@@ -337,7 +333,6 @@ function ChatDetail({
       }
     >
       <ConnectionStatus quiet />
-      <DeviceApprovals compact />
       <TransferCards compact />
       <LiveDeviceButton />
       <VirtualList
@@ -346,13 +341,7 @@ function ChatDetail({
         label={t('messages')}
         followEnd
         className="transcript"
-        renderItem={(row) => (
-          <TranscriptRow
-            row={row}
-            sessionId={sessionId}
-            onAnswered={(requestId) => dispatch({ type: 'approval-answered', requestId })}
-          />
-        )}
+        renderItem={(row) => <TranscriptRow row={row} sessionId={sessionId} />}
       />
       <div className="composer-area glass">
         {state.waiting && <Thinking />}
@@ -399,9 +388,11 @@ function ChatDetail({
 export function App() {
   return (
     <DeviceHubProvider>
-      <PluginsProvider>
-        <AppContent />
-      </PluginsProvider>
+      <ApprovalInboxProvider>
+        <PluginsProvider>
+          <AppContent />
+        </PluginsProvider>
+      </ApprovalInboxProvider>
     </DeviceHubProvider>
   );
 }
@@ -424,6 +415,7 @@ function AppContent() {
   const pluginsPage = hash.startsWith('#/plugins');
   const modelsPage = hash.startsWith('#/models');
   const transfersPage = hash.startsWith('#/transfers');
+  const approvalsPage = hash.startsWith('#/approvals');
   const memoryPage = hash.startsWith('#/memory');
   const Settings = icons.settings,
     Avatar = icons.avatar;
@@ -571,76 +563,80 @@ function AppContent() {
           setSwipeOffset(0);
         }}
       >
-        <div
-          key={chatId ?? (pairing ? 'pair' : devicesPage ? 'devices' : 'hub')}
-          className="route-view"
-          data-direction={chatId ? 'forward' : 'back'}
-          style={
-            swipeOffset && !reducedMotion
-              ? ({ transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties)
-              : undefined
-          }
-        >
-          {modelsPage ? (
-            <ModelsPage onBack={goHome} />
-          ) : pluginsPage ? (
-            <PluginsPage onBack={goHome} />
-          ) : memoryPage ? (
-            <MemoryPage key={status} onBack={goHome} />
-          ) : transfersPage ? (
-            <TransfersPage onBack={goHome} />
-          ) : devicesPage ? (
-            <DevicesPage onBack={goHome} />
-          ) : pairing ? (
-            <PairPage onBack={goHome} />
-          ) : chatId ? (
-            <ChatDetail
-              key={`${chatId}:${status}`}
-              sessionId={chatId}
-              onBack={goHome}
-              onOptions={() => setPreferences(true)}
-            />
-          ) : (
-            <HubPage
-              title={t('chats')}
-              subtitle={t('chatsSubtitle')}
-              action={
-                <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
-                  <Avatar size={24} />
-                </IconButton>
-              }
-            >
-              <ConnectionStatus />
-              <a className="devices-link" href="#/devices">
-                {t('devices')}
-              </a>
-              <a className="devices-link" href="#/transfers">
-                {t('transfers')}
-              </a>
-              {owner && (
-                <>
-                  <a className="devices-link" href="#/models">
-                    {t('modelsTitle')}
-                  </a>
-                  <a className="devices-link" href="#/plugins">
-                    {t('pluginsTitle')}
-                  </a>
-                </>
-              )}
-              <a className="devices-link" href="#/memory">
-                {t('memory')}
-              </a>
-              <DeviceApprovals compact />
-              <TransferCards compact />
-              <LiveDeviceButton />
-              {status === 'connected' && (
-                <Button variant="primary" disabled={creating} onClick={() => void newChat()}>
-                  {t('newChat')}
-                </Button>
-              )}
-              <ChatList />
-            </HubPage>
-          )}
+        <div className="inbox-frame">
+          <ApprovalBadge />
+          <div
+            key={chatId ?? (pairing ? 'pair' : devicesPage ? 'devices' : 'hub')}
+            className="route-view"
+            data-direction={chatId ? 'forward' : 'back'}
+            style={
+              swipeOffset && !reducedMotion
+                ? ({ transform: `translateX(${swipeOffset}px)`, animation: 'none' } as CSSProperties)
+                : undefined
+            }
+          >
+            {approvalsPage ? (
+              <ApprovalInboxPage onBack={goHome} />
+            ) : modelsPage ? (
+              <ModelsPage onBack={goHome} />
+            ) : pluginsPage ? (
+              <PluginsPage onBack={goHome} />
+            ) : memoryPage ? (
+              <MemoryPage key={status} onBack={goHome} />
+            ) : transfersPage ? (
+              <TransfersPage onBack={goHome} />
+            ) : devicesPage ? (
+              <DevicesPage onBack={goHome} />
+            ) : pairing ? (
+              <PairPage onBack={goHome} />
+            ) : chatId ? (
+              <ChatDetail
+                key={`${chatId}:${status}`}
+                sessionId={chatId}
+                onBack={goHome}
+                onOptions={() => setPreferences(true)}
+              />
+            ) : (
+              <HubPage
+                title={t('chats')}
+                subtitle={t('chatsSubtitle')}
+                action={
+                  <IconButton variant="ghost" aria-label={t('openPreferences')} onClick={() => setPreferences(true)}>
+                    <Avatar size={24} />
+                  </IconButton>
+                }
+              >
+                <ConnectionStatus />
+                <a className="devices-link" href="#/devices">
+                  {t('devices')}
+                </a>
+                <a className="devices-link" href="#/transfers">
+                  {t('transfers')}
+                </a>
+                {owner && (
+                  <>
+                    <a className="devices-link" href="#/models">
+                      {t('modelsTitle')}
+                    </a>
+                    <a className="devices-link" href="#/plugins">
+                      {t('pluginsTitle')}
+                    </a>
+                  </>
+                )}
+                <a className="devices-link" href="#/memory">
+                  {t('memory')}
+                </a>
+                <TransferCards compact />
+                <LiveDeviceButton />
+                {status === 'connected' && (
+                  <Button variant="primary" disabled={creating} onClick={() => void newChat()}>
+                    {t('newChat')}
+                  </Button>
+                )}
+                <ChatList />
+              </HubPage>
+            )}
+          </div>
         </div>
       </main>
       <Preferences open={preferences} onClose={() => setPreferences(false)} />

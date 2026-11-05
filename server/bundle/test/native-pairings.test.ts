@@ -46,7 +46,9 @@ const request = (token: string, host = 'server') => ({ headers: { host, cookie: 
 it('restores exactly the original scope, keeps the DSH fence, and disposes revoked live Peers', async () => {
   const { store, connection, createPeer, native, original } = setup();
   const { credential, record } = store.issue({ principal: { kind: 'owner' }, interactions: 'none' }, 'http://server');
-  expect(connection.admit(request(credential))).toHaveProperty('peer');
+  expect(connection.admit(request(credential))).toHaveProperty('peer.approvalDevice', `app:${record.id}`);
+  store.bind(credential, 'http://server', 'my-computer', 'test-fingerprint');
+  expect(connection.admit(request(credential))).toHaveProperty('peer.approvalDevice', 'my-computer');
   expect(createPeer).toHaveBeenCalledExactlyOnceWith({ principal: { kind: 'owner' }, interactions: 'none' });
   connection.admit(request(credential));
   expect(createPeer).toHaveBeenCalledTimes(1);

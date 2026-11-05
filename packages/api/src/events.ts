@@ -66,6 +66,18 @@ export function mapEvent(sessionId: string, event: SessionWireEvent): SwiftnestE
   const data = record(event.data);
   const message = record(data.message);
   switch (event.type) {
+    case 'approval/asked':
+      return [
+        {
+          ...base,
+          type: 'approval-request',
+          requestId: `dsh:${data.id}`,
+          toolName: String(data.toolName),
+          reason: typeof data.reason === 'string' ? data.reason : undefined,
+        },
+      ];
+    case 'approval/decided':
+      return [{ ...base, type: 'interaction-cancelled', requestId: `dsh:${data.id}` }];
     case 'user/message':
       // DSH also logs runtime/time context with the user role. Only human
       // prompts belong in the App's chat transcript.

@@ -1,5 +1,6 @@
 /** A channel is an App carrier, never a generic HTTP proxy or a new API. */
 const get = [
+  /^\/swiftnest\/api\/approvals(?:\/events)?$/,
   /^\/swiftnest\/api\/search(?:\/status)?$/,
   /^\/swiftnest\/health$/,
   /^\/swiftnest\/relay(?:\/connection)?$/,
@@ -11,6 +12,8 @@ const get = [
   /^\/swiftnest\/api\/memory(?:\/(?:topic|auto|auto\/recent))?$/,
 ];
 const post = [
+  /^\/swiftnest\/api\/approvals\/settings$/,
+  /^\/swiftnest\/api\/approvals\/[^/]+\/(allow|deny)$/,
   /^\/swiftnest\/api\/search\/(settings|rebuild)$/,
   /^\/swiftnest\/relay$/,
   /^\/api\/(session\/(list|create|attachment)|userQuestions\/answer|\$events\/result)$/,

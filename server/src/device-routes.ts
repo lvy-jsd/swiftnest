@@ -16,6 +16,8 @@ import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
 import type { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
+import { handleApprovalRoute, approvalActor } from './approval-routes.js';
+import type { ApprovalInbox } from './approval-inbox.js';
 import { downloadFile } from './file-download.js';
 import { nativeDevices } from './native-pairings.js';
 
@@ -26,6 +28,7 @@ export const MODELS = '/swiftnest/api/models';
 const KiB = 1024;
 
 export interface DeviceHub {
+  approvals: ApprovalInbox;
   config: ServerConfig;
   nativePairings: NativePairings;
   nest: Nest;
@@ -37,7 +40,7 @@ export interface DeviceHub {
   streams: Set<ServerResponse>;
   lanPort: () => number;
   publish: (
-    type: 'devices-changed' | 'plugins-changed' | 'models-changed' | 'memory-changed',
+    type: 'devices-changed' | 'plugins-changed' | 'models-changed' | 'memory-changed' | 'approvals-changed',
     slugs?: string[],
   ) => void;
 }
@@ -269,15 +272,19 @@ function startPairing({ hub }: Request) {
   };
 }
 
-async function decideApproval({ hub, params }: Request) {
+async function decideApproval({ hub, params, req }: Request) {
   const [id, action] = params as [string, 'approve' | 'deny'];
   if (hub.nest.tasks.get(id)?.state !== 'pending_approval') throw new HttpError(409, text('approvalNoLongerPending'));
-  return action === 'approve' ? hub.nest.tasks.approve(id, text('appOwner')) : hub.nest.tasks.deny(id);
+  await hub.approvals.answer(id, action === 'approve', approvalActor(req));
+  return hub.nest.tasks.get(id);
 }
 
 // ---------------------------------------------------------------- table
 
 const routes: Route[] = [
+  route('*', '/swiftnest/(api/approvals(?:/.*)?|control/approvals/request)', ({ hub, req, res, url }) =>
+    handleApprovalRoute(hub, req, res, url),
+  ),
   route('GET', `${PREFIX}/preferences`, ({ hub }) => ({
     lang: hub.preferences.lang,
     assistantName: hub.config.assistantName,

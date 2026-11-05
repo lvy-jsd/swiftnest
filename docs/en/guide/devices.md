@@ -59,15 +59,13 @@ Keep `app-channel-key.json` in the server home when upgrading or moving it; this
 
 ## Approve a request
 
-Reads pass the default policy. Writes, execution and sensitive operations wait for you. A chat banner
-opens a request sheet; the Devices page lists the pending cards. Review the **device, tool, original JSON
-arguments, risk, reason and requesting client** before choosing **Approve** or **Deny**. Approval applies to
-that task once. Pending requests expire after ten minutes and fail closed on server shutdown.
+Open **Approvals** from the count shown on every App page. Chat tool requests, device actions and incoming files wait in one inbox, even when their chat is closed. Open **Details** to review who asked, the device, original arguments, risk and deadline, then choose **Approve** or **Deny**. Answering in chat, Devices or another App removes the request everywhere. Each request grants only one action.
 
-Native DSH calls stay pending until you decide, then return the result or a `denied by owner` error.
-There is no agent-side approval tool. Approval still requires the App's authenticated owner session;
-the audit requester identifies the DSH chat (`dsh:<sessionId>`). The banner shows all pending device requests.
-External MCP clients retain the task-id/status/wait interface.
+All three kinds wait ten minutes by default. An unanswered request is denied; stopping the server also denies pending requests. Under **Preferences → Approvals**, “Remind me when my approval is needed” is saved now; notifications will be added separately. **Advanced options** holds each kind's waiting time (1 second–24 hours) and automatic low-risk approval, which is off by default. Changes affect new requests. Only a source-classified `read` request qualifies as low risk; DSH requests without a risk classification remain sensitive.
+
+The audit log records each decision's time, owner or system actor, and the paired device or App pairing identifier. Browser sessions without an App pairing use an identifier derived from their authenticated credential. It does not record the credential itself. Automatic decisions are marked explicitly. If audit storage fails, the action is denied.
+
+DSH native device calls wait until the decision and return their result or a denial. There is no agent-side approval tool. External MCP clients retain the task-id/status/wait interface.
 
 **Revoke device** asks for confirmation, disconnects it immediately and removes its pairing. Reconnecting
 then requires a new code and fingerprint confirmation. Revocation also removes offline devices.
@@ -103,6 +101,29 @@ fence as the existing App API. Cross-site requests and unauthenticated requests 
 Use the typed helpers in `@swiftnest/api`; `watchDevices()` supports browser and native/manual-cookie
 fetch carriers, cancellation and client disposal. Push events invalidate snapshots; fetch current lists
 on subscription/reconnection. The App reconnects the stream and periodically refreshes snapshots.
+
+### Unified approval API
+
+Owner routes under `/swiftnest/api/approvals` use the same admission and encrypted App channel:
+
+| Method | Path                        | Result                                                   |
+| ------ | --------------------------- | -------------------------------------------------------- |
+| GET    | `/`                         | `{ items, settings }`, pending requests only             |
+| GET    | `/events`                   | SSE invalidations; reread after subscribing/reconnecting |
+| POST   | `/:id/allow` or `/:id/deny` | One decision; stale answers return 409                   |
+| POST   | `/settings`                 | Validated complete settings, saved privately             |
+
+Use `approvalInbox()`, `watchApprovals()`, `answerInboxApproval(id, allowed)` and `updateApprovalSettings(settings)` in `@swiftnest/api`. Legacy device answer routes and `answerApproval()` also settle through this inbox. Settings are stored in `<home>/approvals.json` (0600); YAML `approvals` supplies defaults until the App saves settings:
+
+```yaml
+approvals:
+  remind: true
+  autoAllowLowRisk: false
+  timeouts:
+    dsh: 600000
+    device: 600000
+    transfer: 600000
+```
 
 ## Native DSH plugin contract
 

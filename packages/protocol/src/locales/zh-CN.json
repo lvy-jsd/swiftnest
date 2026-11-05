@@ -733,5 +733,20 @@
   "chatSearchAutomatic": "自动检测",
   "chatSearchKeyHelp": "请先在「模型」中添加 OpenAI 密钥。密钥只保存在此服务器上。",
   "chatSearchCloudConsent": "使用云端向量：我同意将历史对话和搜索内容发送给 OpenAI，可能产生服务费用。默认关闭。",
-  "chatSearchSemanticOff": "已关闭按意思搜索，仍可按词句查找。"
+  "chatSearchSemanticOff": "已关闭按意思搜索，仍可按词句查找。",
+  "inboxTitle": "待确认",
+  "inboxPendingCount": "待确认 · {count} 项",
+  "inboxDetails": "查看详情",
+  "inboxExpires": "截止时间",
+  "inboxEmpty": "暂时没有需要你确认的事项。",
+  "inboxRemind": "需要我确认时提醒我",
+  "inboxAutoAllow": "低风险操作自动允许",
+  "inboxTimeoutHelp": "等待时间（秒）。超时未确认会拒绝；更改对新请求生效。",
+  "inboxChatTimeout": "聊天请求",
+  "inboxDeviceTimeout": "设备操作",
+  "inboxTransferTimeout": "文件传输",
+  "inboxInvalidSettings": "请设置 1 秒到 24 小时的等待时间。",
+  "inboxDeviceSummary": "允许在 {0} 上执行 {1} 吗？",
+  "inboxTransferSummary": "允许 {0} 接收文件吗？",
+  "inboxAdvanced": "高级选项"
 }
