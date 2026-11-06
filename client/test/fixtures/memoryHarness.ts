@@ -28,6 +28,7 @@ export class MemoryHarness {
   });
   requests: { prompt: string; request: ModelRequest }[] = [];
   logs: string[] = [];
+  replyText = 'Done.';
   autoReviews: { entries: { id: string; text: string }[]; messages: { role: string; text: string }[] }[] = [];
   autoProposal: (input: MemoryHarness['autoReviews'][number]) => unknown = () => [{ op: 'none' }];
   private rounds = new Map<string, number>();
@@ -174,7 +175,7 @@ export function apply(ctx) {
         : round === 0 && prompt === 'recall-forgotten'
           ? { name: 'recall', arguments: { query: 'Prefers a quiet workspace' } }
           : selected;
-    respond(res, forgetting);
+    respond(res, forgetting, this.replyText);
   }
 }
 

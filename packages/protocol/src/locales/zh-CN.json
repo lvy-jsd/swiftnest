@@ -802,5 +802,11 @@
   "toolsCategorySystem": "系统",
   "toolsCategorySearch": "搜索",
   "toolsCategoryCollaboration": "协作",
-  "toolsCategoryMaps": "地图"
+  "toolsCategoryMaps": "地图",
+  "chat.code": "代码",
+  "chat.copyCode": "复制代码",
+  "chat.codeCopied": "已复制",
+  "chat.copyFailed": "未能复制，请选中代码后手动复制。",
+  "chat.imageLink": "打开图片",
+  "chat.table": "表格"
 }

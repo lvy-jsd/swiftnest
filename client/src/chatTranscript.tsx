@@ -7,6 +7,7 @@ import { useComposerDraft } from './composer';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
 import { MessagePhotos, ToolAttachments } from './media';
+import { MessageMarkdown } from './markdown';
 
 function Message({
   row,
@@ -40,7 +41,7 @@ function Message({
       </div>
       <div className="message__body">
         <MessagePhotos sessionId={sessionId} images={row.images} />
-        {row.text && <p>{row.text}</p>}
+        {row.text && (row.role === 'assistant' ? <MessageMarkdown text={row.text} /> : <p>{row.text}</p>)}
       </div>
     </article>
   );
