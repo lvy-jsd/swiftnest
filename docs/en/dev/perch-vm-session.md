@@ -63,9 +63,11 @@ shared folder, and group-loaded or already-loaded tools keep working.
 ## Known, deliberately not changed
 
 - **A symlink that points outside is only caught when the call runs.** Classification is lexical and
-  does not touch the filesystem, so a call through a link whose target left the shared folders is still
-  offered for approval and then refused by the real check. Deciding it earlier would cost a filesystem
-  lookup on every classified call.
+  does not touch the filesystem, so a _write_ through a link whose target left the shared folders is
+  offered for approval first and only then refused by the real check. Verified on the device: the
+  owner approved it, the call failed with `PATH_NOT_ALLOWED`, and the file outside the scope was not
+  modified. Reads are auto-allowed, so they fail straight away without bothering anyone. Deciding it
+  at classification time would cost a filesystem lookup on every classified call.
 - **The native (Rust) host keeps one hint for every failure** (`retryHintDevice`). Refusals from its
   `files` capability do carry the specific hint now; the rest of its failures share a sentence that
   already names permissions and shared folders. Per-failure hints there would be a refactor of
