@@ -3,7 +3,9 @@
  * rule list over (client, device, capability, tool, risk). Argument-level judgement comes from the capability's
  * `classify` (e.g. cap-shell rating `ls` as a read and `rm` as sensitive) and arrives here as the call's risk.
  *
- * Sensitive operations are never decided by the agent: they default to "ask" and need a person.
+ * Sensitive operations are never decided by the agent: they default to "ask" and need a person. A call the
+ * capability already knows it will refuse (a path outside the shared folders, a protected location) is denied
+ * outright, because approving it would only delay the same failure.
  */
 import { isText, render, riskText, text, type ClientRef, type Risk, type Text } from '@swiftnest/protocol';
 
@@ -20,6 +22,13 @@ export interface PolicyInput {
   reason?: string;
   /** The same explanation as catalog text, when the capability gave one. */
   reasonText?: Text;
+  /**
+   * The capability states that this call cannot succeed (see {@link Classification.refused}). Asking
+   * the owner would only waste their attention on a request that fails straight after approval.
+   */
+  refused?: boolean;
+  /** What to do instead, when the capability knows better than "ask the owner". */
+  hintText?: Text;
 }
 
 /** A risk rating with its explanation: English for logs and models, catalog text for people. */
@@ -27,12 +36,31 @@ export interface Classification {
   risk: Risk;
   reason?: string;
   reasonText?: Text;
+  /** Set when the call would be refused anyway, so the owner is not asked to approve it. */
+  refused?: boolean;
+  /** The capability's own next step, e.g. "add the folder to the shared roots". */
+  hint?: string;
+  hintText?: Text;
 }
 
 /** A capability's own rating, whose reason may be catalog text or (third-party) prose. */
-export function classification(risk: Risk, reason?: string | Text): Classification {
-  if (reason === undefined) return { risk };
-  return typeof reason === 'string' ? { risk, reason } : { risk, reason: render(reason, 'en'), reasonText: reason };
+export function classification(
+  risk: Risk,
+  reason?: string | Text,
+  refused?: boolean,
+  hint?: string | Text,
+): Classification {
+  const rated =
+    reason === undefined
+      ? { risk }
+      : typeof reason === 'string'
+        ? { risk, reason }
+        : { risk, reason: render(reason, 'en'), reasonText: reason };
+  return {
+    ...rated,
+    ...(refused ? { refused: true } : {}),
+    ...(hint === undefined ? {} : typeof hint === 'string' ? { hint } : { hint: render(hint, 'en'), hintText: hint }),
+  };
 }
 
 export interface Decision {
@@ -41,6 +69,8 @@ export interface Decision {
   reason: string;
   /** The same reason as catalog text; absent for an owner-written rule note. */
   reasonText?: Text;
+  /** The capability's next step for a refusal; the caller falls back to a generic hint without it. */
+  hint?: Text;
 }
 
 const decision = (action: Action, reason: Text): Decision => ({
@@ -78,6 +108,12 @@ export class RulePolicy implements Policy {
   ) {}
 
   decide(i: PolicyInput): Decision {
+    // A call that cannot succeed is refused before anything else: no rule may make it possible, and the
+    // owner should not be asked to approve something that fails right after they answer.
+    if (i.refused) {
+      const because = isText(i.reasonText) ? i.reasonText : (i.reason ?? riskText(i.risk));
+      return { ...decision('deny', text('policyRefused', because)), ...(i.hintText ? { hint: i.hintText } : {}) };
+    }
     const rule = this.rules.find(
       (r) =>
         (!r.client || r.client === i.client.id) &&

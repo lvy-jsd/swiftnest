@@ -23,8 +23,15 @@ export type ToolOutput = string | { text?: string; data?: unknown; untrusted?: b
 /** A set of tools on a device. Usually wraps an existing MCP server or a few lines of code. */
 export interface Capability {
   manifest: CapabilityManifestInput;
-  /** Argument-level risk: e.g. `ls` is a read, `rm -rf` is sensitive. Defaults to the tool's declared risk. */
-  classify?(tool: string, args: Record<string, unknown>): { risk: Risk; reason?: string | Text } | undefined;
+  /**
+   * Argument-level risk: e.g. `ls` is a read, `rm -rf` is sensitive. Defaults to the tool's declared risk.
+   * Set `refused` when the call cannot succeed at all, so the owner is not asked to approve it; `hint`
+   * then says what to do instead.
+   */
+  classify?(
+    tool: string,
+    args: Record<string, unknown>,
+  ): { risk: Risk; reason?: string | Text; refused?: boolean; hint?: string | Text } | undefined;
   invoke(tool: string, args: Record<string, unknown>, ctx: InvokeContext): Promise<ToolOutput>;
   dispose?(): void | Promise<void>;
 }

@@ -139,7 +139,7 @@ export class TaskManager {
         error: new SwiftnestFailure(
           'DENIED',
           text('policyDenied', req.capability, req.tool, req.device, decision.reasonText ?? decision.reason),
-          text('hintAskOwnerForPermission'),
+          decision.hint ?? text('hintAskOwnerForPermission'),
         ).toJSON(),
       });
     } else if (decision.action === 'ask') {

@@ -107,7 +107,7 @@ export class Perch {
   classify(capability: string, tool: string, args: Record<string, unknown>): Classification {
     const { cap, desc } = this.lookup(capability, tool);
     const rated = cap.impl.classify?.(tool, args);
-    return rated ? classification(rated.risk, rated.reason) : { risk: desc.risk };
+    return rated ? classification(rated.risk, rated.reason, rated.refused, rated.hint) : { risk: desc.risk };
   }
 
   async invoke(req: Invoke): Promise<Result> {

@@ -34,19 +34,23 @@ impl Capability for Files {
         } {
             if let Some(p) = args[key].as_str().filter(|s| !s.is_empty()) {
                 let c = self.guard.lexical(Path::new(p));
-                if c.secret || !c.inside {
+                if c.secret {
+                    return Classification::new(
+                        Risk::Sensitive,
+                        text!("willRefused", c.path.display(), text!("aProtectedLocation")),
+                    )
+                    .refusing(text!("hintNeverTouchesSecrets"));
+                }
+                if !c.inside {
                     return Classification::new(
                         Risk::Sensitive,
                         text!(
                             "willRefused",
                             c.path.display(),
-                            if c.secret {
-                                "a protected location"
-                            } else {
-                                "outside the shared folders"
-                            }
+                            text!("outsideTheSharedFolders")
                         ),
-                    );
+                    )
+                    .refusing(text!("hintAskOwnerToShareRoot"));
                 }
             }
         }
@@ -58,6 +62,8 @@ impl Capability for Files {
             },
             reason: None,
             reason_text: None,
+            refused: None,
+            hint_text: None,
         }
     }
     async fn invoke(&self, tool: &str, args: Value, context: InvokeContext) -> Result<ToolResult> {

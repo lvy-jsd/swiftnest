@@ -13,7 +13,7 @@ import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile, appendFil
 import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { definePlugin, PathGuard, SwiftnestFailure, text, type Capability } from '@swiftnest/core';
-import type { Risk } from '@swiftnest/protocol';
+import type { Risk, Text } from '@swiftnest/protocol';
 
 const MAX_READ = 512 * 1024;
 const MAX_LIST = 500;
@@ -33,6 +33,7 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
   async function allowed(raw: unknown, what: string): Promise<string> {
     if (typeof raw !== 'string' || !raw)
       throw new SwiftnestFailure('BAD_ARGS', text('required', what), text('hintPassPath', what));
+    target = raw;
     const c = await guard.check(raw);
     if (c.secret) {
       throw new SwiftnestFailure(
@@ -51,15 +52,59 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
     return c.real;
   }
 
-  const classifyPath = (base: Risk, ...paths: unknown[]): { risk: Risk; reason?: string } => {
+  /**
+   * A rating plus, when the path cannot be used at all, `refused`: the call is denied instead of being sent to
+   * the owner, because approving it would only delay the same failure. The reason is catalog text so the
+   * owner and the agent read the same sentence in their own language.
+   */
+  const classifyPath = (
+    base: Risk,
+    ...paths: unknown[]
+  ): { risk: Risk; reason?: Text; refused?: boolean; hint?: Text } => {
     for (const p of paths) {
       if (typeof p !== 'string' || !p) continue;
       const l = guard.lexical(p);
-      if (l.secret) return { risk: 'sensitive', reason: `${l.path} is a protected location and will be refused` };
+      if (l.secret)
+        return {
+          risk: 'sensitive',
+          reason: text('willRefused', l.path, text('aProtectedLocation')),
+          refused: true,
+          hint: text('hintNeverTouchesSecrets'),
+        };
       if (!l.inside)
-        return { risk: 'sensitive', reason: `${l.path} is outside the shared folders and will be refused` };
+        return {
+          risk: 'sensitive',
+          reason: text('willRefused', l.path, text('outsideTheSharedFolders')),
+          refused: true,
+          hint: text('hintAskOwnerToShareRoot'),
+        };
     }
     return { risk: base };
+  };
+
+  /** The path the current call is about, as the caller wrote it: what an OS error should name. */
+  let target = '';
+
+  /** Turn an OS error into a failure that says what is wrong and what to do, instead of raw errno prose. */
+  const osFailure = (e: unknown): never => {
+    if (e instanceof SwiftnestFailure) throw e;
+    const code = (e as NodeJS.ErrnoException)?.code;
+    const at = target || 'the path';
+    switch (code) {
+      case 'ENOENT':
+        throw new SwiftnestFailure('PATH_MISSING', text('pathMissing', at), text('hintListFolderFirst'));
+      case 'EACCES':
+      case 'EPERM':
+        throw new SwiftnestFailure('PATH_ACCESS_DENIED', text('pathDeniedByOs', at), text('hintCheckFilePermission'));
+      case 'EISDIR':
+        throw new SwiftnestFailure('NOT_A_FILE', text('folder', at), text('hintUseFilesList'));
+      case 'ENOTDIR':
+        throw new SwiftnestFailure('NOT_A_FOLDER', text('pathNotFolder', at), text('hintListFolderFirst'));
+      case 'ENOTEMPTY':
+        throw new SwiftnestFailure('FOLDER_NOT_EMPTY', text('folderNotEmpty', at), text('hintDeleteInsideFirst'));
+      default:
+        throw e;
+    }
   };
 
   const pathArg = (description: string) => ({ type: 'string', description });
@@ -197,92 +242,100 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
     },
 
     async invoke(tool, args) {
-      switch (tool) {
-        case 'list': {
-          const dir = await allowed(args.path, 'path');
-          const entries = await readdir(dir, { withFileTypes: true });
-          const rows = await Promise.all(
-            entries.slice(0, MAX_LIST).map(async (e) => {
-              const type = e.isDirectory() ? 'dir' : e.isSymbolicLink() ? 'link' : e.isFile() ? 'file' : 'other';
-              const size = type === 'file' ? (await stat(join(dir, e.name)).catch(() => undefined))?.size : undefined;
-              return { name: e.name, type, size };
-            }),
-          );
-          const lines = rows.map(
-            (r) => `${r.type === 'dir' ? 'd' : r.type === 'link' ? 'l' : '-'} ${r.size ?? ''}\t${r.name}`,
-          );
-          if (entries.length > MAX_LIST) lines.push(`… ${entries.length - MAX_LIST} more`);
-          return {
-            text: lines.join('\n') || '(empty)',
-            data: { path: dir, entries: rows, total: entries.length },
-            untrusted: true,
-          };
-        }
-        case 'read': {
-          const file = await allowed(args.path, 'path');
-          const info = await stat(file);
-          if (!info.isFile())
-            throw new SwiftnestFailure('NOT_A_FILE', text('notFile2', String(args.path)), text('hintUseFilesList'));
-          const buf = await readFile(file).then((b) => b.subarray(0, MAX_READ));
-          if (buf.includes(0))
-            return { text: `(binary file, ${info.size} bytes)`, data: { path: file, size: info.size, binary: true } };
-          const content =
-            buf.toString('utf8') +
-            (info.size > MAX_READ ? `\n[truncated: showing ${MAX_READ} of ${info.size} bytes]` : '');
-          return { text: content, data: { path: file, size: info.size }, untrusted: true };
-        }
-        case 'stat': {
-          const p = await allowed(args.path, 'path');
-          const info = await lstat(p);
-          const type = info.isDirectory() ? 'dir' : info.isSymbolicLink() ? 'link' : info.isFile() ? 'file' : 'other';
-          return {
-            text: `${type}, ${info.size} bytes, modified ${info.mtime.toISOString()}`,
-            data: { path: p, type, size: info.size, modified: info.mtime.toISOString() },
-          };
-        }
-        case 'write': {
-          const file = await allowed(args.path, 'path');
-          if (typeof args.content !== 'string') throw new SwiftnestFailure('BAD_ARGS', text('contentMustString'));
-          await mkdir(dirname(file), { recursive: true });
-          await (args.append ? appendFile(file, args.content) : writeFile(file, args.content));
-          if (typeof args.mode === 'number') await chmod(file, args.mode);
-          return `${args.append ? 'appended' : 'wrote'} ${Buffer.byteLength(args.content)} bytes to ${file}${typeof args.mode === 'number' ? ` (mode ${args.mode.toString(8)})` : ''}`;
-        }
-        case 'mkdir': {
-          const dir = await allowed(args.path, 'path');
-          await mkdir(dir, { recursive: true });
-          return `created ${dir}`;
-        }
-        case 'move': {
-          const from = await allowed(args.from, 'from');
-          const to = await allowed(args.to, 'to');
-          if (
-            await lstat(to).then(
-              () => true,
-              () => false,
-            )
-          )
-            throw new SwiftnestFailure(
-              'TARGET_EXISTS',
-              text('alreadyExists', String(args.to)),
-              text('hintPickAnotherTarget'),
+      try {
+        switch (tool) {
+          case 'list': {
+            const dir = await allowed(args.path, 'path');
+            const entries = await readdir(dir, { withFileTypes: true });
+            const rows = await Promise.all(
+              entries.slice(0, MAX_LIST).map(async (e) => {
+                const type = e.isDirectory() ? 'dir' : e.isSymbolicLink() ? 'link' : e.isFile() ? 'file' : 'other';
+                const size = type === 'file' ? (await stat(join(dir, e.name)).catch(() => undefined))?.size : undefined;
+                return { name: e.name, type, size };
+              }),
             );
-          await mkdir(dirname(to), { recursive: true });
-          await rename(from, to);
-          return `moved ${from} → ${to}`;
+            const lines = rows.map(
+              (r) => `${r.type === 'dir' ? 'd' : r.type === 'link' ? 'l' : '-'} ${r.size ?? ''}\t${r.name}`,
+            );
+            if (entries.length > MAX_LIST) lines.push(`… ${entries.length - MAX_LIST} more`);
+            return {
+              text: lines.join('\n') || '(empty)',
+              data: { path: dir, entries: rows, total: entries.length },
+              untrusted: true,
+            };
+          }
+          case 'read': {
+            const file = await allowed(args.path, 'path');
+            const info = await stat(file);
+            if (!info.isFile())
+              throw new SwiftnestFailure('NOT_A_FILE', text('notFile2', String(args.path)), text('hintUseFilesList'));
+            const buf = await readFile(file).then((b) => b.subarray(0, MAX_READ));
+            if (buf.includes(0))
+              return { text: `(binary file, ${info.size} bytes)`, data: { path: file, size: info.size, binary: true } };
+            const content =
+              buf.toString('utf8') +
+              (info.size > MAX_READ ? `\n[truncated: showing ${MAX_READ} of ${info.size} bytes]` : '');
+            return { text: content, data: { path: file, size: info.size }, untrusted: true };
+          }
+          case 'stat': {
+            const p = await allowed(args.path, 'path');
+            const info = await lstat(p);
+            const type = info.isDirectory() ? 'dir' : info.isSymbolicLink() ? 'link' : info.isFile() ? 'file' : 'other';
+            return {
+              text: `${type}, ${info.size} bytes, modified ${info.mtime.toISOString()}`,
+              data: { path: p, type, size: info.size, modified: info.mtime.toISOString() },
+            };
+          }
+          case 'write': {
+            const file = await allowed(args.path, 'path');
+            if (typeof args.content !== 'string') throw new SwiftnestFailure('BAD_ARGS', text('contentMustString'));
+            await mkdir(dirname(file), { recursive: true });
+            await (args.append ? appendFile(file, args.content) : writeFile(file, args.content));
+            if (typeof args.mode === 'number') await chmod(file, args.mode);
+            return `${args.append ? 'appended' : 'wrote'} ${Buffer.byteLength(args.content)} bytes to ${file}${typeof args.mode === 'number' ? ` (mode ${args.mode.toString(8)})` : ''}`;
+          }
+          case 'mkdir': {
+            const dir = await allowed(args.path, 'path');
+            await mkdir(dir, { recursive: true });
+            return `created ${dir}`;
+          }
+          case 'move': {
+            const from = await allowed(args.from, 'from');
+            const to = await allowed(args.to, 'to');
+            if (
+              await lstat(to).then(
+                () => true,
+                () => false,
+              )
+            )
+              throw new SwiftnestFailure(
+                'TARGET_EXISTS',
+                text('alreadyExists', String(args.to)),
+                text('hintPickAnotherTarget'),
+              );
+            await mkdir(dirname(to), { recursive: true });
+            await rename(from, to);
+            return `moved ${from} → ${to}`;
+          }
+          case 'delete': {
+            const p = await allowed(args.path, 'path');
+            if ((await guard.realRoots()).includes(p))
+              throw new SwiftnestFailure('PATH_REFUSED', text('refusingDeleteSharedRootFolderItself'));
+            const info = await lstat(p);
+            if (info.isDirectory() && !args.recursive)
+              throw new SwiftnestFailure(
+                'IS_A_FOLDER',
+                text('folder', String(args.path)),
+                text('hintDeleteRecursively'),
+              );
+            await rm(p, { recursive: Boolean(args.recursive) });
+            return `deleted ${relative(homedir(), p).startsWith('..') ? p : `~/${relative(homedir(), p)}`}`;
+          }
+          default:
+            throw new SwiftnestFailure('UNKNOWN_TOOL', text('filesNoTool', tool));
         }
-        case 'delete': {
-          const p = await allowed(args.path, 'path');
-          if ((await guard.realRoots()).includes(p))
-            throw new SwiftnestFailure('PATH_REFUSED', text('refusingDeleteSharedRootFolderItself'));
-          const info = await lstat(p);
-          if (info.isDirectory() && !args.recursive)
-            throw new SwiftnestFailure('IS_A_FOLDER', text('folder', String(args.path)), text('hintDeleteRecursively'));
-          await rm(p, { recursive: Boolean(args.recursive) });
-          return `deleted ${relative(homedir(), p).startsWith('..') ? p : `~/${relative(homedir(), p)}`}`;
-        }
-        default:
-          throw new SwiftnestFailure('UNKNOWN_TOOL', text('filesNoTool', tool));
+      } catch (e) {
+        throw osFailure(e);
       }
     },
   };
