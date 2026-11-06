@@ -59,6 +59,7 @@ function HeaderAction({ chat }: { chat: boolean }) {
 
 function HeaderTitles({ title, subtitle, onTitleClick }: Pick<PageHeaderProps, 'title' | 'subtitle' | 'onTitleClick'>) {
   const { t } = useI18n();
+  const { status } = useConnection();
   if (onTitleClick)
     return (
       <h1 className="page-header__titles" aria-label={title}>
@@ -70,7 +71,12 @@ function HeaderTitles({ title, subtitle, onTitleClick }: Pick<PageHeaderProps, '
           aria-label={t('openPreferences')}
         >
           <span className="chat-title__name">{title}</span>
-          {subtitle && <span className="chat-title__status">{subtitle}</span>}
+          {subtitle && (
+            <span className="chat-title__status">
+              <span className="status-dot chat-connection-dot" data-status={status} role="img" aria-label={t(status)} />
+              {subtitle}
+            </span>
+          )}
         </button>
       </h1>
     );
@@ -86,7 +92,7 @@ export function PageHeader({ title, subtitle, large, onBack, onTitleClick, actio
   const { t } = useI18n();
   const Back = icons.back;
   const back = onBack && (
-    <IconButton variant="ghost" onClick={onBack} aria-label={t('back')}>
+    <IconButton className="page-header__back" variant="ghost" onClick={onBack} aria-label={t('back')}>
       {onTitleClick ? <ChatIcon name="back" /> : <Back size={20} />}
     </IconButton>
   );
@@ -94,9 +100,8 @@ export function PageHeader({ title, subtitle, large, onBack, onTitleClick, actio
     <header className={`page-header glass${large ? ' page-header--large' : ''}`} data-chat={!!onTitleClick}>
       <div className="page-header__row">
         <MenuButton chat={!!onTitleClick} />
-        {!onTitleClick && back}
+        {back}
         <HeaderTitles title={title} subtitle={subtitle} onTitleClick={onTitleClick} />
-        {onTitleClick && back}
         <HeaderAction chat={!!onTitleClick} />
         {action && <div className="page-header__action">{action}</div>}
       </div>

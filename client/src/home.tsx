@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { DeviceApprovals } from './devices';
 import { TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
@@ -20,22 +19,27 @@ export function Suggestions({ onChoose }: { onChoose: (text: string) => void }) 
   return (
     <div className="suggestions">
       {suggestions.map(({ key, Icon }) => (
-        <button type="button" className="suggestion card" key={key} onClick={() => onChoose(t(key))}>
+        <button
+          type="button"
+          className="suggestion card"
+          key={key}
+          aria-label={t(key)}
+          aria-describedby={`${key}-subtitle`}
+          onClick={() => onChoose(t(key))}
+        >
           <Icon size={24} aria-hidden="true" />
-          <span>{t(key)}</span>
+          <span className="suggestion__title">{t(key)}</span>
+          <span className="suggestion__subtitle" id={`${key}-subtitle`}>
+            {t(`${key}.subtitle`)}
+          </span>
         </button>
       ))}
     </div>
   );
 }
 
-function Greeting() {
+function Greeting({ hour }: { hour: number }) {
   const { t } = useI18n();
-  const [hour, setHour] = useState(() => new Date().getHours());
-  useEffect(() => {
-    const timer = setInterval(() => setHour(new Date().getHours()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
   return (
     <div className="home-greeting">
       <BrandMark emblem />
@@ -45,7 +49,7 @@ function Greeting() {
   );
 }
 
-export function Home() {
+export function Home({ hour }: { hour: number }) {
   const { setText } = useComposerDraft('home');
   return (
     <section className="home">
@@ -55,7 +59,7 @@ export function Home() {
         <LiveDeviceButton />
       </div>
       <div className="home-center">
-        <Greeting />
+        <Greeting hour={hour} />
         <Suggestions
           onChoose={(text) => {
             setText(text);
