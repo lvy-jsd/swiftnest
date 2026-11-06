@@ -91,8 +91,9 @@ export interface PerchRunOptions {
   pair?: string;
   /** Expected Nest fingerprint, for pairing without a terminal. */
   fingerprint?: string;
-  roots: string[];
-  readOnly: string[];
+  /** Shared folders. Absent means "use what this device saved, else ~". */
+  roots?: string[];
+  readOnly?: string[];
 }
 
 interface Pin {
@@ -100,6 +101,14 @@ interface Pin {
   fingerprint: string;
   url?: string;
   pairedAt: string;
+  /**
+   * Folder scope as the owner chose it. Saved with the pairing so a restart
+   * cannot quietly widen what the agent can reach: without this, `perch` falls
+   * back to `~` and a device paired for two folders suddenly exposes a home
+   * directory.
+   */
+  roots?: string[];
+  readOnly?: string[];
 }
 
 export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
@@ -115,10 +124,21 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
   );
   if (!pin && !o.pair)
     throw new SwiftnestFailure('NOT_PAIRED', t(lang, 'perchNotPaired')(o.name), t(lang, 'perchNotPairedHint')(o.name));
+  // Folder scope: an explicit --roots wins, then what this device saved, then ~.
+  // Saving it is what stops a restart from silently widening access.
+  const roots = o.roots?.length ? o.roots : pin?.roots?.length ? pin.roots : ['~'];
+  const readOnly = o.readOnly?.length ? o.readOnly : (pin?.readOnly ?? []);
   const savePin = async (p: Pin) => {
-    pin = p;
-    await writeFile(pinPath, `${JSON.stringify(p, null, 2)}\n`, { mode: 0o600 });
+    pin = { ...p, roots, readOnly };
+    await writeFile(pinPath, `${JSON.stringify(pin, null, 2)}\n`, { mode: 0o600 });
   };
+  // Changing the flags is a deliberate owner decision, so persist it now and the
+  // next start without flags keeps the same scope.
+  if (
+    pin &&
+    (JSON.stringify(pin.roots) !== JSON.stringify(roots) || JSON.stringify(pin.readOnly) !== JSON.stringify(readOnly))
+  )
+    await savePin(pin);
 
   const logger = createLogger(`perch:${o.name}`, 'warn');
   const perch = await new Perch({
@@ -126,8 +146,8 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
     identity: await loadOrCreateIdentity(join(dir, 'identity.pem')),
     logger,
   })
-    .use(shell, { readOnly: o.readOnly })
-    .then((p) => p.use(files, { roots: o.roots }));
+    .use(shell, { readOnly })
+    .then((p) => p.use(files, { roots }));
 
   const confirm = async (nestFingerprint: string) => {
     if (o.fingerprint) {
@@ -147,7 +167,7 @@ export async function runPerch(lang: Lang, o: PerchRunOptions): Promise<void> {
     }
   };
 
-  process.stdout.write(t(lang, 'perchStarting')(o.name, perch.identity.fingerprint, o.roots.join(', ')));
+  process.stdout.write(t(lang, 'perchStarting')(o.name, perch.identity.fingerprint, roots.join(', ')));
   const run = runLanPerch(perch, {
     url: o.nest,
     lastUrl: pin?.url,

@@ -33,6 +33,28 @@ export class MemoryAuditLog implements AuditLog {
   }
 }
 
+/**
+ * Audit is a log, not a payload store. A 200 KB `content` argument used to be
+ * written verbatim — four times per call (queued, waiting, running, done), which
+ * quietly costs hundreds of megabytes for one large write. Long strings are
+ * truncated with their original length kept, so the line still says what
+ * happened and how much was involved.
+ */
+const MAX_ARG_CHARS = 2048;
+export function trimArgs(value: unknown): unknown {
+  if (typeof value === 'string')
+    return value.length > MAX_ARG_CHARS
+      ? `${value.slice(0, MAX_ARG_CHARS)}…[truncated ${value.length - MAX_ARG_CHARS} chars]`
+      : value;
+  if (Array.isArray(value)) return value.map(trimArgs);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value)) out[key] = trimArgs(inner);
+    return out;
+  }
+  return value;
+}
+
 /** One JSON object per line; survives restarts and is easy to inspect with standard tools. */
 export class JsonlAuditLog implements AuditLog {
   private ready: Promise<void>;
@@ -44,7 +66,7 @@ export class JsonlAuditLog implements AuditLog {
     // serialize writes so concurrent tasks never interleave lines
     this.queue = this.queue.then(async () => {
       await this.ready;
-      await appendFile(this.path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+      await appendFile(this.path, `${JSON.stringify({ ...entry, args: trimArgs(entry.args) })}\n`, { mode: 0o600 });
     });
     return this.queue;
   }

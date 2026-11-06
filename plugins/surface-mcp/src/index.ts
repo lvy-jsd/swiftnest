@@ -116,6 +116,11 @@ export function describeTask(s: TaskSnapshot, lang: Language = defaultLanguage()
     case 'queued':
     case 'running':
       return textResult(say(text('mcpStillRunning', stateText(s.state), s.id, META.wait)), false, structured);
+    case 'cancelled':
+      // The agent asked for this, so it is an outcome, not a failure. Reporting it
+      // as an error (with a "check the connection and retry" hint) made callers
+      // retry a cancel that had already worked.
+      return textResult(say(text('mcpCancelled', s.id)), false, structured);
     default: {
       const e = s.error ? localizedError(s.error, lang) : undefined;
       return textResult(e ? failureLine(e, lang) : s.state, true, { ...structured, error: e });

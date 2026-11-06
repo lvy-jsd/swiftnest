@@ -205,6 +205,15 @@ impl Files {
                     .truncate(!append)
                     .open(&path)?;
                 file.write_all(content.as_bytes())?;
+                // Writing a script without the execute bit makes the obvious next
+                // step fail with EACCES and costs a second approval, so the mode
+                // is applied as part of the same write. Unix only; the field is
+                // accepted and ignored elsewhere.
+                #[cfg(unix)]
+                if let Some(mode) = args["mode"].as_u64() {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&path, fs::Permissions::from_mode(mode as u32))?;
+                }
                 Ok(ToolResult::text(format!(
                     "{} {} bytes to {}",
                     if append { "appended" } else { "wrote" },

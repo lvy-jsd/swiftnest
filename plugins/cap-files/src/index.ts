@@ -9,7 +9,7 @@
  * Risk: list/read/stat are reads; write/mkdir/move are writes; delete is sensitive. Paths outside the allowed folders
  * are classified sensitive and refused when run.
  */
-import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile, appendFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile, appendFile, chmod } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { definePlugin, PathGuard, SwiftnestFailure, text, type Capability } from '@swiftnest/core';
@@ -126,7 +126,20 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
           },
           inputSchema: {
             type: 'object',
-            properties: { path: pathArg('File to write'), content: { type: 'string' }, append: { type: 'boolean' } },
+            properties: {
+              path: pathArg('File to write'),
+              content: { type: 'string' },
+              append: { type: 'boolean' },
+              // Writing a script without the execute bit makes the obvious next
+              // step fail with EACCES and needs a second approval for chmod, so
+              // the mode belongs to the same write.
+              mode: {
+                type: 'integer',
+                minimum: 0,
+                maximum: 511,
+                description: 'Permission bits, e.g. 493 for 0o755 (owner can execute)',
+              },
+            },
             required: ['path', 'content'],
             additionalProperties: false,
           },
@@ -232,7 +245,8 @@ export function filesCapability(opts: FilesOptions = {}): Capability {
           if (typeof args.content !== 'string') throw new SwiftnestFailure('BAD_ARGS', text('contentMustString'));
           await mkdir(dirname(file), { recursive: true });
           await (args.append ? appendFile(file, args.content) : writeFile(file, args.content));
-          return `${args.append ? 'appended' : 'wrote'} ${Buffer.byteLength(args.content)} bytes to ${file}`;
+          if (typeof args.mode === 'number') await chmod(file, args.mode);
+          return `${args.append ? 'appended' : 'wrote'} ${Buffer.byteLength(args.content)} bytes to ${file}${typeof args.mode === 'number' ? ` (mode ${args.mode.toString(8)})` : ''}`;
         }
         case 'mkdir': {
           const dir = await allowed(args.path, 'path');

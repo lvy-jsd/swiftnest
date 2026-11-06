@@ -105,7 +105,7 @@ async function main(argv: string[]) {
       nest: { type: 'string' },
       pair: { type: 'string' },
       fingerprint: { type: 'string' },
-      roots: { type: 'string', default: '~' },
+      roots: { type: 'string' },
       'read-only': { type: 'string', default: '' },
       // owner commands
       confirm: { type: 'string' },

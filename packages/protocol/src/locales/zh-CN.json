@@ -265,6 +265,7 @@
   "mcpWaitingForApproval": "等待所有者批准（{0}）。任务 id：{1}。",
   "mcpContinueOrWait": "可以继续其他工作，或使用此任务 id 调用 {0}。请勿重复发起相同调用。",
   "mcpStillRunning": "任务仍为 {0}。任务 id：{1}。可使用此 id 调用 {2} 获取结果。",
+  "mcpCancelled": "已按请求取消。任务 id：{0}。没有执行任何操作。",
   "mcpHowToFix": "\n处理方法：{0}",
   "mcpNoDevices": "尚未连接设备。",
   "hintUseOriginalTaskId": "请使用原始调用响应中的任务 id。",
