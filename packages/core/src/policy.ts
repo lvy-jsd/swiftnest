@@ -29,6 +29,8 @@ export interface PolicyInput {
   refused?: boolean;
   /** What to do instead, when the capability knows better than "ask the owner". */
   hintText?: Text;
+  /** The same next step in English, for a third-party capability that has no catalog text. */
+  hint?: string;
 }
 
 /** A risk rating with its explanation: English for logs and models, catalog text for people. */
@@ -70,7 +72,7 @@ export interface Decision {
   /** The same reason as catalog text; absent for an owner-written rule note. */
   reasonText?: Text;
   /** The capability's next step for a refusal; the caller falls back to a generic hint without it. */
-  hint?: Text;
+  hint?: string | Text;
 }
 
 const decision = (action: Action, reason: Text): Decision => ({
@@ -112,7 +114,8 @@ export class RulePolicy implements Policy {
     // owner should not be asked to approve something that fails right after they answer.
     if (i.refused) {
       const because = isText(i.reasonText) ? i.reasonText : (i.reason ?? riskText(i.risk));
-      return { ...decision('deny', text('policyRefused', because)), ...(i.hintText ? { hint: i.hintText } : {}) };
+      const hint = i.hintText ?? i.hint;
+      return { ...decision('deny', text('policyRefused', because)), ...(hint ? { hint } : {}) };
     }
     const rule = this.rules.find(
       (r) =>

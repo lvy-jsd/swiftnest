@@ -45,3 +45,13 @@ it('refuses a call that cannot succeed instead of asking the owner about it', ()
   );
   expect(render(decision.reasonText!, 'zh-CN')).not.toMatch(/refused without asking/);
 });
+
+it("keeps a third-party capability's prose hint when it has no catalog text", () => {
+  const decision = new RulePolicy().decide({
+    ...input,
+    risk: 'sensitive',
+    refused: true,
+    hint: 'share the folder first',
+  });
+  expect(decision).toMatchObject({ action: 'deny', hint: 'share the folder first' });
+});
