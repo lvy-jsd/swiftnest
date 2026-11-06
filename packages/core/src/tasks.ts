@@ -147,7 +147,7 @@ export class TaskManager {
       this.approvalAdded?.(this.snapshot(snap.id));
       if (this.approvalHandler) return;
       t.approvalTimer = setTimeout(() => {
-        void this.deny(snap.id, text('approvalExpired'));
+        void this.deny(snap.id, text('approvalExpired'), text('hintAskOwnerBeforeRetry'));
       }, this.o.approvalTimeoutMs ?? 600_000);
     } else {
       void this.run(t);
@@ -176,19 +176,33 @@ export class TaskManager {
     return this.snapshot(taskId);
   }
 
-  async deny(taskId: string, why: string | Text = text('deniedByOwner')): Promise<TaskSnapshot> {
+  /**
+   * A person said no. The hint matters as much as the message: an agent told to "retry" would ask the same
+   * owner the same question again, so a refusal says plainly not to repeat it.
+   */
+  async deny(
+    taskId: string,
+    why: string | Text = text('deniedByOwner'),
+    hint: Text = text('hintDoNotRetry'),
+  ): Promise<TaskSnapshot> {
     if (this.approvalHandler) {
       await this.approvalHandler(taskId, false);
       return this.snapshot(taskId);
     }
-    return this.denyTask(taskId, why);
+    return this.denyTask(taskId, why, hint);
   }
 
-  private async denyTask(taskId: string, why: string | Text): Promise<TaskSnapshot> {
+  private async denyTask(
+    taskId: string,
+    why: string | Text,
+    hint: Text = text('hintDoNotRetry'),
+  ): Promise<TaskSnapshot> {
     const t = this.require(taskId);
     if (t.snap.state !== 'pending_approval') return this.snapshot(taskId);
     clearTimeout(t.approvalTimer);
-    await this.finish(t, 'denied', { error: new SwiftnestFailure('DENIED', text('notApproved', why)).toJSON() });
+    await this.finish(t, 'denied', {
+      error: new SwiftnestFailure('DENIED', text('notApproved', why), hint).toJSON(),
+    });
     return this.snapshot(taskId);
   }
 

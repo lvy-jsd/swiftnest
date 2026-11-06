@@ -104,6 +104,12 @@ describe('tasks', () => {
 
     const b = await nest.call('dev__demo__change', {}, client);
     expect((await nest.tasks.deny(b.id)).state).toBe('denied');
+    // A refusal must not tell the agent to retry: that is how the same question reaches the owner twice.
+    expect(nest.tasks.snapshot(b.id).error).toMatchObject({
+      code: 'DENIED',
+      hint: expect.not.stringMatching(/retry/i),
+    });
+    expect(nest.tasks.snapshot(b.id).error?.hintText).toMatchObject({ key: 'hintDoNotRetry' });
   });
 
   it('expires approvals that nobody answers', async () => {
@@ -112,6 +118,8 @@ describe('tasks', () => {
     const done = await nest.tasks.wait(t.id, 1000);
     expect(done.state).toBe('denied');
     expect(done.error?.message).toMatch(/expired/);
+    // The owner never saw it, so "ask the owner before retrying" is the honest next step.
+    expect(done.error?.hintText).toMatchObject({ key: 'hintAskOwnerBeforeRetry' });
   });
 
   it('applies deny rules', async () => {
