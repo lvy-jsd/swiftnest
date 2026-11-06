@@ -200,7 +200,9 @@ export function Sidebar({
         ) : visible.length ? (
           <ChatList sessions={visible} chatId={chatId} onNavigate={onNavigate} />
         ) : (
-          <p className="sidebar-empty">{t('noChats')}</p>
+          <p className="sidebar-empty">
+            {sessions.length === 0 ? t('noChatsYet') : runningOnly ? t('noRunningChats') : t('noChats')}
+          </p>
         )}
       </nav>
       <ApprovalBadge />
