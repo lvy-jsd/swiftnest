@@ -1,12 +1,12 @@
 <p align="center">
   <b>Swiftnest (燕巢)</b><br>
-  Turn your devices into capabilities that any agent can safely call.
+  One AI assistant across your computers and phones, powered by DSH.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="package.json"><img src="https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg" alt="Node.js: >=24"></a>
-  <img src="https://img.shields.io/badge/status-early%20stage%20(M1)-orange.svg" alt="Status: early stage (M1)">
+  <img src="https://img.shields.io/badge/status-preview-orange.svg" alt="Status: preview">
 </p>
 
 <p align="center">
@@ -17,14 +17,15 @@
 
 ## What It Is
 
-When your agent (Claude Desktop, Cursor, DSH, OpenClaw, …) wants to help you operate your computer, phone, or home server, Swiftnest handles the layer in between:
+Swiftnest is a complete personal AI Bot product. DSH supplies its runtime kernel and architectural blueprint; Grok Bot informs its product positioning, while ds-bot and ds-go inform product and interaction ideas. Multi-device experience is a central goal. Its UI and assets are independently implemented, without copying code or assets from those reference projects.
 
-- **Pairing** — a device joins with a one-time 6-digit code and a fingerprint check on both sides; after that only its key is accepted, and the link is end-to-end encrypted.
-- **Capabilities** — every feature on a device is a plugin; any existing MCP service can be turned into a capability directly.
-- **Security** — read-only operations pass through automatically; mutations, executions, and deletions require your approval; every call is logged in an audit trail.
-- **Any agent** — externally it is just a standard MCP endpoint, with tool names like `laptop__shell__run`.
+- **One assistant, multiple devices** — a central server connects companion apps on computers and phones, bringing conversation, memory, tools, and device capabilities into one workflow.
+- **For everyday users and enthusiasts** — common features use safe defaults, while models, plugins, self-hosting, and advanced configuration remain extensible. An AI can handle deployment; users need not learn every installation detail.
+- **Broad capability, on-demand context** — [Tool Ultra](https://github.com/lvy-jsd/dsh-tool-ultra) is an important component: one tool-plugin product organizes capabilities across scenarios and discovers and loads them as needed, instead of sending every tool schema on every request.
+- **User control** — paired device identities, permissions, approvals, and auditing govern execution. Cloud services and media uploads follow their respective settings and user authorization.
+- **Open interfaces** — device capabilities remain available to other agents over standard MCP as part of the assistant product.
 
-It is not a personal assistant: conversation, memory, and personality are up to whichever agent you prefer — Swiftnest only manages devices.
+This is a preview. Consult the relevant guides and test records for implemented behavior and limitations; the product direction is not a claim that every platform, scenario, or network condition has passed acceptance.
 
 ## Concepts
 
@@ -34,7 +35,22 @@ It is not a personal assistant: conversation, memory, and personality are up to 
 | **Device (Perch)** | The program running on each controlled device                                                                                              |
 | **Plugin**         | Everything: device capabilities, connection methods, interaction entry points, permission policies, …                                      |
 
-## Quick Start
+## Run the Assistant
+
+Requires Node.js 24 or later and an OpenAI-compatible model service. The DSH kernel needs the official Node build from nodejs.org. NixOS also needs nix-ld enabled; the repository's `nix develop` supplies development tools.
+
+```sh
+git clone https://github.com/lvy-jsd/swiftnest.git && cd swiftnest
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --filter @swiftnest/app build:web
+node server/dist/cli.js plugins install
+SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
+```
+
+Open the App pairing link printed by the server. The default model endpoint is `http://127.0.0.1:11434/v1`; set the model ID and endpoint in server configuration or the App's Models page. See [Server](server/README.en.md) for configuration and [App](client/README.en.md) for native desktop and Android builds.
+
+## Optional: Try the Device Protocol
 
 Requires Node.js 24 or later.
 

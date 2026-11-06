@@ -58,5 +58,10 @@
         }
       }
     }
-  ]
+  ],
+  "markdown": {
+    "parser": {
+      "frontmatter": true
+    }
+  }
 }
