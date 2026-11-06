@@ -55,7 +55,8 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
             });
             await page.addInitScript((lang) => localStorage.setItem('swiftnest.locale', lang), locale);
             await page.goto(webAppUrl(harness.kernel!.url, harness.kernel!.token));
-            await page.getByRole('button', { name: translate(locale, 'newChat'), exact: true }).waitFor();
+            // Pairing updates connection state before its final navigation back home.
+            await page.locator('.home-greeting').waitFor();
             await page.evaluate((id) => {
               location.hash = `/chats/${id}`;
             }, sessionId);
