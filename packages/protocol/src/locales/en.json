@@ -786,6 +786,7 @@
   "toolsDelete": "Delete",
   "toolsDeletePack": "Delete bundle {name}",
   "toolsPreparing": "Preparing the tool changes…",
+  "toolsRestarting": "Restarting the assistant for the tool changes…",
   "toolsRestored": "The tool changes could not start, so the previous tool settings were restored.",
   "toolsApplyHelp": "Applying the tool changes restarts the assistant; running chats reconnect on their own.",
   "toolsRequestFailed": "Could not save or refresh the tool settings. Check the name and targets, then try again.",

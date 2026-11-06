@@ -786,6 +786,7 @@
   "toolsDelete": "删除",
   "toolsDeletePack": "删除能力包 {name}",
   "toolsPreparing": "正在准备工具更改…",
+  "toolsRestarting": "正在为工具更改重启内核…",
   "toolsRestored": "工具更改未能启动，已恢复之前的工具设置。",
   "toolsApplyHelp": "应用工具更改将重启内核，正在进行的会话会自动重新连接。",
   "toolsRequestFailed": "无法保存或刷新工具设置。请检查名称和目标后重试。",

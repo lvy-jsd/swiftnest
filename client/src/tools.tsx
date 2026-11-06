@@ -12,6 +12,7 @@ export const toolApplyWords: ApplyWords = {
   preparing: 'toolsPreparing',
   restored: 'toolsRestored',
   help: 'toolsApplyHelp',
+  restarting: 'toolsRestarting',
 };
 
 /** The preset categories Tool Ultra ships, with a readable name for each. */
