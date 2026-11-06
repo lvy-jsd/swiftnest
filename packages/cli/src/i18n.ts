@@ -106,6 +106,19 @@ Press Ctrl+C to stop.
       `   （这里没有终端输入。用 \`swiftnest approve ${id}\` 批准，或 \`swiftnest deny ${id}\` 拒绝；10 分钟后过期。）`,
   },
   approved: { en: '   ✓ approved', zh: '   ✓ 已批准' },
+  noSuchTask: {
+    en: (id: string, verb: string) => `No pending task matches "${id}", so there is nothing to ${verb}.`,
+    zh: (id: string, verb: string) =>
+      `没有与 "${id}" 匹配的待批任务，没有可${verb === 'approve' ? '批准' : '拒绝'}的对象。`,
+  },
+  ambiguousTask: {
+    en: (id: string) => `"${id}" matches more than one pending task; give a longer id:`,
+    zh: (id: string) => `"${id}" 匹配多个待批任务，请给出更长的 id：`,
+  },
+  taskCandidates: {
+    en: () => 'Pending:',
+    zh: () => '当前待批：',
+  },
   denied: { en: '   ✗ denied', zh: '   ✗ 已拒绝' },
   stdioNoApproval: {
     en: 'stdio mode: there is no terminal to approve in, so calls that need approval will expire (denied). Use the HTTP mode to approve interactively.',

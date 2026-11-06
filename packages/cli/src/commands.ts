@@ -108,7 +108,23 @@ export async function pending(lang: Lang) {
 export async function decide(lang: Lang, id: string | undefined, approve: boolean) {
   if (!id)
     return void process.stdout.write(`${t(lang, 'needArg')(`swiftnest ${approve ? 'approve' : 'deny'} <task-id>`)}\n`);
-  const s = await call<TaskSnapshot>(approve ? 'tasks.approve' : 'tasks.deny', { id });
+  const verb = approve ? 'approve' : 'deny';
+  const row = (s: TaskSnapshot) => `\n  ${s.id}  ${s.device} ${s.capability}.${s.tool}`;
+  // Task ids are long and the owner copies them out of `swiftnest pending`, so a
+  // unique prefix is enough — the way git accepts a short hash. Without this the
+  // only accepted input is a 36-character id, and a truncated one answers
+  // "No task", which reads like the task vanished.
+  const list = await call<TaskSnapshot[]>('tasks.pending');
+  const exact = list.find((s) => s.id === id);
+  const hits = exact ? [exact] : list.filter((s) => s.id.startsWith(id));
+  if (!hits.length)
+    return void process.stdout.write(
+      `${t(lang, 'noSuchTask')(id, verb)}${list.length ? `\n${t(lang, 'taskCandidates')()}${list.map(row).join('')}` : ''}\n`,
+    );
+  if (hits.length > 1) return void process.stdout.write(`${t(lang, 'ambiguousTask')(id)}${hits.map(row).join('')}\n`);
+  const target = hits[0];
+  if (!target) return;
+  const s = await call<TaskSnapshot>(approve ? 'tasks.approve' : 'tasks.deny', { id: target.id });
   process.stdout.write(
     `${approve ? t(lang, 'approved') : t(lang, 'denied')} ${s.id} → ${render(stateText(s.state), language(lang))}\n`,
   );
