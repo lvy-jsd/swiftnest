@@ -523,6 +523,20 @@
     "suggestion__title",
     "suggestion__subtitle",
     ".subtitle",
-    "page-header__back"
+    "page-header__back",
+    "tools-changed",
+    "tool-preset",
+    "needs-key",
+    "tool-needs-",
+    "tool-needs",
+    "tools-section",
+    "tools-title",
+    "plugin-card tool-group",
+    "tool-pack",
+    "{name}",
+    "memory-form tool-pack-form",
+    "[a-z0-9][a-z0-9-]{0,47}",
+    "tools-pack-name-help",
+    "tools-pack-targets-help"
   ]
 }

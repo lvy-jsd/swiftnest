@@ -36,6 +36,8 @@ export type * from './devices.js';
 export type * from './memory.js';
 export { ChatSearchSettingsSchema } from '@swiftnest/protocol';
 export type { ChatSearchResult, ChatSearchSettings, ChatSearchStatus } from '@swiftnest/protocol';
+import type { ToolsView } from './tools.js';
+export type * from './tools.js';
 import type { PluginsView } from './plugins.js';
 export type * from './plugins.js';
 import type { ModelSettingsUpdate, ModelsView } from './models.js';
@@ -425,6 +427,21 @@ export class SwiftnestClient {
    */
   applyPlugins(): Promise<PluginsView> {
     return this.ownerRequest('plugins/apply', 'POST');
+  }
+  listTools(): Promise<ToolsView> {
+    return this.ownerRequest('tools');
+  }
+  setMcpPresetEnabled(id: string, enabled: boolean): Promise<ToolsView> {
+    return this.ownerRequest(`tools/mcp/${encodeURIComponent(id)}/${enabled ? 'enable' : 'disable'}`, 'POST');
+  }
+  setCapabilityPack(name: string, targets: string | string[]): Promise<ToolsView> {
+    return this.ownerRequest(`tools/capability/${encodeURIComponent(name)}`, 'POST', undefined, { targets });
+  }
+  deleteCapabilityPack(name: string): Promise<ToolsView> {
+    return this.ownerRequest(`tools/capability/${encodeURIComponent(name)}/delete`, 'POST');
+  }
+  applyTools(): Promise<ToolsView> {
+    return this.ownerRequest('tools/apply', 'POST');
   }
   listModels(): Promise<ModelsView> {
     return this.ownerRequest('models');

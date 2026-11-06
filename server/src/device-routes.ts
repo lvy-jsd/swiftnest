@@ -12,6 +12,7 @@ import type { DeviceRegistry } from './device-registry.js';
 import { sendJson } from './device-response.js';
 import { HttpError, openEventStream, readBody, readJsonObject } from './http.js';
 import type { ModelManager } from './model-manager.js';
+import type { ToolSettingsManager } from './tool-settings.js';
 import type { PluginManager } from './plugin-manager.js';
 import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
@@ -24,6 +25,7 @@ import { nativeDevices } from './native-pairings.js';
 export const PREFIX = '/swiftnest/api/devices';
 export const CONTROL = '/swiftnest/control/devices';
 export const PLUGINS = '/swiftnest/api/plugins';
+export const TOOLS = '/swiftnest/api/tools';
 export const MODELS = '/swiftnest/api/models';
 const KiB = 1024;
 
@@ -36,11 +38,18 @@ export interface DeviceHub {
   transfers: Transfers;
   preferences: Preferences;
   plugins: PluginManager;
+  tools: ToolSettingsManager;
   models: ModelManager;
   streams: Set<ServerResponse>;
   lanPort: () => number;
   publish: (
-    type: 'devices-changed' | 'plugins-changed' | 'models-changed' | 'memory-changed' | 'approvals-changed',
+    type:
+      | 'tools-changed'
+      | 'devices-changed'
+      | 'plugins-changed'
+      | 'models-changed'
+      | 'memory-changed'
+      | 'approvals-changed',
     slugs?: string[],
   ) => void;
 }
@@ -193,6 +202,41 @@ const pluginRoutes: Route[] = [
   }),
 ];
 
+// ---------------------------------------------------------------- tools (owner)
+async function asToolFailure(run: () => Promise<void> | void): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    const failure = SwiftnestFailure.from(error);
+    const key = failure.text?.key;
+    throw new HttpError(key === 'toolsPresetUnknown' ? 404 : key === 'toolsApplyBusy' ? 409 : 400, failure);
+  }
+}
+const toolsView = (hub: DeviceHub) => hub.tools.view(hub.preferences.lang);
+const toolRoutes: Route[] = [
+  route('GET', TOOLS, ({ hub }) => toolsView(hub)),
+  route('POST', `${TOOLS}/apply`, async ({ hub }) => {
+    await asToolFailure(() => hub.tools.apply());
+    return withStatus(202, await toolsView(hub));
+  }),
+  route('POST', `${TOOLS}/mcp/${ID}/(enable|disable)`, async ({ hub, params }) => {
+    await asToolFailure(() => hub.tools.set(decodeURIComponent(params[0]!), params[1] === 'enable'));
+    return toolsView(hub);
+  }),
+  route('POST', `${TOOLS}/capability/${ID}/delete`, async ({ hub, params }) => {
+    await asToolFailure(() => hub.tools.deletePack(decodeURIComponent(params[0]!)));
+    return toolsView(hub);
+  }),
+  route('POST', `${TOOLS}/capability/${ID}`, async ({ hub, req, params }) => {
+    const body = await readJsonObject(req, 16 * KiB, text('capabilityPacksInvalid'));
+    await asToolFailure(() => hub.tools.setPack(decodeURIComponent(params[0]!), body.targets));
+    return toolsView(hub);
+  }),
+  route('*', `${TOOLS}(?:/.*)?`, () => {
+    throw new HttpError(404, text('toolsPresetUnknown', ''));
+  }),
+];
+
 // ---------------------------------------------------------------- models (owner)
 
 /** Unknown providers are 404s, an apply already running is a 409, bad input a 400. */
@@ -313,6 +357,7 @@ const routes: Route[] = [
   ),
   ...transferRoutes(PREFIX),
   ...pluginRoutes,
+  ...toolRoutes,
   ...modelRoutes,
   route('GET', `${PREFIX}/?`, ({ hub }) => [...hub.registry.list(), ...nativeDevices(hub)]),
   route('GET', `${PREFIX}/approvals`, ({ hub }) => hub.nest.tasks.list({ state: 'pending_approval' })),

@@ -95,6 +95,7 @@ function harness(
     if (url.includes('/swiftnest/api/memory'))
       return options.memory?.(url, init) ?? Response.json({ entries: [], topics: [] });
     if (url.includes('/swiftnest/api/devices')) return options.devices?.(url, init) ?? Response.json([]);
+    if (url.includes('/swiftnest/api/tools')) return Response.json({ presets: [], packs: [] });
     if (url.includes('/swiftnest/api/plugins')) return Response.json({ plugins: [] });
     const value =
       body?.method === 'session/create'
@@ -396,6 +397,30 @@ describe('device API client', () => {
       ]);
       for (const call of h.calls.slice(1))
         expect(call.init).toMatchObject({ credentials: 'include', headers: { cookie: 'dsh_api=secret' } });
+    } finally {
+      h.client.close();
+    }
+  });
+  it('drives tool switches and capability bundle bodies with the owner cookie', async () => {
+    const h = harness();
+    await h.client.connect(pairing);
+    try {
+      await h.client.listTools();
+      await h.client.setMcpPresetEnabled('local', true);
+      await h.client.setMcpPresetEnabled('local', false);
+      await h.client.setCapabilityPack('research', ['pack:web']);
+      await h.client.deleteCapabilityPack('research');
+      await h.client.applyTools();
+      expect(h.calls.slice(1).map((c) => [c.url.replace('https://server.test/mount/', ''), c.init.method])).toEqual([
+        ['swiftnest/api/tools', 'GET'],
+        ['swiftnest/api/tools/mcp/local/enable', 'POST'],
+        ['swiftnest/api/tools/mcp/local/disable', 'POST'],
+        ['swiftnest/api/tools/capability/research', 'POST'],
+        ['swiftnest/api/tools/capability/research/delete', 'POST'],
+        ['swiftnest/api/tools/apply', 'POST'],
+      ]);
+      expect(JSON.parse(h.calls[4]!.init.body as string)).toEqual({ targets: ['pack:web'] });
+      for (const call of h.calls.slice(1)) expect(call.init).toMatchObject({ headers: { cookie: 'dsh_api=secret' } });
     } finally {
       h.client.close();
     }

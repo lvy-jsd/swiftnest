@@ -23,9 +23,10 @@ export function liveTransportAllowed(req: Pick<IncomingMessage, 'socket'>): bool
 
 export const DEVICES_PREFIX = '/swiftnest/api/devices';
 export const PLUGINS_PREFIX = '/swiftnest/api/plugins';
+export const TOOLS_PREFIX = '/swiftnest/api/tools';
 export const MODELS_PREFIX = '/swiftnest/api/models';
 /** The owner-only parts of the loopback admin API this proxy forwards. */
-export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX, MODELS_PREFIX, '/swiftnest/api/approvals'];
+export const OWNER_PREFIXES = [DEVICES_PREFIX, PLUGINS_PREFIX, MODELS_PREFIX, TOOLS_PREFIX, '/swiftnest/api/approvals'];
 
 export function deviceProxy(connection: DeviceConnection, endpoint: string, token: string, invalidate?: () => void) {
   const target = new URL(endpoint);
@@ -118,6 +119,7 @@ export function deviceProxy(connection: DeviceConnection, endpoint: string, toke
 function forwardsBody(pathname: string): boolean {
   return (
     pathname === '/swiftnest/api/approvals/settings' ||
+    /^\/swiftnest\/api\/tools\/capability\/[a-z0-9][a-z0-9-]{0,47}$/.test(pathname) ||
     [`${DEVICES_PREFIX}/transfers`, `${DEVICES_PREFIX}/preferences`, `${MODELS_PREFIX}/settings`].includes(pathname) ||
     /^\/swiftnest\/api\/models\/keys\/[^/]+$/.test(pathname)
   );

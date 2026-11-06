@@ -201,7 +201,9 @@ async function launch(paths: KernelPaths, devices: Devices, opts: StartOptions):
   const { plugins } = writeProfile(config, { bundleDir: paths.bundleDir });
   devices.plugins.loaded(plugins);
   devices.models.loaded(config.model);
-  return waitReady(spawnDsh(config, paths, devices, opts), opts);
+  const ready = await waitReady(spawnDsh(config, paths, devices, opts), opts);
+  devices.tools.loaded();
+  return ready;
 }
 
 class Kernel implements RunningKernel {
