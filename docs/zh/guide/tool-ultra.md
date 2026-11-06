@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `cfa3f829fd9b68ca3a572a139a2698f4c5f2caa9` 构建。
+Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `149d9040b501ac16b3bb95b87c773e4e736a7679` 构建。
 
 ## 安装与启用
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
-安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-cfa3f829fd9b` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-149d9040b501` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
 
 首次安装还需从 npm 下载图像和本地语音运行库，下载量因系统而异，与首次转写时下载的语音模型是两回事。网络超时后，可在连接恢复后重试同一个安装命令。
 
@@ -28,9 +28,57 @@ plugins:
 
 构建依赖使用 `mathjs 15.2.0` 安全覆盖，修复固定源码原有依赖的[表达式执行漏洞](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)；源码提交和插件默认配置保持不变。
 
+## 怎么找到工具
+
+`tools_ls` 带查询时分三层回答，先便宜的后贵的：
+
+1. **关键词** —— 查询的每个词都出现在工具名、组、分类或描述里。
+2. **排序索引** —— 关键词一个都没命中时，用同一份目录在进程内打分排序，不再要求所有词都出现。
+   它不需要模型、不需要网络，也不占 schema token：这是内存，不是工具。
+3. **模型回退** —— 关键词完全读不懂的请求，才值得让小模型看一眼。这一步需要配置模型，而 Swiftnest
+   默认不配置，所以全新安装的行为就是第一层加第二层。
+
+召回探针的实测（30 个请求，其中一半是人的说法）：改动前 80.0%，加排序索引后 **96.7%**，再配上能读懂
+最后那条请求的模型是 **100%**。
+
+## 命名工具包
+
+`capability-bridge` 让你把一组目标起个名字，一次调用就能全部备好：
+
+```yaml
+capabilities:
+  packs:
+    workstation: device:current
+    research: [pack:web, pack:media]
+```
+
+模型用 `tools_load(["cap:workstation"])` 加载它。工具包只是已有目标的一个别名，所以加载它和逐个加载
+走的是同一套审批。
+
+## MCP 服务器
+
+`pack-mcp` 会启动常见的 MCP 服务器（memory、sequential thinking、Context7、Playwright、GitHub、搜索引擎、
+Notion、地图）。**默认一个都不启动**：Swiftnest 把 `defaults` 设为 `false`，所以全新安装不会连接任何外部
+服务。只有你列出来的预设才会启动：
+
+```yaml
+mcp:
+  presets:
+    memory:
+      enabled: true
+    github:
+      enabled: true
+      env:
+        GITHUB_TOKEN: ghp_xxx
+```
+
+需要密钥或设置的预设会一直等到配置齐全；模型可以用 `mcp_presets` 工具查看每个预设的状态。已启动预设的
+工具以 `mcp__<preset>__*` 出现，可以按路径加载；其中写文件和删除类的工具标为高危，加载时同样要过风险闸
+的审批。
+
 ## 工具与审批
 
-启用的包为 `core`、`classifier-rules`、`risk-gate`、`persist`、`pack-essentials`、`pack-web`、`devices`、`pack-media`。默认配置从各包自己的 `cordis.patch.yml` 读取，生成绝对路径的 DSH `insert` 行。自定义配置放在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，最后应用且不被改写；DSH 的配置覆盖会替换整行 `config`，修改时须保留需要的其他字段。
+启用的包为 `core`、`classifier-rules`、`classifier-llm`、`risk-gate`、`persist`、`pack-essentials`、`pack-web`、`pack-mcp`、`capability-bridge`、`devices`、`pack-media`。默认配置从各包自己的 `cordis.patch.yml` 读取，生成绝对路径的 DSH `insert` 行。自定义配置放在 `<home>/dsh/profiles/swiftnest/user.patch.yml`，最后应用且不被改写；DSH 的配置覆盖会替换整行 `config`，修改时须保留需要的其他字段。
 
 模型可通过 `tools_ls` 浏览目录、`tools_find` 查找工具，通过 `tools_load` 加载。例如：
 

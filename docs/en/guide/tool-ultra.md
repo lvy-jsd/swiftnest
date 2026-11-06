@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `cfa3f829fd9b68ca3a572a139a2698f4c5f2caa9`; Tool Ultra is not published to npm.
+Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `149d9040b501ac16b3bb95b87c773e4e736a7679`; Tool Ultra is not published to npm.
 
 ## Install and enable
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
-Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-cfa3f829fd9b`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
+Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-149d9040b501`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
 
 First installation also downloads image and local speech runtime dependencies from npm; the size depends on your system. These are separate from the speech model downloaded on first transcription. After a network timeout, restore the connection and retry the same installation command.
 
@@ -28,9 +28,60 @@ Or set `SWIFTNEST_PLUGINS=tool-ultra=false`; the environment takes precedence. R
 
 The build applies a dependency override to `mathjs 15.2.0` to fix the source dependency's [expression execution vulnerability](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5). The upstream source and tool limits stay unchanged. Swiftnest sets the media folders and speech download settings.
 
+## Finding a tool
+
+`tools_ls` with a query answers in three steps, cheapest first:
+
+1. **Keyword** — every word of the query appears in the tool's name, group, category or description.
+2. **Ranked index** — when the keyword match found nothing, an in-process index over the same catalog
+   scores the words instead of requiring all of them. It needs no model and no network, and it costs
+   no schema tokens: it is memory, not a tool.
+3. **Model fallback** — a request the keyword match could not read at all is worth one small-model
+   call. This step needs a configured model, and Swiftnest does not configure one by default, so the
+   behaviour of a fresh install is steps 1 and 2.
+
+Measured on the recall probe (30 requests, half of them phrased the way a person would): 80.0% before,
+**96.7%** with the ranked index, **100%** with a model that understands the last request.
+
+## Named bundles
+
+`capability-bridge` lets you declare a named bundle of targets, so one call arms a whole set:
+
+```yaml
+capabilities:
+  packs:
+    workstation: device:current
+    research: [pack:web, pack:media]
+```
+
+The model loads it with `tools_load(["cap:workstation"])`. A bundle is only a name for targets that
+already exist, so loading it goes through the same approvals as loading them one by one.
+
+## MCP servers
+
+`pack-mcp` starts well-known MCP servers (memory, sequential thinking, Context7, Playwright, GitHub,
+search engines, Notion, maps). **Nothing starts by default**: Swiftnest sets `defaults: false`, so a
+fresh install talks to no outside service. A preset starts only when you list it:
+
+```yaml
+mcp:
+  presets:
+    memory:
+      enabled: true
+    github:
+      enabled: true
+      env:
+        GITHUB_TOKEN: ghp_xxx
+```
+
+A preset that needs a key or a setting waits until it is present, and the model can list the state of
+every preset with the `mcp_presets` tool. Tools of a running preset appear as `mcp__<preset>__*` and
+are loadable by path; write and delete tools are marked high risk, so loading them needs the risk
+gate's approval like any other high-risk tool.
+
 ## Tools and approvals
 
-The enabled packages are `core`, `classifier-rules`, `risk-gate`, `persist`, `pack-essentials`, `pack-web`, `devices` and `pack-media`. Defaults come from their own `cordis.patch.yml` files, with absolute module paths in generated DSH `insert` rows. Put overrides in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which applies last and is never overwritten. DSH replaces a row's whole `config`, so retain the other fields you need when overriding it.
+The enabled packages are `core`, `classifier-rules`, `classifier-llm`, `risk-gate`, `persist`, `pack-essentials`, `pack-web`, `pack-mcp`, `capability-bridge`, `devices` and `pack-media`. Defaults come from their own `cordis.patch.yml` files, with absolute module paths in generated DSH `insert` rows. Put overrides in `<home>/dsh/profiles/swiftnest/user.patch.yml`, which applies last and is never overwritten. DSH replaces a row's whole `config`, so retain the other fields you need when overriding it.
 
 Models use `tools_ls` to browse, `tools_find` to search and `tools_load` to load tools. For example:
 

@@ -12,14 +12,17 @@
       "source": {
         "type": "git",
         "repository": "https://github.com/lvy-jsd/dsh-tool-ultra",
-        "commit": "cfa3f829fd9b68ca3a572a139a2698f4c5f2caa9",
+        "commit": "149d9040b501ac16b3bb95b87c773e4e736a7679",
         "packages": [
           "core",
           "classifier-rules",
+          "classifier-llm",
           "risk-gate",
           "persist",
           "pack-essentials",
           "pack-web",
+          "pack-mcp",
+          "capability-bridge",
           "devices",
           "pack-media"
         ]

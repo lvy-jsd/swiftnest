@@ -52,6 +52,28 @@ function configureMedia(entry: PatchRow['insert'][number], config: ServerConfig)
   }
 }
 
+/**
+ * MCP presets: nothing starts unless the owner listed it.
+ *
+ * The upstream package starts every keyless preset by default (memory, thinking, context7,
+ * playwright), which means a fresh install talks to several outside services before the owner
+ * asked for anything. Swiftnest is off by default instead, and a preset starts only when the
+ * owner's configuration lists it with `enabled: true`.
+ */
+function configureMcp(entry: PatchRow['insert'][number], config: ServerConfig): void {
+  entry.config = {
+    ...entry.config,
+    defaults: false,
+    ...(config.mcp?.presets ? { presets: config.mcp.presets } : {}),
+  };
+}
+
+/** Named tool bundles the owner declared: `cap:<name>` arms them in one call. */
+function configureCapabilities(entry: PatchRow['insert'][number], config: ServerConfig): void {
+  if (!config.capabilities?.packs) return;
+  entry.config = { ...entry.config, packs: config.capabilities.packs };
+}
+
 /** Preserve each upstream row and its config, changing only the module location. */
 export function toolUltraPatch(dir: string, config?: ServerConfig): unknown[] {
   return TOOL_ULTRA_PACKAGES.flatMap((pkg) => {
@@ -61,6 +83,8 @@ export function toolUltraPatch(dir: string, config?: ServerConfig): unknown[] {
       for (const entry of row.insert) {
         entry.name = join(packageDir, 'lib', 'index.js');
         if (pkg === 'pack-media' && config) configureMedia(entry, config);
+        if (pkg === 'pack-mcp' && config) configureMcp(entry, config);
+        if (pkg === 'capability-bridge' && config) configureCapabilities(entry, config);
       }
     }
     return rows;
