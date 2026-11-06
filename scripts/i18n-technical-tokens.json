@@ -509,6 +509,20 @@
     "approval-card__reason",
     "approval-card__metadata",
     "approval-card__expiry",
-    "device-actions approval-card__actions"
+    "device-actions approval-card__actions",
+    "phone-header__title",
+    "status-dot chat-connection-dot",
+    "context-rail",
+    "context-rail__card",
+    "rail-devices",
+    "rail-approvals",
+    "rail-today",
+    "context-rail__running",
+    "status-dot",
+    "-subtitle",
+    "suggestion__title",
+    "suggestion__subtitle",
+    ".subtitle",
+    "page-header__back"
   ]
 }

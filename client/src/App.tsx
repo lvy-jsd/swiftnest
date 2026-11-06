@@ -4,6 +4,8 @@ import { PageNavigationProvider } from './components/PageNavigation';
 import { Preferences } from './preferences';
 import { Sidebar } from './shell';
 import { Home } from './home';
+import { ContextRail } from './contextRail';
+import { greetingKey } from './shellState';
 import { ModelsPage } from './models';
 import { Composer, ComposerProvider } from './composer';
 import { PluginsProvider, PluginsPage } from './plugins';
@@ -228,7 +230,7 @@ export function App() {
     </DeviceHubProvider>
   );
 }
-function AppRoutes({ navigation }: { navigation: ShellNavigation }) {
+function AppRoutes({ navigation, hour }: { navigation: ShellNavigation; hour: number }) {
   const { page, chatId, openPreferences } = navigation;
   const { status } = useConnection();
   if (page === 'approvals') return <ApprovalInboxPage onBack={goHome} />;
@@ -242,7 +244,7 @@ function AppRoutes({ navigation }: { navigation: ShellNavigation }) {
   return (
     <>
       <ConnectionStatus quiet />
-      <Home />
+      <Home hour={hour} />
     </>
   );
 }
@@ -263,7 +265,7 @@ function ShellSidebar({ navigation }: { navigation: ShellNavigation }) {
   );
 }
 
-function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
+function PhoneHeader({ navigation, hour }: { navigation: ShellNavigation; hour: number }) {
   const { t } = useI18n();
   const Menu = icons.menu;
   const Settings = icons.settings;
@@ -279,8 +281,8 @@ function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
       >
         <Menu size={24} />
       </IconButton>
+      <span className="phone-header__title">{t(greetingKey(hour))}</span>
       <div className="phone-header__actions">
-        <ApprovalBadge />
         {status === 'connected' && (
           <IconButton aria-label={t('newChat')} onClick={navigation.newChat}>
             <Write size={20} />
@@ -290,6 +292,7 @@ function PhoneHeader({ navigation }: { navigation: ShellNavigation }) {
           <Settings size={24} />
         </IconButton>
       </div>
+      <ApprovalBadge />
     </header>
   );
 }
@@ -334,6 +337,11 @@ function RouteAnnouncement({ hash }: { hash: string }) {
 }
 
 function AppContent() {
+  const [hour, setHour] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const timer = setInterval(() => setHour(new Date().getHours()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const navigation = useShellNavigation();
   const { offset, ...swipeHandlers } = useChatSwipe(navigation.chatId, navigation.hash);
   const style = useChatSwipeStyle(offset);
@@ -346,12 +354,13 @@ function AppContent() {
       <ShellSidebar navigation={navigation} />
       <PageNavigationProvider value={navigation}>
         <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
-          <PhoneHeader navigation={navigation} />
+          <PhoneHeader navigation={navigation} hour={hour} />
           <div ref={routeView} className="route-view" style={style}>
-            <AppRoutes navigation={navigation} />
+            <AppRoutes navigation={navigation} hour={hour} />
           </div>
         </main>
       </PageNavigationProvider>
+      <ContextRail />
       <Preferences open={navigation.preferences} onClose={navigation.closePreferences} />
     </div>
   );
