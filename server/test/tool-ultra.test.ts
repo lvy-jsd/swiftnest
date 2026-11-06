@@ -84,8 +84,8 @@ function fakeCommands(fail?: string, omitBuild = false, onCheckout?: (dir: strin
 describe('Tool Ultra', () => {
   it('pins the unpublished source and detects only a matching successful build marker', () => {
     const { dir } = setup();
-    expect(TOOL_ULTRA_SOURCE.commit).toBe('149d9040b501ac16b3bb95b87c773e4e736a7679');
-    expect(dir).toContain('/vendor/dsh-tool-ultra-149d9040b501');
+    expect(TOOL_ULTRA_SOURCE.commit).toBe('4e5c418ccd21d16107db207253d088efbd523b2f');
+    expect(dir).toContain('/vendor/dsh-tool-ultra-4e5c418ccd21');
     fixture(dir);
     expect(isBuilt(dir)).toBe(false);
     writeFileSync(join(dir, TOOL_ULTRA_MARKER), 'wrong commit');

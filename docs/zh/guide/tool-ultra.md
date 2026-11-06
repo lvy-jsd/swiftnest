@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `149d9040b501ac16b3bb95b87c773e4e736a7679` 构建。
+Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `4e5c418ccd21d16107db207253d088efbd523b2f` 构建。
 
 ## 安装与启用
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
-安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-149d9040b501` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-4e5c418ccd21` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
 
 首次安装还需从 npm 下载图像和本地语音运行库，下载量因系统而异，与首次转写时下载的语音模型是两回事。网络超时后，可在连接恢复后重试同一个安装命令。
 
@@ -27,6 +27,8 @@ plugins:
 或设置 `SWIFTNEST_PLUGINS=tool-ultra=false`，环境变量优先。安装后重启 Server 生效。其他插件见[插件](./plugins.md)。
 
 构建依赖使用 `mathjs 15.2.0` 安全覆盖，修复固定源码原有依赖的[表达式执行漏洞](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)；源码提交和插件默认配置保持不变。
+
+Tool Ultra 自带的管理面板（`panel`）随其它包一起安装启用，提供工具目录、会话占用与审计记录。它挂在 DSH 的 Settings →「工具管理」里。App 侧的 MCP 预设开关与命名能力包在**插件页**的「工具」区块中，改动需要「应用更改」重启内核才生效。
 
 ## 怎么找到工具
 

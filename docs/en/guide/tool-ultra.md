@@ -1,6 +1,6 @@
 # Tool Ultra
 
-Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `149d9040b501ac16b3bb95b87c773e4e736a7679`; Tool Ultra is not published to npm.
+Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `4e5c418ccd21d16107db207253d088efbd523b2f`; Tool Ultra is not published to npm.
 
 ## Install and enable
 
@@ -13,7 +13,7 @@ swiftnest-server start --config swiftnest.yaml
 
 In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
-Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-149d9040b501`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
+Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-4e5c418ccd21`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
 
 First installation also downloads image and local speech runtime dependencies from npm; the size depends on your system. These are separate from the speech model downloaded on first transcription. After a network timeout, restore the connection and retry the same installation command.
 
@@ -27,6 +27,8 @@ plugins:
 Or set `SWIFTNEST_PLUGINS=tool-ultra=false`; the environment takes precedence. Restart the Server after installation. See [Plugins](./plugins.md) for the others.
 
 The build applies a dependency override to `mathjs 15.2.0` to fix the source dependency's [expression execution vulnerability](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5). The upstream source and tool limits stay unchanged. Swiftnest sets the media folders and speech download settings.
+
+Tool Ultra's management panel (`panel`) installs with the other packages. It shows the tool directory, what each session holds and the audit trail, under Settings → "Tool manager" in DSH. The App switches the MCP presets and names the tool bundles in the **Plugins** page, under Tools; a saved change needs Apply changes to restart the kernel.
 
 ## Finding a tool
 
