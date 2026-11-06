@@ -16,6 +16,7 @@ it.skipIf(process.env.SWIFTNEST_TOOL_ULTRA_E2E !== '1')(
     const harness = new ToolUltraHarness(await mkdtemp(join(tmpdir(), 'swiftnest-ultra-e2e-')));
     try {
       await harness.start();
+      await verifyHybridSearch(harness.client!);
       await verifyDevices(harness.client!, harness.script.offered);
       await verifyMedia(harness.client!, harness.script.offered);
       await verifyRiskGate(harness.client!, harness.script.offered);
@@ -40,6 +41,13 @@ it.skipIf(process.env.SWIFTNEST_TOOL_ULTRA_E2E !== '1')(
   },
   240_000,
 );
+
+async function verifyHybridSearch(client: SwiftnestClient) {
+  const events = await turn(client, 'hybrid-search');
+  const listing = events.find((e) => e.type === 'tool-result');
+  expect(listing).toBeTruthy();
+  expect(String(listing && 'text' in listing ? listing.text : '')).toContain('math_eval');
+}
 
 async function verifyDevices(client: SwiftnestClient, offered: Offered) {
   const loaded = await turn(client, 'load-device');

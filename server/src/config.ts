@@ -86,6 +86,13 @@ export interface ServerConfig {
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean; auto?: boolean };
   search?: ChatSearchSettings;
+  /**
+   * MCP presets (Tool Ultra's `pack-mcp`). Nothing starts unless it is listed
+   * here with `enabled: true`, so a fresh install talks to no outside service.
+   */
+  mcp?: { presets?: Record<string, { enabled?: boolean; env?: Record<string, string>; roots?: string[] }> };
+  /** Named tool bundles (Tool Ultra's `capability-bridge`), loadable as `cap:<name>`. */
+  capabilities?: { packs?: Record<string, string | string[]> };
   devices: { host: string; port: number; mdns: boolean };
 }
 
@@ -224,6 +231,37 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
   return config;
 }
 
+/** MCP presets: a name, and optionally an enabled flag and settings. */
+function checkMcpPresets(
+  presets: ServerConfig['mcp'] extends undefined ? never : NonNullable<ServerConfig['mcp']>['presets'],
+): void {
+  if (presets === undefined) return;
+  if (typeof presets !== 'object' || presets === null || Array.isArray(presets))
+    throw new ServerFailure(text('mcpPresetsInvalid'));
+  for (const [id, preset] of Object.entries(presets)) {
+    if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(id)) throw new ServerFailure(text('mcpPresetIdInvalid', id));
+    if (preset !== undefined && (typeof preset !== 'object' || preset === null || Array.isArray(preset)))
+      throw new ServerFailure(text('mcpPresetsInvalid'));
+    if (preset?.enabled !== undefined && typeof preset.enabled !== 'boolean')
+      throw new ServerFailure(text('mcpPresetsInvalid'));
+  }
+}
+
+/** Capability bundles: a name, and the target(s) it stands for. */
+function checkCapabilityPacks(
+  packs: ServerConfig['capabilities'] extends undefined ? never : NonNullable<ServerConfig['capabilities']>['packs'],
+): void {
+  if (packs === undefined) return;
+  if (typeof packs !== 'object' || packs === null || Array.isArray(packs))
+    throw new ServerFailure(text('capabilityPacksInvalid'));
+  for (const [name, targets] of Object.entries(packs)) {
+    if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(name)) throw new ServerFailure(text('capabilityPackNameInvalid', name));
+    const list = typeof targets === 'string' ? [targets] : targets;
+    if (!Array.isArray(list) || list.some((one) => typeof one !== 'string' || !one.trim()))
+      throw new ServerFailure(text('capabilityPackInvalid', name));
+  }
+}
+
 export function validate(config: ServerConfig): void {
   checkedApprovals(config.approvals);
   checkedRelayConfig(config.relay);
@@ -238,6 +276,8 @@ export function validate(config: ServerConfig): void {
   validateMediaUrl(config.media?.soundfontUrl, 'media.soundfont_url_invalid');
   if (config.media?.soundfont !== undefined && typeof config.media.soundfont !== 'string')
     throw new ServerFailure(text('media.soundfont_path_invalid'));
+  checkMcpPresets(config.mcp?.presets);
+  checkCapabilityPacks(config.capabilities?.packs);
   checkOverrides(config.plugins);
   if (config.files && (!Number.isSafeInteger(config.files.quotaBytes) || config.files.quotaBytes < 0))
     throw new ServerFailure(text('filesQuotabytesMustNonnegativeSafeInteger'));

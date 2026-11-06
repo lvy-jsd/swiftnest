@@ -38,6 +38,9 @@ function toolSteps(shared: string): Record<string, ToolCall[]> {
       { name: 'tools_load', arguments: { targets: ['math_eval'] } },
       { name: 'math_eval', arguments: { expression: '2 inch to cm' } },
     ],
+    // A plain-language request: "kilometers" appears nowhere in the tool's
+    // description, so only the ranked index can answer it.
+    'hybrid-search': [{ name: 'tools_ls', arguments: { query: 'how many kilometers are in a mile' } }],
     'load-device': [
       { name: 'tools_ls', arguments: { path: '/device' } },
       { name: 'tools_load', arguments: { targets: ['device:all'] } },

@@ -83,8 +83,8 @@ function fakeCommands(fail?: string, omitBuild = false) {
 describe('Tool Ultra', () => {
   it('pins the unpublished source and detects only a matching successful build marker', () => {
     const { dir } = setup();
-    expect(TOOL_ULTRA_SOURCE.commit).toBe('cfa3f829fd9b68ca3a572a139a2698f4c5f2caa9');
-    expect(dir).toContain('/vendor/dsh-tool-ultra-cfa3f829fd9b');
+    expect(TOOL_ULTRA_SOURCE.commit).toBe('149d9040b501ac16b3bb95b87c773e4e736a7679');
+    expect(dir).toContain('/vendor/dsh-tool-ultra-149d9040b501');
     fixture(dir);
     expect(isBuilt(dir)).toBe(false);
     writeFileSync(join(dir, TOOL_ULTRA_MARKER), 'wrong commit');
@@ -107,7 +107,7 @@ describe('Tool Ultra', () => {
     const { dir } = setup();
     fixture(dir);
     const rows = toolUltraPatch(dir) as { insert: { name: string; config: unknown }[] }[];
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(TOOL_ULTRA_PACKAGES.length);
     rows.forEach((row, i) => {
       const pkg = TOOL_ULTRA_PACKAGES[i];
       const file = join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'cordis.patch.yml');
@@ -116,6 +116,31 @@ describe('Tool Ultra', () => {
       expect(isAbsolute(row.insert[0]!.name)).toBe(true);
       expect(readFileSync(file, 'utf8')).toContain(`upstream-${pkg}`);
     });
+  });
+
+  it('keeps MCP presets off until the owner lists one', () => {
+    const { config, dir } = setup();
+    fixture(dir);
+    const rows = toolUltraPatch(dir, config) as { insert: { name: string; config: Record<string, unknown> }[] }[];
+    const mcp = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-pack-mcp'));
+    expect(mcp).toBeTruthy();
+    // The upstream package starts every keyless preset by default; Swiftnest does not.
+    expect(mcp!.insert[0]!.config.defaults).toBe(false);
+  });
+
+  it("passes the owner's MCP presets and capability bundles to the packages", () => {
+    const { config, dir } = setup();
+    fixture(dir);
+    const withPresets = {
+      ...config,
+      mcp: { presets: { memory: { enabled: true } } },
+      capabilities: { packs: { workstation: 'device:current' } },
+    };
+    const rows = toolUltraPatch(dir, withPresets) as { insert: { name: string; config: Record<string, unknown> }[] }[];
+    const mcp = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-pack-mcp'));
+    expect(mcp!.insert[0]!.config.presets).toEqual({ memory: { enabled: true } });
+    const bridge = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-capability-bridge'));
+    expect(bridge!.insert[0]!.config.packs).toEqual({ workstation: 'device:current' });
   });
 
   it('installs exactly the commit, uses npm ci and build, then becomes a no-op', async () => {
