@@ -84,7 +84,7 @@ function useRefresh<V extends Applyable>(source: OwnerSource<V>, state: RefreshS
         setView(next);
         setOwner(client);
         setFailed(false);
-        store.expectPluginRestart(applyBusy(next));
+        store.expectPluginRestart(applyBusy(next), source);
       } catch (error) {
         if (ended) return;
         setFailed(true);
@@ -101,8 +101,9 @@ function useRefresh<V extends Applyable>(source: OwnerSource<V>, state: RefreshS
     return () => {
       ended = true;
       stop();
+      store.expectPluginRestart(false, source);
     };
-  }, [client, store, locale, restarting, revision, mutating, read, event, setView, setOwner, setFailed]);
+  }, [client, store, locale, restarting, revision, mutating, read, event, source, setView, setOwner, setFailed]);
 }
 
 /** One owner-only view, kept fresh while connected and through a kernel restart. */
@@ -138,12 +139,12 @@ export function useOwnerResource<V extends Applyable>(source: OwnerSource<V>): O
       if (store.client !== client) return false;
       setView(next);
       setFailed(false);
-      store.expectPluginRestart(applyBusy(next));
+      store.expectPluginRestart(applyBusy(next), source);
       return true;
     } catch {
       if (store.client === client) {
         setFailed(true);
-        store.expectPluginRestart(applyBusy(view));
+        store.expectPluginRestart(applyBusy(view), source);
       }
       return false;
     } finally {

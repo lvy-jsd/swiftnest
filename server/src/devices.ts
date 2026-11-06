@@ -23,6 +23,7 @@ import { handleDeviceRequest, PREFIX, type DeviceHub } from './device-routes.js'
 import { hasBearer } from './http.js';
 import { installPlugins } from './plugin-install.js';
 import { KernelApply } from './kernel-apply.js';
+import { ToolSettingsManager } from './tool-settings.js';
 import { ModelManager } from './model-manager.js';
 import { ModelSettingsStore } from './model-settings.js';
 import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
@@ -148,6 +149,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     changed: () => publish('plugins-changed'),
     log,
   });
+  const tools = new ToolSettingsManager(config, { kernel, changed: () => publish('tools-changed') });
   const models = new ModelManager(ModelSettingsStore.open(config.home), {
     kernel,
     changed: () => publish('models-changed'),
@@ -161,6 +163,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     approvals,
     preferences,
     plugins,
+    tools,
     models,
     streams,
     publish,
@@ -194,6 +197,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
       await registry.flush();
       await preferences.flush();
       await plugins.flush();
+      await tools.flush();
       await models.flush();
     })());
 
@@ -212,9 +216,10 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     return {
       nest,
       plugins,
+      tools,
       models,
-      /** The config the kernel runs with: the owner's plugin switches and models applied. */
-      config: () => models.config(plugins.config()),
+      /** The config used to generate the profile: the owner's plugins, tool settings and models applied. */
+      config: () => models.config(tools.config(plugins.config())),
       mcpUrl: mcp.url,
       lanUrl: lan.url,
       env: { [MCP_TOKEN_ENV]: mcpToken, [ADMIN_TOKEN_ENV]: adminToken, [ADMIN_URL_ENV]: `http://127.0.0.1:${port}` },

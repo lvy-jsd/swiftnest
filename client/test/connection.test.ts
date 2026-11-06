@@ -258,6 +258,33 @@ it('recovers an expected restart with backoff, preserving sessions and using the
     vi.useRealTimers();
   }
 });
+it('keeps a tool restart expected when the plugin resource polls an idle view', async () => {
+  const { store, sockets } = restartHarness();
+  const tools = {};
+  const plugins = {};
+  try {
+    await store.pair(url);
+    store.expectPluginRestart(true, tools);
+    store.expectPluginRestart(false, plugins);
+    sockets[0]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot()).toMatchObject({ status: 'connecting', pluginRestart: 'reconnecting' });
+  } finally {
+    store.disconnect();
+  }
+});
+it('clears a resource restart expectation after apply finishes', async () => {
+  const { store, sockets } = restartHarness();
+  const tools = {};
+  try {
+    await store.pair(url);
+    store.expectPluginRestart(true, tools);
+    store.expectPluginRestart(false, tools);
+    sockets[0]!.dispatchEvent(new Event('close'));
+    expect(store.getSnapshot().status).toBe('disconnected');
+  } finally {
+    store.disconnect();
+  }
+});
 it('turns revoked native credential rejection into a single re-pair step, then keeps sessions on successful pairing', async () => {
   const { ApiError } = await import('@swiftnest/api');
   const { store, sockets, clients } = restartHarness(

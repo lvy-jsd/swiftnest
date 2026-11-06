@@ -45,6 +45,14 @@ Tool Ultra's management panel (`panel`) installs with the other packages. It sho
 Measured on the recall probe (30 requests, half of them phrased the way a person would): 80.0% before,
 **96.7%** with the ranked index, **100%** with a model that understands the last request.
 
+## Control tools in the App
+
+Open **Settings → Plugins → Tools**. Under **MCP presets**, turn each service on or off independently. All presets are off by default. If an enabled preset is waiting for a key or allowed folders, its row shows the missing setting and Tool Ultra's hint about where to obtain it. Ask the server administrator to add that setting to the preset's YAML configuration or server environment. The list comes from the installed Tool Ultra build; install and enable the plugin if it is empty.
+
+Under **Named capability bundles**, enter a name and one target per line, then choose **Save bundle**. Existing bundles show their names and targets; save the same name to replace its targets, or choose **Delete** to remove it. Names use 1–48 lowercase letters, digits or dashes and start with a letter or digit. For example, name a bundle `research` with targets `pack:web` and `pack:media`. The assistant can load it as `cap:research`; permissions and approvals still apply.
+
+Changes are saved in `<home>/tool-settings.json` and override YAML switches and bundle declarations. Deleting a bundle also overrides a YAML declaration, so it stays deleted after restart. **Choose Apply changes to restart the kernel before any of these changes take effect.** If the new tool settings cannot start, Swiftnest restores the previous settings and restarts again.
+
 ## Named bundles
 
 `capability-bridge` lets you declare a named bundle of targets, so one call arms a whole set:

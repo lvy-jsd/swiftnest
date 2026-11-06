@@ -250,7 +250,7 @@ function checkMcpPresets(
 }
 
 /** Capability bundles: a name, and the target(s) it stands for. */
-function checkCapabilityPacks(
+export function checkCapabilityPacks(
   packs: ServerConfig['capabilities'] extends undefined ? never : NonNullable<ServerConfig['capabilities']>['packs'],
 ): void {
   if (packs === undefined) return;
@@ -259,7 +259,7 @@ function checkCapabilityPacks(
   for (const [name, targets] of Object.entries(packs)) {
     if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(name)) throw new ServerFailure(text('capabilityPackNameInvalid', name));
     const list = typeof targets === 'string' ? [targets] : targets;
-    if (!Array.isArray(list) || list.some((one) => typeof one !== 'string' || !one.trim()))
+    if (!Array.isArray(list) || !list.length || list.some((one) => typeof one !== 'string' || !one.trim()))
       throw new ServerFailure(text('capabilityPackInvalid', name));
   }
 }

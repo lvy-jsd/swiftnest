@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import type { PluginsView, PluginView } from '@swiftnest/api';
+import { ToolsSection, toolsSource } from './tools';
 import { ApplyPanel, type ApplyWords } from './applyPanel';
 import { useConnection } from './connection';
 import { useI18n } from './i18n';
@@ -112,8 +113,9 @@ export function PluginsPage({ onBack }: { onBack: () => void }) {
   const { view, owner, busy, failed, act } = usePlugins();
   const { store, status } = useConnection();
   const { t } = useI18n();
+  const tools = useOwnerResource(toolsSource);
   const [confirm, setConfirm] = useState<PluginView>();
-  const disabled = busy || applyBusy(view) || status !== 'connected';
+  const disabled = busy || tools.busy || applyBusy(view) || applyBusy(tools.view) || status !== 'connected';
   const save = async (plugin: PluginView) => {
     if (await act(() => store.client!.setPluginEnabled(plugin.id, !plugin.enabled))) setConfirm(undefined);
   };
@@ -129,7 +131,7 @@ export function PluginsPage({ onBack }: { onBack: () => void }) {
           <ApplyPanel
             view={view}
             words={pluginApplyWords}
-            busy={busy}
+            busy={busy || tools.busy}
             page="plugins"
             apply={() => void act(() => store.client!.applyPlugins())}
           />
@@ -138,6 +140,7 @@ export function PluginsPage({ onBack }: { onBack: () => void }) {
             <PluginCard key={plugin.id} plugin={plugin} disabled={disabled} toggle={() => toggle(plugin)} />
           ))}
           <CommunityPlugins packages={view.unaudited} />
+          <ToolsSection resource={tools} disabled={disabled} />
         </>
       ) : (
         <p role="status">{t(failed ? 'pluginsOwnerOnly' : 'pluginsLoading')}</p>

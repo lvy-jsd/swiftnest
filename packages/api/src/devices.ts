@@ -34,6 +34,7 @@ export type DeviceEvent = {
     | 'approvals-changed'
     | 'pairing-changed'
     | 'transfers-changed'
+    | 'tools-changed'
     | 'plugins-changed'
     | 'models-changed'
     | 'memory-changed';

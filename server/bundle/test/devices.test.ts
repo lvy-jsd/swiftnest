@@ -132,3 +132,29 @@ it('keeps inbox settings owner-only and stamps the answering credential instead 
   expect((await fetch(path, { method: 'POST', body: 'x'.repeat(32769) })).status).toBe(413);
   expect((await fetch(`${proxy}/swiftnest/control/approvals/request`, { method: 'POST' })).status).toBe(404);
 });
+
+it('forwards tool settings and bounded capability targets only for the owner', async () => {
+  const received: { path?: string; body: string }[] = [];
+  const upstream = await listen(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    received.push({ path: req.url, body });
+    res.end('{}');
+  });
+  const admit = vi.fn().mockReturnValue({ peer: { principal: { kind: 'agent' } } });
+  const handler = deviceProxy({ admit }, upstream, 'secret');
+  const proxy = await listen((req, res) => void handler(req, res));
+  const path = `${proxy}/swiftnest/api/tools/capability/research`;
+  const body = JSON.stringify({ targets: ['pack:web'] });
+  expect((await fetch(path, { method: 'POST', body })).status).toBe(403);
+  expect(received).toEqual([]);
+  admit.mockReturnValue({ peer: { principal: { kind: 'owner' } } });
+  expect((await fetch(path, { method: 'POST', body })).status).toBe(200);
+  expect(received.at(-1)).toEqual({ path: '/swiftnest/api/tools/capability/research', body });
+  expect((await fetch(path, { method: 'POST', body: 'x'.repeat(32769) })).status).toBe(413);
+  expect(
+    (await fetch(`${proxy}/swiftnest/api/tools/mcp/local/enable`, { method: 'POST', body: 'discard' })).status,
+  ).toBe(200);
+  expect(received.at(-1)?.body).toBe('');
+  expect((await fetch(`${proxy}/swiftnest/api/toolsx`)).status).toBe(404);
+});

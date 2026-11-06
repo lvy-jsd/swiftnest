@@ -57,6 +57,7 @@ export class ConnectionStore {
   client?: SwiftnestClient;
   private generation = 0;
   private expectingRestart = false;
+  private restartSources = new Set<object>();
   private unpairing = false;
   private relaySecrets = new Map<string, string>();
   private channelPins = new Map<string, ChannelPairing>();
@@ -243,8 +244,12 @@ export class ConnectionStore {
       },
     };
   }
-  expectPluginRestart(expected: boolean): void {
-    this.expectingRestart = expected;
+  expectPluginRestart(expected: boolean, source?: object): void {
+    if (source) {
+      if (expected) this.restartSources.add(source);
+      else this.restartSources.delete(source);
+    }
+    this.expectingRestart = expected || this.restartSources.size > 0;
   }
   private startPluginReconnect(): void {
     ++this.generation;
@@ -337,6 +342,7 @@ export class ConnectionStore {
     ++this.generation;
     clearTimeout(this.retry);
     this.expectingRestart = false;
+    this.restartSources.clear();
     const previous = this.client;
     this.client = undefined;
     this.activeOptions = undefined;

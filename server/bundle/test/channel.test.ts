@@ -321,3 +321,19 @@ it('allows only the owner inbox routes through the encrypted App channel', () =>
   ])
     expect(channelRoute(method!, path!)).toBe(false);
 });
+
+it('allows only the App tool routes over the encrypted channel', () => {
+  expect(channelRoute('GET', '/swiftnest/api/tools')).toBe(true);
+  for (const path of [
+    'apply',
+    'mcp/local/enable',
+    'mcp/local/disable',
+    'capability/research',
+    'capability/research/delete',
+  ]) {
+    expect(channelRoute('POST', `/swiftnest/api/tools/${path}`)).toBe(true);
+  }
+  expect(channelRoute('POST', '/swiftnest/api/tools/capability/Bad')).toBe(false);
+  expect(channelRoute('POST', '/swiftnest/api/tools/mcp/local/delete')).toBe(false);
+  expect(channelRoute('GET', '/swiftnest/control/tools')).toBe(false);
+});

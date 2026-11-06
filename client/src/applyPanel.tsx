@@ -10,8 +10,13 @@ import { applyBusy, applyProgress, type Applyable } from './pluginState';
 import { Button } from './components/Button';
 import { Card } from './components/Card';
 
-/** The page-specific words: progress before the restart, the rollback notice and the help line. */
-export type ApplyWords = { preparing: StringKey; restored: StringKey; help: StringKey };
+/**
+ * The page-specific words: progress before the restart, the rollback notice and the help line.
+ *
+ * `restarting` is optional: a page that shows more than one apply panel needs its own
+ * wording, or both panels say the same thing and a reader cannot tell them apart.
+ */
+export type ApplyWords = { preparing: StringKey; restored: StringKey; help: StringKey; restarting?: StringKey };
 
 type Failure = { error?: { code: string; message: string; hint: string } };
 
@@ -26,7 +31,8 @@ export function ApplyStatus({
 }) {
   const { t, locale } = useI18n();
   const progress = applyProgress(view);
-  const progressKey = progress === 'restarting' ? 'pluginsRestarting' : progress && words[progress];
+  const restartingWord = words.restarting ?? 'pluginsRestarting';
+  const progressKey = progress === 'restarting' ? restartingWord : progress && words[progress];
   const failure =
     view.apply.state === 'failed' && !view.apply.rolledBack && view.apply.error
       ? localizedError(view.apply.error, locale)
@@ -34,7 +40,7 @@ export function ApplyStatus({
   if (!progressKey && !restarting && !failure) return null;
   return (
     <Card className="plugin-apply" role={failure ? 'alert' : 'status'}>
-      {restarting ? t('pluginsRestarting') : progressKey ? t(progressKey) : null}
+      {restarting ? t(restartingWord) : progressKey ? t(progressKey) : null}
       {failure && (
         <>
           <p>{failure.message}</p>
