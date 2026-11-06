@@ -802,5 +802,11 @@
   "toolsCategorySystem": "System",
   "toolsCategorySearch": "Search",
   "toolsCategoryCollaboration": "Collaboration",
-  "toolsCategoryMaps": "Maps"
+  "toolsCategoryMaps": "Maps",
+  "chat.code": "Code",
+  "chat.copyCode": "Copy code",
+  "chat.codeCopied": "Copied",
+  "chat.copyFailed": "Could not copy. Select the code and copy it manually.",
+  "chat.imageLink": "Open image",
+  "chat.table": "Table"
 }
