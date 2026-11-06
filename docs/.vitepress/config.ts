@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 // Chinese is the default; English pages have matching Chinese counterparts.
 export default defineConfig({
   title: 'Swiftnest',
-  description: '把你的设备变成智能体能安全调用的能力。',
+  description: '以 DSH 为内核，同一个 AI 助手连接你的电脑与手机。',
   cleanUrls: true,
   locales: {
     root: {

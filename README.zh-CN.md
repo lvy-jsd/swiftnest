@@ -1,12 +1,12 @@
 <p align="center">
   <b>Swiftnest（燕巢）</b><br>
-  把你的设备变成任何智能体都能安全调用的能力。
+  以 DSH 为内核，让同一个 AI 助手跨电脑和手机办事。
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="许可证：Apache-2.0"></a>
   <a href="package.json"><img src="https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg" alt="Node.js：>=24"></a>
-  <img src="https://img.shields.io/badge/status-early%20stage%20(M1)-orange.svg" alt="状态：早期（M1）">
+  <img src="https://img.shields.io/badge/status-preview-orange.svg" alt="状态：预览版本">
 </p>
 
 <p align="center">
@@ -17,14 +17,15 @@
 
 ## 它是什么
 
-你的智能体（Claude Desktop、Cursor、DSH、OpenClaw……）想帮你操作电脑、手机、家里的服务器时，Swiftnest 负责中间那一层：
+Swiftnest 是一个完整的个人 AI Bot 产品：以 DSH 为运行内核和架构蓝图，以 Grok Bot 为产品定位参考，借鉴 ds-bot、ds-go 的产品与交互思路，重点打磨多设备体验。界面和资源独立实现，不复制参考项目的代码或素材。
 
-- **配对** — 设备输入 6 位一次性码加入，两边核对指纹后，之后只认这台设备的密钥；链路端到端加密。
-- **能力** — 每台设备上的功能都是插件，任何现成的 MCP 服务都能直接变成能力。
-- **安全** — 只读操作直接放行；改动、执行、删除需要你批准；每次调用都记审计日志。
-- **任何智能体** — 对外就是一个标准的 MCP 端点，工具名形如 `laptop__shell__run`。
+- **同一个助手，多台设备** — 一个中心服务器连接电脑、手机等配套应用；聊天、记忆、工具和设备能力组成同一条使用流程。
+- **兼顾大众与极客** — 常用功能使用安全默认值；模型、插件、自托管和高级配置保留扩展空间。部署可以交给 AI，不要求每位使用者掌握安装细节。
+- **工具覆盖场景，上下文按需使用** — [Tool Ultra](https://github.com/lvy-jsd/dsh-tool-ultra) 是重要组成部分，以一个工具插件产品组织不同场景的能力，按需发现与加载，而不是把全部工具说明塞进每次请求。
+- **控制权在用户手里** — 设备配对核对身份，调用受权限与审批约束，并保留审计；云端服务与媒体上传按对应设置和用户授权启用。
+- **保留开放接口** — 设备能力仍可通过标准 MCP 接口提供给其他智能体；这也是完整助手产品的一部分。
 
-它不是个人助手：对话、记忆、人格交给你喜欢的智能体，Swiftnest 只管设备。
+当前是预览版本。已实现的功能和限制以对应指南及测试记录为准；产品方向不代表所有平台、场景和网络条件已经完成验收。
 
 ## 概念
 
@@ -34,7 +35,22 @@
 | **设备（栖点 / Perch）** | 每台被控设备上跑的程序                                                     |
 | **插件**                 | 一切功能：设备能力、连接方式、交互入口、权限策略……                         |
 
-## 快速开始
+## 运行助手
+
+需要 Node.js 24 或更新，以及一个 OpenAI 兼容的模型服务。DSH 内核需要 nodejs.org 官方构建的 Node；NixOS 环境要求启用 nix-ld，仓库的 `nix develop` 提供开发工具。
+
+```sh
+git clone https://github.com/lvy-jsd/swiftnest.git && cd swiftnest
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --filter @swiftnest/app build:web
+node server/dist/cli.js plugins install
+SWIFTNEST_APP_DIST="$PWD/client/dist" node server/dist/cli.js start
+```
+
+打开服务器打印的 App 配对链接。默认模型端点为 `http://127.0.0.1:11434/v1`；模型 ID 和端点可通过服务器配置或 App 的模型页调整。完整配置见 [Server](server/README.zh-CN.md)，原生桌面与 Android 构建见 [App](client/README.zh-CN.md)。
+
+## 可选：单独体验设备协议
 
 需要 Node.js 24 或更新。
 

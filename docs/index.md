@@ -1,24 +1,22 @@
 ---
-
 layout: home
 hero:
-name: Swiftnest（燕巢）
-tagline: 把你的设备变成任何智能体都能安全调用的能力
-actions:
-- theme: brand
-  text: 快速开始
-  link: /zh/guide/quickstart
-- theme: alt
-  text: 写第一个插件
-  link: /zh/guide/write-a-plugin
-  features:
-- title: 一切皆插件
-  details: 设备能力、连接方式、交互入口、权限策略都是插件；任何现成的 MCP 服务都能直接变成能力。
-- title: 默认安全
-  details: 只读放行，改动和执行要你批准；审批显示原始参数；每次调用都写审计日志；智能体永远不能批准自己。
-- title: 任何智能体都能用
-  details: 对外就是一个标准 MCP 端点。Claude Desktop、Cursor、DSH、OpenClaw 都是它的客户端。
-- title: 新人友好
-  details: 一台机器就能试；出错告诉你怎么修；写一个插件不超过十分钟。
-
+  name: Swiftnest（燕巢）
+  tagline: 同一个 AI 助手，连接你的电脑与手机
+  actions:
+    - theme: brand
+      text: 运行助手
+      link: https://github.com/lvy-jsd/swiftnest#运行助手
+    - theme: alt
+      text: Tool Ultra
+      link: /zh/guide/tool-ultra
+features:
+  - title: 多设备体验
+    details: 以 DSH 为内核，连接聊天、记忆、工具与设备能力；一个中心服务器，多端配套应用。
+  - title: 大众与极客
+    details: 常用功能采用安全默认值，部署可交给 AI；高级配置、自托管与插件保留扩展空间。
+  - title: All-in-One 工具
+    details: Tool Ultra 覆盖不同任务场景，按需发现和加载工具，避免每次携带全量工具说明。
+  - title: 用户掌控
+    details: 设备配对、权限、审批与审计贯穿操作流程；标准 MCP 接口也可供其他智能体使用。
 ---

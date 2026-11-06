@@ -1,5 +1,7 @@
 # Swiftnest Design v0.3
 
+> Historical design record: this document preserves the early device-capability-layer design and decisions. The current product is a complete multi-device AI Bot powered by DSH; see the [project README](https://github.com/lvy-jsd/swiftnest/blob/main/README.en.md) for its positioning and runtime workflow.
+
 > Current language policy (F1): Simplified Chinese is the default in the App, CLI and docs; English is selectable. This supersedes the earlier equal-default proposal below.
 
 
