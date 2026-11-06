@@ -139,6 +139,8 @@ export const en = {
   'shell.searchShortcutCommand': '⌘K',
   'shell.searchShortcutControl': 'Ctrl K',
   noChats: 'No chats found. Try another search.',
+  noChatsYet: 'No chats yet. Start one to begin.',
+  noRunningChats: 'No running chats right now.',
   assistant: 'Assistant',
   you: 'You',
   composer: 'Write a message',
@@ -350,6 +352,7 @@ export const en = {
   'rail.today': 'Today',
   'rail.unavailable': 'Status unavailable',
   'rail.noDevices': 'No devices yet',
+  'rail.noToday': 'Nothing today yet.',
 
   chatSearchDisabled: messageEn.chatSearchDisabled,
   chatSearchFailed: messageEn.chatSearchFailed,
@@ -522,6 +525,8 @@ export const zhCN: Record<StringKey, string> = {
   'shell.searchShortcutCommand': '⌘K',
   'shell.searchShortcutControl': 'Ctrl K',
   noChats: '未找到聊天，请换个关键词。',
+  noChatsYet: '还没有对话。新建一个开始吧。',
+  noRunningChats: '当前没有进行中的对话。',
   assistant: '助手',
   you: '你',
   composer: '输入消息',
@@ -729,6 +734,7 @@ export const zhCN: Record<StringKey, string> = {
   'rail.today': '今天',
   'rail.unavailable': '暂无状态信息',
   'rail.noDevices': '暂无设备',
+  'rail.noToday': '今天还没有对话。',
 
   chatSearchDisabled: messageZh.chatSearchDisabled,
   chatSearchFailed: messageZh.chatSearchFailed,

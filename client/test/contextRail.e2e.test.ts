@@ -72,6 +72,10 @@ window.__contextRail = {
     state = { ...state, sessions: state.sessions.map(s => ({ ...s, title: undefined })) };
     for (const notify of listeners) notify();
   },
+  clearSessions() {
+    state = { ...state, sessions: [] };
+    for (const notify of listeners) notify();
+  },
 };
 createRoot(document.getElementById('root')).render(
   <ThemeProvider><I18nProvider initialLocale={locale}><ConnectionProvider store={store}>
@@ -383,4 +387,22 @@ describe.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('context rail layout matr
       }
     }
   }
+
+  it('says what is empty instead of blaming the search', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    try {
+      await page.goto(`${server.resolvedUrls!.local[0]}__context_rail?locale=zh-CN`);
+      await page.locator('.suggestion').last().waitFor();
+      await page.evaluate(() => (window as any).__contextRail.clearSessions());
+      // "Try another search" is wrong when there was never a chat to search for.
+      await expect
+        .poll(() => page.locator('.sidebar-empty').first().textContent())
+        .toBe(translate('zh-CN', 'noChatsYet'));
+      await expect
+        .poll(() => page.locator('.context-rail__card').nth(2).locator('p').textContent())
+        .toBe(translate('zh-CN', 'rail.noToday'));
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });

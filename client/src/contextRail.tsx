@@ -73,7 +73,7 @@ export function ContextRail() {
             ))}
           </ul>
         ) : (
-          <p>{t('noChats')}</p>
+          <p>{t('rail.noToday')}</p>
         )}
       </section>
     </aside>
