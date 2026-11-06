@@ -186,6 +186,8 @@ export const TaskSnapshot = z.object({
   error: SwiftnestError.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Whether the call already reached the device and started running. Tells "cancelled" from "stopped". */
+  started: z.boolean().optional(),
 });
 export type TaskSnapshot = z.infer<typeof TaskSnapshot>;
 
@@ -259,6 +261,15 @@ export const ClassifyResult = z.object({
   risk: Risk,
   reason: z.string().optional(),
   reasonText: WireText.optional(),
+  /**
+   * The capability states that this call cannot succeed at all (a path outside the folders the device
+   * shares, a protected location). The policy denies it instead of asking the owner to approve a call
+   * that would fail right after approval. Absent means "just a rating".
+   */
+  refused: z.boolean().optional(),
+  /** What to do about it, from the capability that refused: better than a generic "ask the owner". */
+  hint: z.string().optional(),
+  hintText: WireText.optional(),
 });
 /** The Perch's capabilities changed (a plugin was added or removed). */
 export const CapabilitiesUpdate = z.object({

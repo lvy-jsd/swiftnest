@@ -259,7 +259,15 @@ function remoteConnection(
         return;
       case 'classified': {
         const reasonText = isText(m.reasonText) ? m.reasonText : undefined;
-        classifications.get(m.requestId)?.({ risk: m.risk, reason: m.reason, reasonText });
+        const hintText = isText(m.hintText) ? m.hintText : undefined;
+        classifications.get(m.requestId)?.({
+          risk: m.risk,
+          reason: m.reason,
+          reasonText,
+          refused: m.refused,
+          hint: m.hint,
+          hintText,
+        });
         classifications.delete(m.requestId);
         return;
       }

@@ -63,4 +63,36 @@ describe('cap-files', () => {
     expect(cap.classify!('move', { from: 'a.txt', to: join(outside, 'x') })?.risk).toBe('sensitive');
     expect(cap.classify!('read', { path: '~/.ssh/id_ed25519' })?.risk).toBe('sensitive');
   });
+
+  it('marks a path it would refuse as refused, so the owner is never asked to approve it', async () => {
+    const { outside, cap } = await setup();
+    // A usable path is only a rating: the policy still decides.
+    expect(cap.classify!('read', { path: 'a.txt' })).toEqual({ risk: 'read' });
+    // These cannot succeed, whatever the owner answers.
+    expect(cap.classify!('read', { path: join(outside, 'secret.txt') })).toMatchObject({
+      risk: 'sensitive',
+      refused: true,
+    });
+    expect(cap.classify!('read', { path: 'keys/id' })).toMatchObject({ risk: 'sensitive', refused: true });
+    expect(cap.classify!('move', { from: 'a.txt', to: join(outside, 'x') })).toMatchObject({ refused: true });
+    expect(cap.classify!('delete', { path: '../outside/secret.txt' })).toMatchObject({ refused: true });
+  });
+
+  it('names the real problem when the filesystem says no', async () => {
+    const { call } = await setup();
+    // A missing file used to surface as a raw errno string with "check the connection and settings".
+    await expect(call('stat', { path: 'nope.txt' })).rejects.toMatchObject({
+      code: 'PATH_MISSING',
+      message: 'nope.txt does not exist.',
+      suggestion: 'List the folder on the device to see what is there.',
+    });
+    await expect(call('read', { path: 'nope/missing.txt' })).rejects.toMatchObject({ code: 'PATH_MISSING' });
+    // Writing over a folder: EISDIR, said in words instead of errno 21.
+    await expect(call('write', { path: 'sub', content: 'x' })).rejects.toMatchObject({
+      code: 'NOT_A_FILE',
+      message: 'sub is a folder.',
+    });
+    // Reading a folder is refused before an OS error can happen.
+    await expect(call('read', { path: 'sub' })).rejects.toMatchObject({ code: 'NOT_A_FILE' });
+  });
 });

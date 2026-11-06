@@ -22,6 +22,13 @@ pub struct Classification {
     pub reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason_text: Option<crate::i18n::Text>,
+    /// Set when the call cannot succeed at all: the Nest denies it instead of asking the owner to
+    /// approve something that would fail straight after their answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refused: Option<bool>,
+    /// What to do instead, when this capability knows better than "ask the owner".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint_text: Option<crate::i18n::Text>,
 }
 impl Classification {
     pub fn new(risk: Risk, reason: impl Into<crate::Words>) -> Self {
@@ -30,7 +37,15 @@ impl Classification {
             risk,
             reason: Some(reason),
             reason_text,
+            refused: None,
+            hint_text: None,
         }
+    }
+    /// The same rating, marked as a call that would be refused anyway, with what to do instead.
+    pub fn refusing(mut self, hint: crate::i18n::Text) -> Self {
+        self.refused = Some(true);
+        self.hint_text = Some(hint);
+        self
     }
 }
 /// What a tool returns to the agent. `text` is English, like every tool result the agent reads.

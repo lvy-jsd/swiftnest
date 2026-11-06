@@ -98,6 +98,26 @@ describe('MCP surface (M0 acceptance)', () => {
     expect((done.content as TextContent)[0]!.text).toBe('APPROVED');
   });
 
+  it('says a running call was stopped part-way, not that nothing ran', async () => {
+    const res = await client.callTool({ name: 'sim__shell__run', arguments: { command: 'sleep 5' } });
+    const { task_id } = res.structuredContent as { task_id: string };
+    await nest.tasks.approve(task_id, 'test owner');
+    await new Promise((r) => setTimeout(r, 150)); // let it reach the device and start
+    expect(nest.tasks.get(task_id)?.started).toBe(true);
+
+    const cancelled = await client.callTool({ name: 'swiftnest__task_cancel', arguments: { task_id } });
+    expect(cancelled.isError).toBeFalsy();
+    expect((cancelled.content as TextContent)[0]!.text).toMatch(/already started/);
+    // A call that never started still says nothing was executed.
+    const pending = await client.callTool({ name: 'sim__shell__run', arguments: { command: 'sleep 5' } });
+    const pendingId = (pending.structuredContent as { task_id: string }).task_id;
+    const cancelledPending = await client.callTool({
+      name: 'swiftnest__task_cancel',
+      arguments: { task_id: pendingId },
+    });
+    expect((cancelledPending.content as TextContent)[0]!.text).toMatch(/Nothing was executed/);
+  });
+
   it('explains unknown tools instead of failing silently', async () => {
     const res = await client.callTool({ name: 'sim__nope__run', arguments: {} });
     expect(res.isError).toBe(true);
