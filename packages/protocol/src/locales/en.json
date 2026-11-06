@@ -275,6 +275,7 @@
   "mcpContinueOrWait": "Continue with other work, or call {0} with this task id. Do not retry the same call.",
   "mcpStillRunning": "Still {0}. Task id: {1}. Call {2} with this task id to get the result.",
   "mcpCancelled": "Cancelled as requested. Task id: {0}. Nothing was executed.",
+  "mcpCancelledRunning": "Cancelled as requested. Task id: {0}. It had already started and was stopped part-way.",
   "mcpHowToFix": "\nHow to fix: {0}",
   "mcpNoDevices": "No devices are connected yet.",
   "hintUseOriginalTaskId": "Use the task id from the original call's response.",

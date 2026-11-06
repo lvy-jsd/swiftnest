@@ -264,6 +264,7 @@ export class TaskManager {
       if (TERMINAL_STATES.has(t.snap.state)) return this.release(dev, false); // cancelled while queued
     }
     this.active.set(dev, (this.active.get(dev) ?? 0) + 1);
+    t.snap.started = true;
     await this.transition(t, 'running');
     const conn = this.o.connection(dev);
     try {

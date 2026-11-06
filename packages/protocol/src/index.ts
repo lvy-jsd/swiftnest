@@ -186,6 +186,8 @@ export const TaskSnapshot = z.object({
   error: SwiftnestError.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Whether the call already reached the device and started running. Tells "cancelled" from "stopped". */
+  started: z.boolean().optional(),
 });
 export type TaskSnapshot = z.infer<typeof TaskSnapshot>;
 
