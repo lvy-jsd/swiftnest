@@ -190,3 +190,33 @@ it('keeps relay, media and automatic memory together and validates each', () => 
     expect(() => validate({ ...config, media: { ...media, [key]: 'http://insecure.example.com/file' } })).toThrow();
   }
 });
+
+it('reads MCP presets and capability packs from YAML', () => {
+  const file = join(tmp(), 'mcp-capabilities.yaml');
+  writeFileSync(
+    file,
+    'mcp:\n  presets:\n    github:\n      enabled: true\ncapabilities:\n  packs:\n    workstation: device:current\n',
+  );
+  const config = loadConfig(file, {});
+  expect(config.mcp?.presets?.github?.enabled).toBe(true);
+  expect(config.capabilities?.packs?.workstation).toBe('device:current');
+});
+
+it('leaves mcp and capabilities undefined when the YAML omits them', () => {
+  const file = join(tmp(), 'no-mcp.yaml');
+  writeFileSync(file, 'port: 4000\n');
+  const config = loadConfig(file, {});
+  expect(config.mcp).toBeUndefined();
+  expect(config.capabilities).toBeUndefined();
+});
+
+it.each([
+  ['mcp:\n  presets:\n    GitHub:\n      enabled: true\n', 'preset id'],
+  ['mcp:\n  presets: [github]\n', 'presets'],
+  ['capabilities:\n  packs:\n    Workstation: device:current\n', 'pack name'],
+  ['capabilities:\n  packs: [workstation]\n', 'packs'],
+])('rejects invalid MCP/capability YAML: %s', (yaml) => {
+  const file = join(tmp(), 'mcp-invalid.yaml');
+  writeFileSync(file, yaml);
+  expect(() => loadConfig(file, {})).toThrow();
+});

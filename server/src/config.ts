@@ -202,6 +202,8 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
     media: fromFile.media,
+    mcp: fromFile.mcp,
+    capabilities: fromFile.capabilities,
     devices: {
       host: env.SWIFTNEST_DEVICES_HOST ?? fromFile.devices?.host ?? env.SWIFTNEST_HOST ?? fromFile.host ?? '127.0.0.1',
       port: num(env.SWIFTNEST_DEVICES_PORT) ?? fromFile.devices?.port ?? 7711,
