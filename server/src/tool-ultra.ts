@@ -1,6 +1,6 @@
 /** Build the unpublished Tool Ultra source; defaults belong to its package patches. */
 import { text } from '@swiftnest/core';
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { parse } from 'yaml';
@@ -105,17 +105,61 @@ function prepareHost(dir: string): string {
   return app;
 }
 
-/** Keep the pinned source while replacing its vulnerable calculator dependency. */
+/**
+ * Keep the pinned source while replacing its vulnerable calculator dependency.
+ *
+ * npm's root `overrides` do not reach a dependency a workspace declares for
+ * itself: the workspace's own range is what npm resolves, so `mathjs: ^14.0.0`
+ * still pulled 14.9.1 — the version the advisories apply to. The override is
+ * therefore applied in both places: the root manifest, and the range inside
+ * every workspace that declares the package.
+ */
 function prepareDependencies(dir: string): void {
   const manifestFile = join(dir, 'package.json');
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
   const overrides = JSON.parse(readFileSync(new URL('../vendor/tool-ultra-overrides.json', import.meta.url), 'utf8'));
   manifest.overrides = { ...manifest.overrides, ...overrides };
   writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+  for (const [name, version] of Object.entries(overrides as Record<string, string>))
+    pinWorkspaceRange(dir, name, version);
   writeFileSync(
     join(dir, 'package-lock.json'),
     readFileSync(new URL('../vendor/tool-ultra.package-lock.json', import.meta.url)),
   );
+}
+
+/** One workspace's own dependency range for a package, if it declares one. */
+function workspaceRange(manifest: Record<string, unknown>, name: string): string | undefined {
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+    const group = manifest[field];
+    if (!group || typeof group !== 'object') continue;
+    const range = (group as Record<string, unknown>)[name];
+    if (typeof range === 'string') return range;
+  }
+  return undefined;
+}
+
+/**
+ * Pin a package to the version the host wants in every workspace that declares
+ * it, so npm resolves the same version the lock records.
+ */
+function pinWorkspaceRange(dir: string, name: string, version: string): void {
+  const packagesDir = join(dir, 'packages');
+  if (!existsSync(packagesDir)) return;
+  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const file = join(packagesDir, entry.name, 'package.json');
+    if (!existsSync(file)) continue;
+    const manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    if (!workspaceRange(manifest, name)) continue;
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+      const group = manifest[field];
+      if (!group || typeof group !== 'object') continue;
+      const deps = group as Record<string, unknown>;
+      if (typeof deps[name] === 'string') deps[name] = version;
+    }
+    writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
 }
 
 async function build(dir: string, config: ServerConfig, log: Log): Promise<void> {

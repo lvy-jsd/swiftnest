@@ -60,7 +60,7 @@ function fixture(dir: string) {
     );
   }
 }
-function fakeCommands(fail?: string, omitBuild = false) {
+function fakeCommands(fail?: string, omitBuild = false, onCheckout?: (dir: string) => void) {
   spawn.mockImplementation((command: string, args: string[], options: { cwd: string }) => {
     const child = new EventEmitter();
     const stdout = new PassThrough();
@@ -70,6 +70,7 @@ function fakeCommands(fail?: string, omitBuild = false) {
       expect(isBuilt(options.cwd)).toBe(false);
       if (command === 'git' && args[0] === 'checkout') {
         writeFileSync(join(options.cwd, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
+        onCheckout?.(options.cwd);
       }
       if (command === 'npm' && args[0] === 'run' && !omitBuild) fixture(options.cwd);
       stdout.end('progress\nlast line');
@@ -168,6 +169,27 @@ describe('Tool Ultra', () => {
     expect(JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8')).lockfileVersion).toBe(3);
     await installToolUltra(config, log);
     expect(spawn).toHaveBeenCalledTimes(5);
+  });
+
+  it('pins an overridden package inside the workspace that declares it', async () => {
+    const { config } = setup();
+    // The real checkout already holds its workspaces when the host prepares
+    // the dependencies, so the fixture provides one there.
+    fakeCommands(undefined, false, (dir) => {
+      const workspace = join(dir, 'packages', 'dsh-tool-ultra-pack-essentials');
+      mkdirSync(workspace, { recursive: true });
+      writeFileSync(
+        join(workspace, 'package.json'),
+        JSON.stringify({ name: 'dsh-tool-ultra-pack-essentials', dependencies: { mathjs: '^14.0.0' } }, null, 2),
+      );
+    });
+    await installToolUltra(config, vi.fn());
+    // npm resolves a workspace's own range, so a root override alone would
+    // still install the version the advisories apply to.
+    const manifest = JSON.parse(
+      readFileSync(join(toolUltraDir(config), 'packages', 'dsh-tool-ultra-pack-essentials', 'package.json'), 'utf8'),
+    );
+    expect(manifest.dependencies.mathjs).toBe('15.2.0');
   });
 
   it.each(['git', 'npm'])('cleans a failed %s install and permits retry', async (command) => {
