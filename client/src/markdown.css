@@ -9,7 +9,7 @@
 .chat-markdown > :last-child {
   margin-bottom: 0;
 }
-.chat-markdown p {
+.message__body .chat-markdown p {
   white-space: normal;
 }
 .chat-markdown :is(h1, h2, h3, h4, h5, h6) {
