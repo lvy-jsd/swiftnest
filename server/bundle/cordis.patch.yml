@@ -1,5 +1,9 @@
 # Swiftnest's built-in modules, layered after dsh-base and dsh-web-app.
-# Rows only add; they never replace DSH's own rows or its Web UI.
+# Keep the native Web UI; replace only the anonymous fetch transport with product policy.
+- id: web-fetch-http
+  name: "@swiftnest/server-bundle/web-fetch"
+  config:
+    allowOrigins: !!js JSON.parse(process.env.SWIFTNEST_WEB_FETCH_ORIGINS || '[]')
 - insert:
     - id: swiftnest-core
       name: "@swiftnest/server-bundle/core"

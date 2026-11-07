@@ -86,6 +86,8 @@ export interface ServerConfig {
   /** Built-in central memory: on without installing or configuring a plugin. */
   memory?: { enabled: boolean; auto?: boolean };
   search?: ChatSearchSettings;
+  /** Exact origins permitted to use non-public destinations in the model-facing Web Fetch provider. */
+  webFetch?: { allowOrigins?: string[] };
   /**
    * MCP presets (Tool Ultra's `pack-mcp`). Nothing starts unless it is listed
    * here with `enabled: true`, so a fresh install talks to no outside service.
@@ -199,6 +201,7 @@ export function loadConfig(file?: string, env: NodeJS.ProcessEnv = process.env):
     },
     approvals: checkedApprovals(fromFile.approvals),
     search: loadSearch(fromFile.search, env),
+    webFetch: fromFile.webFetch,
     plugins: { ...fileOverrides(fromFile.plugins), ...pluginLocks },
     pluginLocks,
     media: fromFile.media,
