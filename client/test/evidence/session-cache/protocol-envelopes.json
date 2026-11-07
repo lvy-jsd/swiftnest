@@ -1,0 +1,2237 @@
+[
+  {
+    "direction": "sent",
+    "endpoint": "$events",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "ready"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "assistant-stream"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "event"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "emit"
+  },
+  {
+    "direction": "sent",
+    "endpoint": "session/follow",
+    "type": "open"
+  },
+  {
+    "direction": "received",
+    "type": "item",
+    "valueType": "snapshot"
+  }
+]

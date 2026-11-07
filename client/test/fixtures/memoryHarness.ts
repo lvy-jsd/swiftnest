@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { SwiftnestClient, type ApiWebSocket, type SwiftnestEvent } from '@swiftnest/api';
+import { SwiftnestClient, type ApiWebSocket, type ImageInput, type SwiftnestEvent } from '@swiftnest/api';
 import { loadConfig } from '../../../server/src/config.js';
 import { startKernel, type RunningKernel } from '../../../server/src/kernel.js';
 import { pairingUrl } from '../../../server/src/pairing.js';
@@ -29,6 +29,7 @@ export class MemoryHarness {
   requests: { prompt: string; request: ModelRequest }[] = [];
   logs: string[] = [];
   replyText = 'Done.';
+  replyChunkDelayMs = 0;
   autoReviews: { entries: { id: string; text: string }[]; messages: { role: string; text: string }[] }[] = [];
   autoProposal: (input: MemoryHarness['autoReviews'][number]) => unknown = () => [{ op: 'none' }];
   private rounds = new Map<string, number>();
@@ -86,7 +87,7 @@ export function apply(ctx) {
     await new Promise<void>((resolve) => this.model.close(() => resolve()));
     if (this.home) await rm(this.home, { recursive: true, force: true });
   }
-  async turn(sessionId: string, prompt: string): Promise<SwiftnestEvent[]> {
+  async turn(sessionId: string, prompt: string, images: readonly ImageInput[] = []): Promise<SwiftnestEvent[]> {
     const sub = await this.client.follow(sessionId, { signal: AbortSignal.timeout(25_000) });
     const events: SwiftnestEvent[] = [];
     const consume = (async () => {
@@ -99,7 +100,7 @@ export function apply(ctx) {
       }
     })();
     try {
-      await this.client.sendMessage(sessionId, prompt);
+      await this.client.sendMessage(sessionId, prompt, images);
       await consume;
       return events;
     } finally {
@@ -175,7 +176,20 @@ export function apply(ctx) {
         : round === 0 && prompt === 'recall-forgotten'
           ? { name: 'recall', arguments: { query: 'Prefers a quiet workspace' } }
           : selected;
-    respond(res, forgetting, this.replyText);
+    if (!forgetting && this.replyChunkDelayMs) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      for (const word of this.replyText.split(' ')) {
+        if (res.destroyed) return;
+        res.write(
+          `data: ${JSON.stringify({ id: 'fake', choices: [{ index: 0, delta: { content: `${word} ` }, finish_reason: null }] })}\n\n`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, this.replyChunkDelayMs));
+      }
+      res.write(
+        `data: ${JSON.stringify({ id: 'fake', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`,
+      );
+      res.end('data: [DONE]\n\n');
+    } else respond(res, forgetting, this.replyText);
   }
 }
 
