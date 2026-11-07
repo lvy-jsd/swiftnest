@@ -12,12 +12,11 @@ import { PluginsProvider, PluginsPage } from './plugins';
 import { MemoryPage } from './memory';
 import { ApprovalInboxProvider } from './inboxState';
 import { ApprovalBadge, ApprovalInboxPage } from './inbox';
-import type { SwiftnestClient } from '@swiftnest/api';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { IconButton } from './components/IconButton';
 import { Sheet } from './components/Sheet';
 import { DetailPage, FormPage } from './components/pages';
@@ -25,9 +24,6 @@ import { VirtualList } from './components/VirtualList';
 import { icons } from './design/icons';
 import { useI18n } from './i18n';
 import { useConnection } from './connection';
-import { chatReducer, emptyChat } from './chat';
-import { readyClientAfter, watchChatSession } from './chatSession';
-import { chatTimeline } from './chatPresentation';
 import { EmptyChat, TranscriptRow } from './chatTranscript';
 
 export { chatFromHash } from './shellNavigation';
@@ -137,27 +133,27 @@ function useChatSession(sessionId: string) {
   const { t } = useI18n();
   const { store, status } = useConnection();
   const { client } = store;
-  const [state, dispatch] = useReducer(chatReducer, undefined, emptyChat);
-  const [timeline, recordTime] = useReducer(chatTimeline, {});
-  const [readyClient, setReadyClient] = useState<SwiftnestClient>();
+  const subscribe = useCallback(
+    (listener: () => void) => store.chats.subscribe(sessionId, listener),
+    [store, sessionId],
+  );
+  const getSnapshot = useCallback(() => store.chats.getSnapshot(sessionId), [store, sessionId]);
+  const { state, timeline, ready } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   // A language switch must not drop and re-follow the chat, so `t` is read but not a dependency.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!client || status !== 'connected') return;
-    return watchChatSession(client, sessionId, {
-      ready: (ready) => setReadyClient((current) => readyClientAfter(current, ready, client)),
+    store.chats.follow(sessionId, client, {
       event(event) {
-        recordTime(event);
-        dispatch(event);
         if (event.type === 'turn-end' || event.type === 'assistant-start') void store.refresh();
       },
       failed() {
         if (!store.getSnapshot().pluginRestart)
-          dispatch({ type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') });
+          return { type: 'error', sessionId, code: 'follow-failed', message: t('followFailed') };
       },
     });
   }, [client, sessionId, status, store]);
-  return { state, dispatch, timeline, ready: !!client && status === 'connected' && readyClient === client };
+  return { state, timeline, ready: !!client && status === 'connected' && ready };
 }
 
 type ChatSession = ReturnType<typeof useChatSession>;

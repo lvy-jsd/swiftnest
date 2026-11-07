@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { ApiError, SwiftnestClient } from '@swiftnest/api';
 import type { ChannelPairing, ClientOptions, Device, SessionSummary } from '@swiftnest/api';
 import { isTauriRuntime } from './runtime';
+import { SessionCache } from './sessionCache';
 
 type Status = 'disconnected' | 'connecting' | 'connected';
 export type ConnectionError =
@@ -54,6 +55,7 @@ export async function clientOptions(): Promise<ClientOptions> {
 
 /** One ephemeral client. Pairing again cancels and disposes the previous attempt. */
 export class ConnectionStore {
+  readonly chats = new SessionCache();
   client?: SwiftnestClient;
   private generation = 0;
   private expectingRestart = false;
@@ -252,6 +254,7 @@ export class ConnectionStore {
     this.expectingRestart = expected || this.restartSources.size > 0;
   }
   private startPluginReconnect(): void {
+    this.chats.clear();
     ++this.generation;
     this.client?.close();
     this.client = undefined;
@@ -339,6 +342,7 @@ export class ConnectionStore {
     }
   }
   disconnect(): void {
+    this.chats.clear();
     ++this.generation;
     clearTimeout(this.retry);
     this.expectingRestart = false;
