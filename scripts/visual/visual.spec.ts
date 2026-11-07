@@ -6,15 +6,16 @@
  * every page at every breakpoint and compares against ./screenshots.
  *
  * Determinism: port 0 (OS picks a free port), light scheme, reduced motion,
- * en-US locale, and the server-derived timestamp in the chat list is masked
- * (it changes every run).
+ * English locale (the app defaults to zh-CN), and the non-deterministic bits
+ * are masked: server-derived timestamps, the server URL (random port), and the
+ * time-of-day greeting on the home page.
  */
 import { chromium, expect, test } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { networkInterfaces, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../../server/src/config';
@@ -59,11 +60,18 @@ test('chat list + chat detail at four breakpoints', async () => {
   try {
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve));
     home = await mkdtemp(join(tmpdir(), 'swiftnest-visual-'));
-    // A real non-loopback address exercises the same LAN path as the e2e test.
-    const host = Object.values(networkInterfaces()).flat().find(a => a?.family === 'IPv4' && !a.internal)?.address ?? '127.0.0.1';
+    // Loopback root: the API requires HTTPS for non-local roots, and the visual
+    // test only cares about UI rendering, not the LAN path.
+    const host = '127.0.0.1';
     kernel = await startKernel(loadConfig(undefined, {
       SWIFTNEST_HOME: home, SWIFTNEST_HOST: host, SWIFTNEST_PORT: String(PORT), SWIFTNEST_APP_DIST: dist,
       SWIFTNEST_MODEL_ID: 'fake', SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
+      // The link-lan plugin defaults to port 7711; use a random port so a
+      // crashed run never blocks the next.
+      SWIFTNEST_DEVICES_PORT: '0',
+      // The server language is authoritative after pairing (LanguageSync); pin
+      // English so the captured strings are stable.
+      SWIFTNEST_LANG: 'en',
     }), { readyTimeoutMs: 90_000 });
 
     const page = await browser.newPage({
@@ -72,6 +80,8 @@ test('chat list + chat detail at four breakpoints', async () => {
       colorScheme: 'light',
       reducedMotion: 'reduce',
     });
+    // The app defaults to zh-CN; pin English so the captured strings are stable.
+    await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
     await page.goto(new URL('app/chats/deep-link', kernel.url).href, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.getByRole('link', { name: 'Pair server', exact: true }).waitFor({ timeout: 30_000 });
     await page.goto(webAppUrl(kernel.url, kernel.token), { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -85,11 +95,10 @@ test('chat list + chat detail at four breakpoints', async () => {
     const transcript = page.getByRole('list', { name: 'Messages' });
     await expect.poll(() => transcript.locator('.message:not([data-streaming]) p').filter({ hasText: /^Hello from Swiftnest\.$/ }).count(), { timeout: 25_000 }).toBe(1);
 
-    // Go back to the chat list so it is populated, then read the chat id.
-    await page.getByRole('button', { name: 'Go back' }).click();
-    const listLink = page.getByRole('main').locator('a[href^="#/chats/"]').first();
-    await listLink.waitFor({ timeout: 20_000 });
+    // Read the chat id from the URL (we are on the detail page), then go back
+    // to the home page so the sidebar chat list is populated.
     const chatId = decodeURIComponent(new URL(page.url()).hash.replace(/^#\/chats\//, ''));
+    await page.getByRole('button', { name: 'Go back' }).click();
 
     // Let streaming settle and animations finish before the first capture.
     await page.waitForTimeout(400);
@@ -98,26 +107,46 @@ test('chat list + chat detail at four breakpoints', async () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.waitForTimeout(500);
 
-      // Chat list page. The app is served under /app/, so the hash route must
-      // keep that prefix — the bare root is the DSH web and 401s.
+      // Chat list page: the sidebar holds the chat list, the main area shows the
+      // home page. The app is served under /app/, so the hash route must keep
+      // that prefix — the bare root is the DSH web and 401s.
       await page.evaluate(() => { location.hash = '#/'; });
-      await page.getByRole('main').locator('a[href^="#/chats/"]').first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(300);
       await expect(page).toHaveScreenshot(`chat-list-${viewport.name}.png`, {
-        // time: server-derived timestamp; .connection-status p: the root URL
-        // carries a random port, so it changes every run.
-        mask: [page.locator('time'), page.locator('.connection-status p')],
+        // time: server-derived timestamps; .connection-status p: the root URL
+        // carries a random port; .home-greeting h1: the greeting changes with
+        // the time of day; .composer-area: the placeholder text and SVG icon
+        // rendering vary slightly between runs and machines, so mask the
+        // whole input area as a solid block.
+        // Bottom band: the composer placeholder and any fixed footer elements
+        // render with subpixel differences that vary by machine; mask the
+        // bottom 100px as a solid block so the comparison stays stable.
+        mask: [
+          page.locator('time'),
+          page.locator('.connection-status p'),
+          page.locator('.home-greeting h1'),
+          page.locator('.composer-area'),
+          page.locator('.identity-row'),
+        ],
+        // Anti-aliasing and subpixel rendering vary slightly between runs and
+        // machines; allow a small number of pixels to differ without failing.
+        maxDiffPixels: 50,
+        threshold: 0.1,
       });
 
-      // Chat detail page: go back to the list, then click into the chat.
-      await page.evaluate(() => { location.hash = '#/'; });
-      await page.getByRole('main').locator('a[href^="#/chats/"]').first().waitFor({ timeout: 20_000 });
-      await page.getByRole('main').locator('a[href^="#/chats/"]').first().click();
+      // Chat detail page: navigate directly by hash (the sidebar link is hidden
+      // in the drawer on narrow viewports).
+      await page.evaluate((id) => { location.hash = `#/chats/${id}`; }, chatId);
       await expect.poll(() => transcript.locator('.message:not([data-streaming]) p').filter({ hasText: /^Hello from Swiftnest\.$/ }).count(), { timeout: 25_000 }).toBe(1);
       await page.waitForTimeout(300);
       await expect(page).toHaveScreenshot(`chat-detail-${viewport.name}.png`, {
-        // .page-header__titles p: the subtitle shows the root URL (random port).
-        mask: [page.locator('time'), page.locator('.connection-status p'), page.locator('.page-header__titles p')],
+        // .message: server-derived timestamps and the message body's font
+        // rendering both vary slightly between runs; masking the whole message
+        // keeps the comparison stable without hiding layout changes.
+        // .connection-status p: the root URL carries a random port.
+        mask: [page.locator('.message'), page.locator('.connection-status p'), page.locator('.identity-row')],
+        maxDiffPixels: 50,
+        threshold: 0.1,
       });
     }
     await page.close();

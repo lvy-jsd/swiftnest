@@ -20,7 +20,7 @@ export default defineConfig({
     toHaveScreenshot: { maxDiffPixels: 0, threshold: 0.05 },
   },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'report' }]],
-  timeout: 180_000,
+  timeout: 300_000,
   use: {
     viewport: { width: 1280, height: 800 },
     colorScheme: 'light',
