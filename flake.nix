@@ -43,16 +43,22 @@
         overlays = [ rust-overlay.overlays.default ];
         config = { allowUnfree = true; android_sdk.accept_license = true; };
       };
-      androidShell = system: base:
+      androidShell = { system, base, emulator ? false }:
         let
           pkgs = androidPkgs system;
-          sdk = (pkgs.androidenv.composeAndroidPackages {
+          sdk = (pkgs.androidenv.composeAndroidPackages ({
             platformVersions = [ "34" "35" "36" ];
             buildToolsVersions = [ "34.0.0" "35.0.0" "36.0.0" ];
             includeNDK = true;
             ndkVersions = [ "27.2.12479018" ];
             cmdLineToolsVersion = "latest";
-          }).androidsdk;
+          } // pkgs.lib.optionalAttrs emulator {
+            # x86_64 image runs under KVM on the dev machine.
+            includeEmulator = true;
+            includeSystemImages = true;
+            systemImageTypes = [ "google_apis" ];
+            abiVersions = [ "x86_64" ];
+          })).androidsdk;
           rust = pkgs.rust-bin.stable.latest.default.override {
             targets = [ "aarch64-linux-android" "armv7-linux-androideabi" "x86_64-linux-android" "i686-linux-android" ];
           };
@@ -74,7 +80,9 @@
         };
     in {
       devShells = forAll (pkgs: rec {
-        android = androidShell pkgs.stdenv.hostPlatform.system default;
+        android = androidShell { system = pkgs.stdenv.hostPlatform.system; base = default; };
+        # `nix develop .#android-emu`: the android shell plus an emulator and an x86_64 system image.
+        android-emu = androidShell { system = pkgs.stdenv.hostPlatform.system; base = default; emulator = true; };
         default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [ pkg-config (officialNode pkgs) pnpm rustc cargo clippy rustfmt ];
           buildInputs = with pkgs; [
