@@ -28,9 +28,9 @@ export function OnlineSummary() {
   // The hub has no loaded flag. A nonempty successful snapshot is evidence; [] isn't.
   if (status !== 'connected' || error || !devices.length) return null;
   return (
-    <span className="online-summary">
+    <a className="online-summary" href="#/devices">
       {t('shell.devicesOnline').replace('{count}', String(devices.filter((device) => device.online).length))}
-    </span>
+    </a>
   );
 }
 
@@ -89,7 +89,6 @@ export function ChatFilters({
 function PrimaryNavigation({ onNavigate }: { onNavigate: () => void }) {
   const { t } = useI18n();
   const links = [
-    { route: 'devices', label: 'devices', Icon: icons.device },
     { route: 'transfers', label: 'shell.sendFiles', Icon: icons.transfer },
     { route: 'memory', label: 'memory', Icon: icons.memory },
   ] as const;

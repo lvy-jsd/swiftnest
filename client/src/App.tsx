@@ -2,7 +2,7 @@ import { useShellNavigation, useChatSwipe, goHome, type ShellNavigation } from '
 import { useChatSwipeStyle, useRouteTransition } from './shellNavigation';
 import { PageNavigationProvider } from './components/PageNavigation';
 import { Preferences } from './preferences';
-import { Sidebar } from './shell';
+import { Sidebar, OnlineSummary } from './shell';
 import { Home } from './home';
 import { ContextRail } from './contextRail';
 import { greetingKey } from './shellState';
@@ -284,6 +284,7 @@ function PhoneHeader({ navigation, hour }: { navigation: ShellNavigation; hour: 
             <Write size={20} />
           </IconButton>
         )}
+        <OnlineSummary />
         <IconButton aria-label={t('openPreferences')} onClick={navigation.openPreferences}>
           <Settings size={24} />
         </IconButton>
