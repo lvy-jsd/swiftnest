@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
 import { expect, it } from 'vitest';
 import { SwiftnestError } from '../src/index';
 import { isText, localizedError, messageEn, render, text } from '../src/language';
 
-const root = new URL('../../../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../../../', import.meta.url));
 const slots = (key: keyof typeof messageEn) => new Set(messageEn[key].match(/\{\d+\}/g) ?? []).size;
 
 it('renders catalog text, including text in its arguments, in the reader language', () => {

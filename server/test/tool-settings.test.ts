@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parse, stringify } from 'yaml';
 import { loadConfig } from '../src/config.js';
@@ -212,7 +213,7 @@ it('routes owner tool operations and carries the App settings through devices.co
     const view = await (await api('')).json();
     expect(view).toMatchObject({ pending: true, packs: [{ name: 'research', targets: ['pack:web', 'pack:media'] }] });
     expect(view.presets[1]).toMatchObject({ state: 'needs-key', enabled: true });
-    writeProfile(hub.config(), { bundleDir: new URL('../bundle/', import.meta.url).pathname, log: vi.fn() });
+    writeProfile(hub.config(), { bundleDir: fileURLToPath(new URL('../bundle/', import.meta.url)), log: vi.fn() });
     const rows = parse(readFileSync(join(profileDir(config), 'cordis.patch.yml'), 'utf8')) as {
       insert?: { name: string; config: unknown }[];
     }[];
