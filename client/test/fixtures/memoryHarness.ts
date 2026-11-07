@@ -29,6 +29,7 @@ export class MemoryHarness {
   requests: { prompt: string; request: ModelRequest }[] = [];
   logs: string[] = [];
   replyText = 'Done.';
+  replyChunkDelayMs = 0;
   autoReviews: { entries: { id: string; text: string }[]; messages: { role: string; text: string }[] }[] = [];
   autoProposal: (input: MemoryHarness['autoReviews'][number]) => unknown = () => [{ op: 'none' }];
   private rounds = new Map<string, number>();
@@ -175,7 +176,20 @@ export function apply(ctx) {
         : round === 0 && prompt === 'recall-forgotten'
           ? { name: 'recall', arguments: { query: 'Prefers a quiet workspace' } }
           : selected;
-    respond(res, forgetting, this.replyText);
+    if (!forgetting && this.replyChunkDelayMs) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      for (const word of this.replyText.split(' ')) {
+        if (res.destroyed) return;
+        res.write(
+          `data: ${JSON.stringify({ id: 'fake', choices: [{ index: 0, delta: { content: `${word} ` }, finish_reason: null }] })}\n\n`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, this.replyChunkDelayMs));
+      }
+      res.write(
+        `data: ${JSON.stringify({ id: 'fake', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`,
+      );
+      res.end('data: [DONE]\n\n');
+    } else respond(res, forgetting, this.replyText);
   }
 }
 

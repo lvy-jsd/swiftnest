@@ -227,12 +227,7 @@ export class ConnectionStore {
         const socket = factory(address, init);
         const lost = () => {
           if (generation !== this.generation || this.state.status !== 'connected' || this.unpairing || rotating) return;
-          if (this.expectingRestart || options.cookieMode === 'manual') {
-            this.startPluginReconnect();
-            return;
-          }
-          this.disconnect();
-          this.update({ error: 'connectionLost' });
+          this.startPluginReconnect();
         };
         if (
           [new URL('api/remote.mux', root).pathname, '/swiftnest/channel', '/swiftnest/relay'].includes(
@@ -288,6 +283,7 @@ export class ConnectionStore {
           status: 'disconnected',
           pluginRestart: 'pair-required',
           error: error.code === 'channel-key-mismatch' ? 'channelPairAgain' : undefined,
+          ...(!this.expectingRestart ? { sessions: [] } : {}),
         });
         return;
       }

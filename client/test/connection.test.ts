@@ -149,7 +149,7 @@ describe('connection store', () => {
     store.disconnect();
   });
 
-  it('reports socket loss even with no open chat and disposes the client', async () => {
+  it('retries browser socket loss even with no open chat instead of requiring pairing again', async () => {
     const listeners = new Map<string, () => void>();
     const socket = {
       addEventListener: vi.fn((type: string, callback: () => void) => listeners.set(type, callback)),
@@ -162,15 +162,18 @@ describe('connection store', () => {
           connect: async () => {
             options.createWebSocket!('ws://127.0.0.1:3077/api/remote.mux', { headers: {} });
           },
+          resume: async () => {},
           listSessions: async () => [],
           close,
         }) as unknown as SwiftnestClient,
     );
     expect(await store.pair(url)).toBe(true);
     listeners.get('close')!();
-    expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'connectionLost' });
+    expect(store.getSnapshot()).toMatchObject({ status: 'connecting', error: undefined });
     expect(store.client).toBeUndefined();
     expect(close).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(store.getSnapshot().status).toBe('connected'));
+    store.disconnect();
   });
 
   it('keeps chat connected when a live-view socket closes or fails', async () => {
@@ -203,8 +206,9 @@ describe('connection store', () => {
     expect(store.getSnapshot().status).toBe('connected');
     expect(close).not.toHaveBeenCalled();
     sockets[0]!.dispatchEvent(new Event('close'));
-    expect(store.getSnapshot()).toMatchObject({ status: 'disconnected', error: 'connectionLost' });
+    expect(store.getSnapshot()).toMatchObject({ status: 'connecting', error: undefined });
     expect(close).toHaveBeenCalledOnce();
+    store.disconnect();
   });
 });
 
@@ -272,15 +276,20 @@ it('keeps a tool restart expected when the plugin resource polls an idle view', 
     store.disconnect();
   }
 });
-it('clears a resource restart expectation after apply finishes', async () => {
-  const { store, sockets } = restartHarness();
+it('clears a finished resource restart expectation before revoked browser recovery', async () => {
+  const { store, sockets } = restartHarness(
+    false,
+    vi.fn().mockRejectedValueOnce(new ApiError('pairing-failed', 'revoked', undefined, undefined, 403)),
+  );
   const tools = {};
   try {
     await store.pair(url);
     store.expectPluginRestart(true, tools);
     store.expectPluginRestart(false, tools);
     sockets[0]!.dispatchEvent(new Event('close'));
-    expect(store.getSnapshot().status).toBe('disconnected');
+    expect(store.getSnapshot().status).toBe('connecting');
+    await vi.waitFor(() => expect(store.getSnapshot().pluginRestart).toBe('pair-required'));
+    expect(store.getSnapshot().sessions).toEqual([]);
   } finally {
     store.disconnect();
   }
