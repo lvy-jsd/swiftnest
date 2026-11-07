@@ -5,6 +5,7 @@ packages:
   - server
   - server/bundle
   - client
+  - scripts/visual
 
 # pnpm 12 requires an explicit decision for dependency build scripts.
 # esbuild (used by the docs site) installs its platform binary in a build script.
