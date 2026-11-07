@@ -1,0 +1,123 @@
+{
+  "browser": "156.0.8078.73",
+  "platform": "linux",
+  "release": "7.3.0",
+  "cpu": "AMD Ryzen 7 PRO 6850HS with Radeon Graphics",
+  "logicalCpus": 16,
+  "ramBytes": 32918814720,
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "workload": "64 sessions; first three have 200 paragraphs; two have a 64px PNG; one streaming",
+  "timesMs": [
+    38.20000001788139,
+    20.5,
+    19.099999994039536,
+    8,
+    23.5,
+    7.0999999940395355,
+    20.69999998807907,
+    26.900000005960464,
+    7.0999999940395355,
+    7.300000011920929,
+    19,
+    9.599999994039536,
+    25.799999982118607,
+    24.700000017881393,
+    27,
+    25.5,
+    9,
+    7.5999999940395355,
+    18.099999994039536,
+    10.300000011920929
+  ],
+  "p95Ms": 27,
+  "followOpensBefore": 20,
+  "followOpensAfter": 20,
+  "snapshotsBefore": 20,
+  "snapshotsAfter": 20,
+  "baseline": {
+    "heapBytes": 6872028,
+    "processes": [
+      {
+        "type": "browser",
+        "pid": 2502350,
+        "rssKiB": 254896
+      },
+      {
+        "type": "renderer",
+        "pid": 2502467,
+        "rssKiB": 78496
+      },
+      {
+        "type": "renderer",
+        "pid": 2502469,
+        "rssKiB": 186396
+      },
+      {
+        "type": "renderer",
+        "pid": 2502456,
+        "rssKiB": 153272
+      },
+      {
+        "type": "GPU",
+        "pid": 2502388,
+        "rssKiB": 126980
+      },
+      {
+        "type": "network.mojom.NetworkService",
+        "pid": 2502391,
+        "rssKiB": 123484
+      },
+      {
+        "type": "storage.mojom.StorageService",
+        "pid": 2502392,
+        "rssKiB": 54036
+      }
+    ],
+    "rssTotalKiB": 977560
+  },
+  "loaded": {
+    "heapBytes": 13402064,
+    "processes": [
+      {
+        "type": "browser",
+        "pid": 2502350,
+        "rssKiB": 257672
+      },
+      {
+        "type": "renderer",
+        "pid": 2502467,
+        "rssKiB": 78496
+      },
+      {
+        "type": "renderer",
+        "pid": 2502469,
+        "rssKiB": 265612
+      },
+      {
+        "type": "renderer",
+        "pid": 2502456,
+        "rssKiB": 152772
+      },
+      {
+        "type": "GPU",
+        "pid": 2502388,
+        "rssKiB": 120488
+      },
+      {
+        "type": "network.mojom.NetworkService",
+        "pid": 2502391,
+        "rssKiB": 124032
+      },
+      {
+        "type": "storage.mojom.StorageService",
+        "pid": 2502392,
+        "rssKiB": 54636
+      }
+    ],
+    "rssTotalKiB": 1053708
+  },
+  "measurement": "Programmatic navigation link clicks to content DOM/layout plus second requestAnimationFrame; not compositor presentation or Android hardware"
+}

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { SwiftnestClient, type ApiWebSocket, type SwiftnestEvent } from '@swiftnest/api';
+import { SwiftnestClient, type ApiWebSocket, type ImageInput, type SwiftnestEvent } from '@swiftnest/api';
 import { loadConfig } from '../../../server/src/config.js';
 import { startKernel, type RunningKernel } from '../../../server/src/kernel.js';
 import { pairingUrl } from '../../../server/src/pairing.js';
@@ -87,7 +87,7 @@ export function apply(ctx) {
     await new Promise<void>((resolve) => this.model.close(() => resolve()));
     if (this.home) await rm(this.home, { recursive: true, force: true });
   }
-  async turn(sessionId: string, prompt: string): Promise<SwiftnestEvent[]> {
+  async turn(sessionId: string, prompt: string, images: readonly ImageInput[] = []): Promise<SwiftnestEvent[]> {
     const sub = await this.client.follow(sessionId, { signal: AbortSignal.timeout(25_000) });
     const events: SwiftnestEvent[] = [];
     const consume = (async () => {
@@ -100,7 +100,7 @@ export function apply(ctx) {
       }
     })();
     try {
-      await this.client.sendMessage(sessionId, prompt);
+      await this.client.sendMessage(sessionId, prompt, images);
       await consume;
       return events;
     } finally {
