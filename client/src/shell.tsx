@@ -98,7 +98,6 @@ function PrimaryNavigation({ onNavigate }: { onNavigate: () => void }) {
         <a key={route} href={`#/${route}`} onClick={onNavigate}>
           <Icon size={24} aria-hidden="true" />
           <span>{t(label)}</span>
-          {route === 'devices' && <OnlineSummary />}
         </a>
       ))}
     </nav>
