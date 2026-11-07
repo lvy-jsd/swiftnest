@@ -18,7 +18,7 @@ Swiftnest Server 装在一台常开的机器上，保存你的对话、Bot 和�
 
 ## 运行
 
-需要：**来自 nodejs.org 的** Node 24（DSH 的原生插件不认发行版或 Nix 编译的 Node；NixOS 上在仓库根目录用 `nix develop`），以及一个 OpenAI 兼容的模型服务，比如 Ollama。
+需要：**来自 nodejs.org 的** Node 24.9+（DSH 的原生插件不认发行版或 Nix 编译的 Node；NixOS 上在仓库根目录用 `nix develop`），以及一个 OpenAI 兼容的模型服务，比如 Ollama。
 
 ```sh
 pnpm install && pnpm build
@@ -51,7 +51,7 @@ swiftnest-server plugins install --config swiftnest.yaml
 swiftnest-server start --config swiftnest.yaml
 ```
 
-源码仓库中可用 `node server/dist/cli.js` 替代 `swiftnest-server`。安装需要 Git、npm、pnpm、Node 24 和网络；安装与启动必须使用相同的配置或 `SWIFTNEST_HOME`。启动不会自动下载，未安装的插件只打印提示，服务器照常启动。
+源码仓库中可用 `node server/dist/cli.js` 替代 `swiftnest-server`。安装需要 Git、npm、pnpm、Node 24.9+ 和网络；安装与启动必须使用相同的配置或 `SWIFTNEST_HOME`。启动不会自动下载，未安装的插件只打印提示，服务器照常启动。
 
 用 YAML `plugins: { im: true, tool-ultra: false }` 或 `SWIFTNEST_PLUGINS=im=true,tool-ultra=false` 按 id 开关。[插件指南](../docs/zh/guide/plugins.md)，[Tool Ultra 指南](../docs/zh/guide/tool-ultra.md)。
 

@@ -657,7 +657,10 @@ export class SwiftnestClient {
   async listSessions(): Promise<SessionSummary[]> {
     const result = await this.rpc<SessionListValue>('session/list', { _request: {} });
     return result.items.map((s) => {
-      const title = s.projections?.values.title;
+      // Domain projection keys are optional module augmentations in DSH 0.2.2.
+      // Keep this boundary structural: the title plugin may not be composed.
+      const values = s.projections?.values;
+      const title = values && 'title' in values ? values.title : undefined;
       return {
         sessionId: s.sessionId,
         updatedAt: s.updatedAt,

@@ -16,13 +16,15 @@
       # build of Node; the Nix-built nodejs fails at host preparation. See docs/en/dev/dsh-integration.md.
       officialNode = pkgs:
         let
+          # DSH 0.2.2 requires Node >=24.9; keep CI and this official binary aligned.
           version = "24.21.0";
+          minimumVersion = "24.9.0";
           arch = { x86_64-linux = "x64"; aarch64-linux = "arm64"; }.${pkgs.stdenv.hostPlatform.system};
           hash = {
             x64 = "sha256-/Y5Z1aURUQ9qKYr7VI8Yx9KxvkBNi0on2U++SfVsstY=";
             arm64 = "sha256-atEyXtvbVknDebdaI3FHpmbJXU+a6NNA/vLRV10omtI=";
           }.${arch};
-        in pkgs.stdenv.mkDerivation {
+        in assert pkgs.lib.versionAtLeast version minimumVersion; pkgs.stdenv.mkDerivation {
           pname = "nodejs-official";
           inherit version;
           src = pkgs.fetchurl {
