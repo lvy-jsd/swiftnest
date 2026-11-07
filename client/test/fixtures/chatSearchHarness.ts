@@ -32,7 +32,7 @@ export class ChatSearchHarness {
         SWIFTNEST_DEVICES_PORT: '0',
         SWIFTNEST_DEVICES_MDNS: 'false',
         SWIFTNEST_PORT: '0',
-        SWIFTNEST_APP_DIST: fileURLToPath(new URL('../../dist', import.meta.url)),
+        SWIFTNEST_APP_DIST: fileURLToPath(new URL('../../dist/', import.meta.url)),
         SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(this.model.address() as AddressInfo).port}/v1`,
         SWIFTNEST_MODEL_ID: 'fake',
       }),

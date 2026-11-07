@@ -2,16 +2,18 @@
 
 `tool-ultra.package-lock.json` locks the npm workspace dependencies for
 `https://github.com/lvy-jsd/dsh-tool-ultra` at commit
-`4c593acee080dc615b651348e70c4ae6ec5217a5` (Apache-2.0). That source deliberately
+`4855deda194b7614d22f6372d4da564d14120283` (Apache-2.0). That source deliberately
 omits a lockfile. Swiftnest copies this file into its isolated checkout before
 `npm ci`; no Tool Ultra package is fetched from npm. DSH peers are linked from
 the Server's pinned host, using upstream's `postinstall` script.
 
 `tool-ultra-overrides.json` is merged into the checkout root's npm `overrides`
-before installation. It pins mathjs to 15.2.0 because the source's `^14.0.0`
-range is affected by [GHSA-29qv-4j9f-fjw5](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)
-and [GHSA-jvff-x2qm-6286](https://github.com/josdejong/mathjs/security/advisories/GHSA-jvff-x2qm-6286).
-The upstream source is unchanged. Media limits come from its patch; Swiftnest narrows its file folders and sets the speech cache and download mirror in the generated profile.
+before installation. It pins mathjs to 15.2.0. The source now declares
+`^15.2.0` itself — the version that fixes
+[GHSA-29qv-4j9f-fjw5](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)
+and [GHSA-jvff-x2qm-6286](https://github.com/josdejong/mathjs/security/advisories/GHSA-jvff-x2qm-6286) —
+but the override keeps the exact version so a later 15.x cannot enter without
+review. The upstream source is unchanged. Media limits come from its patch; Swiftnest narrows its file folders and sets the speech cache and download mirror in the generated profile.
 
 A root `overrides` entry is not enough on its own: npm resolves a workspace's
 **own** dependency range, so the calculator workspace kept declaring `^14.0.0`
@@ -28,7 +30,13 @@ then generate the lock with `npm install --package-lock-only --package-lock=true
 then run the opt-in installation/kernel/device/approval e2e test. Never edit
 package defaults here: they are read from the pinned source's patch files.
 
-The existing lock is reused for this pin: `4e5c418`..`4c593ac` reserves every classifier batch key before its first model request, preventing catalog refreshes from queueing duplicate requests. Only classifier code and regression tests changed; no manifest or dependency graph changed. Regenerate the lock whenever a future pin changes a manifest.
+The existing lock is reused for this pin too: `4c593ac`..`4855ded` only raises
+the calculator's declared `mathjs` range to `^15.2.0` (the advisory fix) and
+adds the percent guard, while the resolved tree stays at mathjs 15.2.0. The
+only lock change is the calculator workspace's range entry, `^14.0.0` →
+`15.2.0`, so it matches what the override writes at install time. Regenerate
+the lock whenever a future pin changes a resolved dependency or the override
+value.
 
 The media pack now uses `sherpa-onnx-node` with its platform-specific CPU
 binaries. Transformers.js, `onnxruntime-node` and `onnxruntime-web` are no longer
