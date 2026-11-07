@@ -107,7 +107,16 @@ export default defineConfig({
               { text: '写第一个插件', link: '/zh/guide/write-a-plugin' },
             ],
           },
-          { text: '设计', items: [{ text: '设计方案', link: '/zh/design' }] },
+          {
+            text: '设计',
+            items: [
+              { text: '产品蓝图（待评审）', link: '/zh/product' },
+              { text: '面板与自适应规范', link: '/zh/ui-kit' },
+              { text: '设置字段归属', link: '/zh/settings-ownership' },
+              { text: '现有页面体检', link: '/zh/ui-audit' },
+              { text: '历史设计方案', link: '/zh/design' },
+            ],
+          },
         ],
       },
     },
