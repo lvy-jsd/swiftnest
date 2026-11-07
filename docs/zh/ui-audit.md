@@ -4,15 +4,15 @@
 
 ## 共性问题
 
-| 项目 | 证据 | 结论 |
-| --- | --- | --- |
-| 字号白名单 | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) 的 largeTitle=28、body=15.5、callout=15、footnote=13 | 与目标六档不符，令牌统一迁移前页面不能宣称达标。 |
-| 间距白名单 | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) 仍提供 20/40/48/64；[styles.css](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/styles.css) 存在 gap:6px、10px、14px、28px | 与目标白名单不符；不能只禁止面板裸数字而忽略令牌值。 |
-| 动效 | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) navigation=250ms | 超过目标 200ms；已有减少动态处理可复用，仍需实际验证。 |
-| 三栏断点 | [styles.css](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/styles.css) 在 1200px 才显示 context-rail | 1024–1199 未达到目标三栏；四档/八视口需补回归。 |
-| 注册协议 | [App.tsx](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/App.tsx) 路由条件分支与 [pages.tsx](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/components/pages.tsx) 骨架 | 有组件复用，但没有正式插槽注册及面板最小可用宽度元数据。 |
-| 自动门禁 | [biome.json](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/biome.json) 与 [CI](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/.github/workflows/ci.yml) | 只有通用规则、构建与测试；没有证明已拦全部 UI 白名单，也没有三平台八视口门禁。 |
-| 历史规范冲突 | [旧设计规范](./dev/design-system.md) | 仍写 Tauri、旧字号/间距/动效及阶段叙述；已加历史说明，旧代码本轮不改。 |
+| 项目         | 证据                                                                                                                                                                                                                                | 结论                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 字号白名单   | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) 的 largeTitle=28、body=15.5、callout=15、footnote=13                                                                                     | 与目标六档不符，令牌统一迁移前页面不能宣称达标。                               |
+| 间距白名单   | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) 仍提供 20/40/48/64；[styles.css](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/styles.css) 存在 gap:6px、10px、14px、28px | 与目标白名单不符；不能只禁止面板裸数字而忽略令牌值。                           |
+| 动效         | [tokens.ts](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/design/tokens.ts) navigation=250ms                                                                                                                         | 超过目标 200ms；已有减少动态处理可复用，仍需实际验证。                         |
+| 三栏断点     | [styles.css](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/styles.css) 在 1200px 才显示 context-rail                                                                                                                 | 1024–1199 未达到目标三栏；四档/八视口需补回归。                                |
+| 注册协议     | [App.tsx](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/App.tsx) 路由条件分支与 [pages.tsx](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/client/src/components/pages.tsx) 骨架                                  | 有组件复用，但没有正式插槽注册及面板最小可用宽度元数据。                       |
+| 自动门禁     | [biome.json](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/biome.json) 与 [CI](https://github.com/lvy-jsd/swiftnest/blob/e219a0e/.github/workflows/ci.yml)                                                                      | 只有通用规则、构建与测试；没有证明已拦全部 UI 白名单，也没有三平台八视口门禁。 |
+| 历史规范冲突 | [旧设计规范](./dev/design-system.md)                                                                                                                                                                                                | 仍写 Tauri、旧字号/间距/动效及阶段叙述；已加历史说明，旧代码本轮不改。         |
 
 颜色多处已经使用 `--color-*`，图标已有公共映射，中英文案与 44px 目标也有基础，不能笼统说“全没做”。是否满足两层表面、一个强调色、4.5:1、键盘完整路径，需要渲染态检查，不靠源码猜。
 
