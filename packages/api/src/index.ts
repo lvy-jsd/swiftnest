@@ -649,8 +649,19 @@ export class SwiftnestClient {
 
   /** The bytes of an image stored with a message, as a `data:` URL the App can show. */
   async readImage(sessionId: string, image: MessageImage): Promise<string> {
+    // DSH 0.2.2 reads one complete stored reference: `{ sessionId, attachment }`.
+    // It re-verifies id, media type, byte length and geometry against the stored
+    // bytes, so every field the log carried is sent back unchanged.
+    const attachment = {
+      attachmentId: image.attachmentId,
+      mediaType: image.mediaType,
+      bytes: image.bytes,
+      width: image.width,
+      height: image.height,
+      ...(image.name === undefined ? {} : { name: image.name }),
+    };
     const value = await this.rpc<{ attachment: { mediaType: string }; data: string }>('session/attachment', {
-      request: { sessionId, attachmentId: image.attachmentId },
+      request: { sessionId, attachment },
     });
     return `data:${value.attachment.mediaType};base64,${value.data}`;
   }

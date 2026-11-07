@@ -41,8 +41,12 @@ const client = {
     const type = types[path.split('.').at(-1)!] ?? 'application/octet-stream';
     return new Blob(['fixture'], { type });
   },
-  readImage: async (sessionId: string, image: { attachmentId: string }) => {
-    requests.push({ sessionId, attachmentId: image.attachmentId });
+  readImage: async (
+    sessionId: string,
+    image: { attachmentId: string; mediaType: string; bytes: number; width: number; height: number; name?: string },
+  ) => {
+    // Mirror the kernel: the App must send the complete stored reference back.
+    requests.push({ sessionId, attachment: { ...image } });
     if (image.attachmentId === 'missing') throw new Error('Missing photo');
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
   },
@@ -70,8 +74,8 @@ createRoot(document.getElementById('root')!).render(
             <MessagePhotos
               sessionId="photos"
               images={[
-                { attachmentId: 'stored', mediaType: 'image/png', name: 'sent.png', width: 1, height: 1 },
-                { attachmentId: 'missing', mediaType: 'image/png' },
+                { attachmentId: 'stored', mediaType: 'image/png', name: 'sent.png', bytes: 68, width: 1, height: 1 },
+                { attachmentId: 'missing', mediaType: 'image/png', bytes: 68, width: 1, height: 1 },
               ]}
             />
             <ToolAttachments calls={calls} />

@@ -41,19 +41,32 @@ function toolResult(data: Record<string, unknown>) {
   };
 }
 
-/** Stored image references in a user message; DSH replaces uploaded bytes with these. */
+/** The image media types DSH can store; anything else is not a readable image reference. */
+const IMAGE_MEDIA_TYPES: readonly MessageImage['mediaType'][] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+/**
+ * Stored image references in a user message; DSH replaces uploaded bytes with these.
+ * DSH 0.2.2 verifies id, media type, byte length and geometry against the stored
+ * bytes when the App reads an image back, so a reference missing any of them is
+ * dropped here instead of producing a request the kernel always rejects.
+ */
 function images(content: unknown): MessageImage[] {
   if (!Array.isArray(content)) return [];
   return content.flatMap((block) => {
     const b = record(block);
     const ref = record(b.attachment ?? b);
     if (b.type !== 'image' || typeof ref.attachmentId !== 'string') return [];
+    const mediaType = IMAGE_MEDIA_TYPES.find((type) => type === ref.mediaType);
+    const { bytes, width, height } = ref;
+    if (mediaType === undefined) return [];
+    if (typeof bytes !== 'number' || typeof width !== 'number' || typeof height !== 'number') return [];
     return [
       {
         attachmentId: ref.attachmentId,
-        mediaType: String(ref.mediaType ?? 'image/png'),
-        ...(typeof ref.width === 'number' ? { width: ref.width } : {}),
-        ...(typeof ref.height === 'number' ? { height: ref.height } : {}),
+        mediaType,
+        bytes,
+        width,
+        height,
         ...(typeof ref.name === 'string' ? { name: ref.name } : {}),
       },
     ];

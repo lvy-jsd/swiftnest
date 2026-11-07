@@ -26,12 +26,18 @@ export interface ImageInput {
   data: string;
   name?: string;
 }
-/** An image the server stored with a message; read its bytes with `readImage`. */
+/**
+ * An image the server stored with a message; read its bytes with `readImage`.
+ * DSH 0.2.2 verifies every field of the stored reference against the bytes, so
+ * the App receives — and must send back — the complete reference, not just its id.
+ */
 export interface MessageImage {
   attachmentId: string;
-  mediaType: string;
-  width?: number;
-  height?: number;
+  mediaType: ImageInput['mediaType'];
+  /** Exact encoded byte length of the stored image. */
+  bytes: number;
+  width: number;
+  height: number;
   name?: string;
 }
 export interface MessageReceipt {
