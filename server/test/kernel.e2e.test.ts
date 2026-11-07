@@ -76,7 +76,7 @@ describe.skipIf(!enabled)('Swiftnest Server kernel (e2e)', () => {
     expect(await res.json()).toMatchObject({
       ok: true,
       swiftnest: '0.0.1',
-      dsh: '0.2.1-rc.5',
+      dsh: '0.2.2-rc.1',
       model: { configured: true, reachable: true },
     });
   });

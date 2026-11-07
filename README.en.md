@@ -37,7 +37,7 @@ This is a preview. Consult the relevant guides and test records for implemented 
 
 ## Run the Assistant
 
-Requires Node.js 24 or later and an OpenAI-compatible model service. The DSH kernel needs the official Node build from nodejs.org. NixOS also needs nix-ld enabled; the repository's `nix develop` supplies development tools.
+Requires Node.js 24.9 or later and an OpenAI-compatible model service. The DSH kernel needs the official Node build from nodejs.org. NixOS also needs nix-ld enabled; the repository's `nix develop` supplies development tools.
 
 ```sh
 git clone https://github.com/lvy-jsd/swiftnest.git && cd swiftnest

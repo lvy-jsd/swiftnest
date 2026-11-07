@@ -18,9 +18,9 @@
     "build": "tsc -b"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
     "ws": "^8.21.3",
     "@types/ws": "^8.18.1"
   },

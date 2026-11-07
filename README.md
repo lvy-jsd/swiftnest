@@ -37,7 +37,7 @@ Swiftnest 是一个完整的个人 AI Bot 产品：以 DSH 为运行内核和架
 
 ## 运行助手
 
-需要 Node.js 24 或更新，以及一个 OpenAI 兼容的模型服务。DSH 内核需要 nodejs.org 官方构建的 Node；NixOS 环境要求启用 nix-ld，仓库的 `nix develop` 提供开发工具。
+需要 Node.js 24.9 或更新，以及一个 OpenAI 兼容的模型服务。DSH 内核需要 nodejs.org 官方构建的 Node；NixOS 环境要求启用 nix-ld，仓库的 `nix develop` 提供开发工具。
 
 ```sh
 git clone https://github.com/lvy-jsd/swiftnest.git && cd swiftnest
