@@ -12,6 +12,7 @@ import { loadConfig } from '../../src/config.js';
 import { startKernel, type RunningKernel } from '../../src/kernel.js';
 import { pairingUrl } from '../../src/pairing.js';
 import { installToolUltra, isBuilt, toolUltraDir, toolUltraPatch } from '../../src/tool-ultra.js';
+import { PLUGIN_MANIFEST } from '../../src/plugins.js';
 import { scriptedModel } from './tool-ultra-model.js';
 
 export class ToolUltraHarness {
@@ -41,6 +42,7 @@ export class ToolUltraHarness {
       SWIFTNEST_DEVICES_PORT: '0',
       SWIFTNEST_DEVICES_MDNS: 'false',
       SWIFTNEST_MODEL_ID: 'fake',
+      SWIFTNEST_PLUGINS: PLUGIN_MANIFEST.plugins.filter(({ id }) => id !== 'tool-ultra').map(({ id }) => `${id}=false`).join(','),
       SWIFTNEST_MODEL_BASE_URL: `http://127.0.0.1:${(this.model.address() as AddressInfo).port}/v1`,
     });
     await installToolUltra(config, (line) => this.log.push(line));

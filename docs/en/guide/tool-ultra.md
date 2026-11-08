@@ -1,10 +1,10 @@
 # Tool Ultra
 
-Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Until the finished product is released, Swiftnest builds commit `4855deda194b7614d22f6372d4da564d14120283`; Tool Ultra is not published to npm.
+Tool Ultra is the Swiftnest owner's DSH plugin ([source](https://github.com/lvy-jsd/dsh-tool-ultra), Apache-2.0). Models browse or search the catalog, then load native tools as needed, reducing the tool definitions sent on each turn. Swiftnest installs the twelve selected published `@lvy-jsd/dsh-tool-ultra-*` packages at exact version `0.5.0`, managed as one Tool Ultra switch.
 
 ## Install and enable
 
-With Git, npm, Node 24 and network access available, use the same server config and data home:
+With pnpm, Node 24.9 or newer and network access available, use the same server config and data home:
 
 ```sh
 swiftnest-server plugins install --config swiftnest.yaml
@@ -13,11 +13,11 @@ swiftnest-server start --config swiftnest.yaml
 
 In a source checkout, use `node server/dist/cli.js plugins install`. The config file is optional. If you set `SWIFTNEST_HOME`, use the same value for both commands.
 
-Installation fetches only the pinned commit into `<home>/vendor/dsh-tool-ultra-4855deda194b`, runs `npm ci` with a lockfile shipped by Swiftnest, then `npm run build`. A marker is written only after success. Repeated installation reuses it; failed installs are cleaned up and can be retried. Host dependency links resolve to the Server's own DSH. Installation neither uses nor publishes Tool Ultra packages on npm.
+Installation uses DSH's existing profile package installer, under `<home>/dsh/profiles/swiftnest`. Every direct package has an exact version and SHA-512 tarball integrity pin in the manifest. All twelve members must match before Tool Ultra is loaded; partial or mismatched groups remain unavailable. There is no Git checkout, source compilation, second workspace lock or build marker. Existing vendor directories are left untouched but no longer read; rerun the installation command to migrate.
 
 First installation also downloads image and local speech runtime dependencies from npm; the size depends on your system. These are separate from the speech model downloaded on first transcription. After a network timeout, restore the connection and retry the same installation command.
 
-Tool Ultra is on by default; its pinned commit lives in [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json). Startup prints a hint and continues if the build is missing; it never downloads source automatically. Disable it with:
+Tool Ultra is on by default; its exact npm versions and integrity pins live in [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json). Startup prints a hint and continues if the build is missing; it never downloads source automatically. Disable it with:
 
 ```yaml
 plugins:
@@ -26,7 +26,7 @@ plugins:
 
 Or set `SWIFTNEST_PLUGINS=tool-ultra=false`; the environment takes precedence. Restart the Server after installation. See [Plugins](./plugins.md) for the others.
 
-The build applies a dependency override to `mathjs 15.2.0` to fix the source dependency's [expression execution vulnerability](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5). The upstream source and tool limits stay unchanged. Swiftnest sets the media folders and speech download settings.
+The published essentials package already requires the fixed `mathjs ^15.2.0`; Swiftnest no longer rewrites upstream dependency ranges. The profile lock records transitive versions. Swiftnest still sets media folders, speech download settings and default-off MCP presets without changing upstream source or tool limits.
 
 Tool Ultra's management panel (`panel`) installs with the other packages. It shows the tool directory, what each session holds and the audit trail, under Settings → "Tool manager" in DSH. The App switches the MCP presets and names the tool bundles in the **Plugins** page, under Tools; a saved change needs Apply changes to restart the kernel.
 

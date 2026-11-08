@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parse, stringify } from 'yaml';
+import { parse } from 'yaml';
 import { loadConfig } from '../src/config.js';
 import { ADMIN_TOKEN_ENV, ADMIN_URL_ENV, startDevices } from '../src/devices.js';
 import { KernelApply } from '../src/kernel-apply.js';
@@ -16,7 +16,8 @@ import {
   toolSettingsFile,
   withToolSettings,
 } from '../src/tool-settings.js';
-import { TOOL_ULTRA_MARKER, TOOL_ULTRA_PACKAGES, TOOL_ULTRA_SOURCE, toolUltraDir } from '../src/tool-ultra.js';
+import { toolUltraDir } from '../src/tool-ultra.js';
+import { toolUltraPackages } from './fixtures/tool-ultra-packages.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -41,16 +42,9 @@ function setup() {
 /** Synthetic vendor, never a second copy of the upstream catalog. */
 function fixture(config: ReturnType<typeof loadConfig>, source?: string) {
   const dir = toolUltraDir(config);
-  for (const pkg of TOOL_ULTRA_PACKAGES) {
-    const path = join(dir, 'packages', `dsh-tool-ultra-${pkg}`);
-    mkdirSync(join(path, 'lib'), { recursive: true });
-    writeFileSync(join(path, 'lib/index.js'), 'export function apply() {}');
-    writeFileSync(join(path, 'cordis.patch.yml'), stringify([{ insert: [{ name: pkg, config: {} }] }]));
-  }
-  writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
-  writeFileSync(join(dir, TOOL_ULTRA_MARKER), TOOL_ULTRA_SOURCE.commit);
+  toolUltraPackages(dir);
   writeFileSync(
-    join(dir, 'packages/dsh-tool-ultra-pack-mcp/lib/presets.js'),
+    join(dir, 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-mcp/lib/index.js'),
     source ??
       `
     export const PRESETS = [
@@ -104,11 +98,11 @@ describe('tool settings', () => {
     expect(await readMcpPresets(config)).toEqual([]);
     const other = setup().config;
     fixture(other);
-    rmSync(join(toolUltraDir(other), 'packages/dsh-tool-ultra-pack-mcp/lib/presets.js'));
+    rmSync(join(toolUltraDir(other), 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-mcp/lib/index.js'));
     expect(await readMcpPresets(other)).toEqual([]);
     const unbuilt = setup().config;
     fixture(unbuilt);
-    rmSync(join(toolUltraDir(unbuilt), TOOL_ULTRA_MARKER));
+    rmSync(join(toolUltraDir(unbuilt), 'pnpm-lock.yaml'));
     expect(await readMcpPresets(unbuilt)).toEqual([]);
   });
   it('defaults off despite upstream defaults, strips executable fields and resolves missing env/roots like planPresets', async () => {

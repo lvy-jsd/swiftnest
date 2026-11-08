@@ -1,30 +1,44 @@
-/** Build the unpublished Tool Ultra source; defaults belong to its package patches. */
-import { text } from '@swiftnest/core';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+/** Tool Ultra's published package group and Swiftnest-owned configuration boundary. */
+import { accessSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parse } from 'yaml';
 import type { ServerConfig } from './config.js';
-import { type Log, run } from './command.js';
-import { message, ServerFailure } from './i18n.js';
-import { type GitSource, pluginById } from './plugins.js';
+import type { Log } from './command.js';
+import { type NpmGroupSource, pluginById } from './plugins.js';
 
 export const TOOL_ULTRA_ID = 'tool-ultra';
-/** The pin lives in the plugin manifest with every other plugin. */
-export const TOOL_ULTRA_SOURCE = pluginById<GitSource>(TOOL_ULTRA_ID, 'git').source;
+export const TOOL_ULTRA_SOURCE = pluginById<NpmGroupSource>(TOOL_ULTRA_ID, 'npm-group').source;
 export const TOOL_ULTRA_PACKAGES = TOOL_ULTRA_SOURCE.packages;
-export const TOOL_ULTRA_MARKER = '.swiftnest-built';
 
+/** Dependencies live in the existing DSH profile, never a second source checkout. */
 export function toolUltraDir(config: ServerConfig): string {
-  return resolve(config.home, 'vendor', `dsh-tool-ultra-${TOOL_ULTRA_SOURCE.commit.slice(0, 12)}`);
+  return join(config.home, 'dsh', 'profiles', 'swiftnest');
 }
 
-export function isBuilt(dir: string): boolean {
+/** Every member must match its audited version and tarball before the group is loaded. */
+export function isBuilt(profile: string): boolean {
   try {
-    return readFileSync(join(dir, TOOL_ULTRA_MARKER), 'utf8').trim() === TOOL_ULTRA_SOURCE.commit;
+    const lock = parse(readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')) as {
+      packages?: Record<string, { resolution?: { integrity?: string } }>;
+    };
+    return TOOL_ULTRA_PACKAGES.every((pkg) => {
+      const manifest = JSON.parse(readFileSync(join(profile, 'node_modules', pkg.package, 'package.json'), 'utf8'));
+      accessSync(toolUltraModule(profile, pkg.package));
+      accessSync(join(profile, 'node_modules', pkg.package, 'cordis.patch.yml'));
+      return (
+        manifest.version === pkg.version &&
+        lock.packages?.[`${pkg.package}@${pkg.version}`]?.resolution?.integrity === pkg.integrity
+      );
+    });
   } catch {
     return false;
   }
+}
+
+/** Resolve public package entry points using Node's exports, not the old workspace layout. */
+export function toolUltraModule(profile: string, name: string): string {
+  return createRequire(join(profile, 'package.json')).resolve(name);
 }
 
 interface PatchRow {
@@ -45,168 +59,40 @@ function configureMedia(entry: PatchRow['insert'][number], config: ServerConfig)
     geminiKeyFile: join(config.home, 'media-gemini.key'),
     lang: config.lang ?? 'zh-CN',
   };
-  // The adapter injects the Models key in memory, after the profile has been read.
   delete entry.config.geminiApiKey;
   for (const key of ['soundfont', 'soundfontUrl'] as const) {
     if (config.media?.[key] !== undefined) entry.config[key] = config.media[key];
   }
 }
 
-/**
- * MCP presets: nothing starts unless the owner listed it.
- *
- * The upstream package starts every keyless preset by default (memory, thinking, context7,
- * playwright), which means a fresh install talks to several outside services before the owner
- * asked for anything. Swiftnest is off by default instead, and a preset starts only when the
- * owner's configuration lists it with `enabled: true`.
- */
-function configureMcp(entry: PatchRow['insert'][number], config: ServerConfig): void {
-  entry.config = {
-    ...entry.config,
-    defaults: false,
-    ...(config.mcp?.presets ? { presets: config.mcp.presets } : {}),
-  };
-}
-
-/** Named tool bundles the owner declared: `cap:<name>` arms them in one call. */
-function configureCapabilities(entry: PatchRow['insert'][number], config: ServerConfig): void {
-  if (!config.capabilities?.packs) return;
-  entry.config = { ...entry.config, packs: config.capabilities.packs };
-}
-
-/** Preserve each upstream row and its config, changing only the module location. */
-export function toolUltraPatch(dir: string, config?: ServerConfig): unknown[] {
+/** Preserve upstream patches and defaults; only Swiftnest's documented overrides change. */
+export function toolUltraPatch(profile: string, config?: ServerConfig): unknown[] {
+  const require = createRequire(join(profile, 'package.json'));
   return TOOL_ULTRA_PACKAGES.flatMap((pkg) => {
-    const packageDir = resolve(dir, 'packages', `dsh-tool-ultra-${pkg}`);
+    const packageDir = dirname(require.resolve(`${pkg.package}/package.json`));
     const rows = parse(readFileSync(join(packageDir, 'cordis.patch.yml'), 'utf8')) as PatchRow[];
     for (const row of rows) {
       for (const entry of row.insert) {
-        entry.name = join(packageDir, 'lib', 'index.js');
-        if (pkg === 'pack-media' && config) configureMedia(entry, config);
-        if (pkg === 'pack-mcp' && config) configureMcp(entry, config);
-        if (pkg === 'capability-bridge' && config) configureCapabilities(entry, config);
+        entry.name = require.resolve(pkg.package);
+        if (pkg.package.endsWith('-pack-media') && config) configureMedia(entry, config);
+        if (pkg.package.endsWith('-pack-mcp') && config) {
+          entry.config = {
+            ...entry.config,
+            defaults: false,
+            ...(config.mcp?.presets ? { presets: config.mcp.presets } : {}),
+          };
+        }
+        if (pkg.package.endsWith('-capability-bridge') && config?.capabilities?.packs) {
+          entry.config = { ...entry.config, packs: config.capabilities.packs };
+        }
       }
     }
     return rows;
   });
 }
 
-/** Upstream link-host expects flat node_modules; resolve the actual pinned host under pnpm too. */
-function prepareHost(dir: string): string {
-  const require = createRequire(import.meta.url);
-  const host = createRequire(require.resolve('@deepseek-ai/dsh/package.json'));
-  const app = join(dir, '.swiftnest-host');
-  for (const peer of ['dsh-tools', 'dsh-llm', 'dsh-mcp-client']) {
-    const name = `@deepseek-ai/${peer}`;
-    const link = join(app, 'node_modules', name);
-    mkdirSync(dirname(link), { recursive: true });
-    symlinkSync(dirname(host.resolve(`${name}/package.json`)), link, 'junction');
-  }
-  return app;
-}
-
-/**
- * Keep the pinned source while replacing its vulnerable calculator dependency.
- *
- * npm's root `overrides` do not reach a dependency a workspace declares for
- * itself: the workspace's own range is what npm resolves, so `mathjs: ^14.0.0`
- * still pulled 14.9.1 — the version the advisories apply to. The override is
- * therefore applied in both places: the root manifest, and the range inside
- * every workspace that declares the package.
- */
-function prepareDependencies(dir: string): void {
-  const manifestFile = join(dir, 'package.json');
-  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
-  const overrides = JSON.parse(readFileSync(new URL('../vendor/tool-ultra-overrides.json', import.meta.url), 'utf8'));
-  manifest.overrides = { ...manifest.overrides, ...overrides };
-  writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
-  for (const [name, version] of Object.entries(overrides as Record<string, string>))
-    pinWorkspaceRange(dir, name, version);
-  writeFileSync(
-    join(dir, 'package-lock.json'),
-    readFileSync(new URL('../vendor/tool-ultra.package-lock.json', import.meta.url)),
-  );
-}
-
-/** One workspace's own dependency range for a package, if it declares one. */
-function workspaceRange(manifest: Record<string, unknown>, name: string): string | undefined {
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
-    const group = manifest[field];
-    if (!group || typeof group !== 'object') continue;
-    const range = (group as Record<string, unknown>)[name];
-    if (typeof range === 'string') return range;
-  }
-  return undefined;
-}
-
-/**
- * Pin a package to the version the host wants in every workspace that declares
- * it, so npm resolves the same version the lock records.
- */
-function pinWorkspaceRange(dir: string, name: string, version: string): void {
-  const packagesDir = join(dir, 'packages');
-  if (!existsSync(packagesDir)) return;
-  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const file = join(packagesDir, entry.name, 'package.json');
-    if (!existsSync(file)) continue;
-    const manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-    if (!workspaceRange(manifest, name)) continue;
-    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
-      const group = manifest[field];
-      if (!group || typeof group !== 'object') continue;
-      const deps = group as Record<string, unknown>;
-      if (typeof deps[name] === 'string') deps[name] = version;
-    }
-    writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
-  }
-}
-
-async function build(dir: string, config: ServerConfig, log: Log): Promise<void> {
-  // Upstream deliberately omits a lock. Ship one for this commit so npm ci is reproducible.
-  const env = { ...process.env, DSH_APP: prepareHost(dir) };
-  const execute = (command: string, args: string[]) => run(command, args, dir, env, log);
-  log(message('toolUltraFetch', config.lang, [TOOL_ULTRA_SOURCE.commit]));
-  await execute('git', ['init']);
-  await execute('git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repository, TOOL_ULTRA_SOURCE.commit]);
-  await execute('git', ['checkout', '--detach', 'FETCH_HEAD']);
-  prepareDependencies(dir);
-  log(message('toolUltraDependencies', config.lang));
-  await execute('npm', ['ci']);
-  log(message('toolUltraBuild', config.lang));
-  await execute('npm', ['run', 'build']);
-  // Verify all selected entry points before declaring the installation ready.
-  toolUltraPatch(dir);
-  for (const pkg of TOOL_ULTRA_PACKAGES)
-    readFileSync(join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'lib', 'index.js'));
-  writeFileSync(join(dir, TOOL_ULTRA_MARKER), `${TOOL_ULTRA_SOURCE.commit}\n`);
-}
-
+/** Compatibility entry: install this group through the same audited profile installer. */
 export async function installToolUltra(config: ServerConfig, log: Log): Promise<void> {
-  const dir = toolUltraDir(config);
-  if (isBuilt(dir)) {
-    log(message('toolUltraAlreadyBuilt', config.lang, [dir]));
-    return;
-  }
-  mkdirSync(dirname(dir), { recursive: true });
-  // Do not let concurrent installers delete one another's in-progress checkout.
-  const lock = `${dir}.installing`;
-  try {
-    mkdirSync(lock);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    throw new ServerFailure(text('toolUltraInstallBusy', lock));
-  }
-  try {
-    if (isBuilt(dir)) return;
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir);
-    await build(dir, config, log);
-    log(message('toolUltraInstalled', config.lang, [dir]));
-  } catch (error) {
-    rmSync(dir, { recursive: true, force: true });
-    throw error;
-  } finally {
-    rmSync(lock, { recursive: true, force: true });
-  }
+  const { installPlugins } = await import('./plugin-install.js');
+  await installPlugins(config, log);
 }

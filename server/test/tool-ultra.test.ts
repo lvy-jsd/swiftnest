@@ -1,254 +1,110 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { stringify, parse } from 'yaml';
+import { parse } from 'yaml';
 import { loadConfig } from '../src/config.js';
 import { writeProfile } from '../src/profile.js';
-import { PLUGIN_MANIFEST } from '../src/plugins.js';
-import {
-  installToolUltra,
-  isBuilt,
-  toolUltraDir,
-  toolUltraPatch,
-  TOOL_ULTRA_MARKER,
-  TOOL_ULTRA_PACKAGES,
-  TOOL_ULTRA_SOURCE,
-} from '../src/tool-ultra.js';
+import { PLUGIN_MANIFEST, enabledNpmPlugins } from '../src/plugins.js';
+import { isBuilt, toolUltraDir, toolUltraPatch, TOOL_ULTRA_PACKAGES } from '../src/tool-ultra.js';
+import { toolUltraPackages } from './fixtures/tool-ultra-packages.js';
 
-const NPM_PLUGINS_OFF = PLUGIN_MANIFEST.plugins
-  .filter((plugin) => plugin.source.type === 'npm')
-  .map((plugin) => `${plugin.id}=false`)
-  .join(',');
-const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
-vi.mock('node:child_process', async (original) => ({
-  ...(await original<typeof import('node:child_process')>()),
-  spawn,
-}));
 const homes: string[] = [];
 afterEach(() => {
-  vi.clearAllMocks();
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
 });
 function setup() {
-  const home = mkdtempSync(join(tmpdir(), 'swiftnest-ultra-'));
+  const home = mkdtempSync(join(tmpdir(), 'swiftnest ultra npm-'));
   homes.push(home);
-  // Only Tool Ultra: the npm plugins have their own tests.
-  const config = loadConfig(undefined, { SWIFTNEST_HOME: home, SWIFTNEST_PLUGINS: NPM_PLUGINS_OFF });
+  const config = loadConfig(undefined, {
+    SWIFTNEST_HOME: home,
+    SWIFTNEST_PLUGINS: PLUGIN_MANIFEST.plugins
+      .filter((plugin) => plugin.id !== 'tool-ultra')
+      .map(({ id }) => `${id}=false`)
+      .join(','),
+  });
   return { home, config, dir: toolUltraDir(config) };
 }
-function fixture(dir: string) {
-  for (const pkg of TOOL_ULTRA_PACKAGES) {
-    const packageDir = join(dir, 'packages', `dsh-tool-ultra-${pkg}`);
-    mkdirSync(join(packageDir, 'lib'), { recursive: true });
-    writeFileSync(join(packageDir, 'lib/index.js'), 'export function apply() {}\n');
-    writeFileSync(
-      join(packageDir, 'cordis.patch.yml'),
-      stringify([
-        {
-          insert: [
-            {
-              id: pkg,
-              name: `upstream-${pkg}`,
-              config: { uniqueDefault: pkg, nested: { enabled: true }, disabled: [] },
-            },
-          ],
-        },
-      ]),
-    );
-  }
-}
-function fakeCommands(fail?: string, omitBuild = false, onCheckout?: (dir: string) => void) {
-  spawn.mockImplementation((command: string, args: string[], options: { cwd: string }) => {
-    const child = new EventEmitter();
-    const stdout = new PassThrough();
-    const stderr = new PassThrough();
-    Object.assign(child, { stdout, stderr });
-    queueMicrotask(() => {
-      expect(isBuilt(options.cwd)).toBe(false);
-      if (command === 'git' && args[0] === 'checkout') {
-        writeFileSync(join(options.cwd, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
-        onCheckout?.(options.cwd);
-      }
-      if (command === 'npm' && args[0] === 'run' && !omitBuild) fixture(options.cwd);
-      stdout.end('progress\nlast line');
-      stderr.end();
-      setImmediate(() => child.emit('close', command === fail ? 1 : 0));
-    });
-    return child;
-  });
-}
 
-describe('Tool Ultra', () => {
-  it('pins the unpublished source and detects only a matching successful build marker', () => {
-    const { dir } = setup();
-    expect(TOOL_ULTRA_SOURCE.commit).toBe('4855deda194b7614d22f6372d4da564d14120283');
-    expect(dir).toContain('/vendor/dsh-tool-ultra-4855deda194b');
-    fixture(dir);
+describe('Tool Ultra published group', () => {
+  it('pins all twelve current packages to 0.5.0 under a single switch', () => {
+    const { config, dir } = setup();
+    expect(TOOL_ULTRA_PACKAGES).toHaveLength(12);
+    expect(TOOL_ULTRA_PACKAGES.every((pkg) => pkg.version === '0.5.0')).toBe(true);
+    expect(enabledNpmPlugins(config.plugins).map(({ source }) => source.package)).toEqual(
+      TOOL_ULTRA_PACKAGES.map((pkg) => pkg.package),
+    );
+    expect(dir).not.toContain('vendor');
     expect(isBuilt(dir)).toBe(false);
-    writeFileSync(join(dir, TOOL_ULTRA_MARKER), 'wrong commit');
-    expect(isBuilt(dir)).toBe(false);
-    writeFileSync(join(dir, TOOL_ULTRA_MARKER), TOOL_ULTRA_SOURCE.commit);
+    toolUltraPackages(dir);
     expect(isBuilt(dir)).toBe(true);
-  });
-
-  it('locks sherpa CPU bindings and drops the old Transformers/ONNX npm installers', () => {
-    const lock = JSON.parse(readFileSync(new URL('../vendor/tool-ultra.package-lock.json', import.meta.url), 'utf8'));
-    expect(lock.packages['node_modules/sherpa-onnx-node'].version).toBe('2.0.1');
-    expect(lock.packages['node_modules/sherpa-onnx-linux-x64'].version).toBe('2.0.1');
-    expect(lock.packages['node_modules/mathjs'].version).toBe('15.2.0');
-    for (const name of ['@huggingface/transformers', 'onnxruntime-node', 'onnxruntime-web']) {
-      expect(lock.packages).not.toHaveProperty(`node_modules/${name}`);
-    }
-  });
-
-  it("uses each package's patch defaults and absolute module paths, without editing its source", () => {
-    const { dir } = setup();
-    fixture(dir);
-    const rows = toolUltraPatch(dir) as { insert: { name: string; config: unknown }[] }[];
-    expect(rows).toHaveLength(TOOL_ULTRA_PACKAGES.length);
-    rows.forEach((row, i) => {
-      const pkg = TOOL_ULTRA_PACKAGES[i];
-      const file = join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'cordis.patch.yml');
-      expect(row.insert[0]!.config).toEqual(parse(readFileSync(file, 'utf8'))[0].insert[0].config);
-      expect(row.insert[0]!.name).toBe(join(dir, 'packages', `dsh-tool-ultra-${pkg}`, 'lib/index.js'));
-      expect(isAbsolute(row.insert[0]!.name)).toBe(true);
-      expect(readFileSync(file, 'utf8')).toContain(`upstream-${pkg}`);
-    });
-  });
-
-  it('keeps MCP presets off until the owner lists one', () => {
-    const { config, dir } = setup();
-    fixture(dir);
-    const rows = toolUltraPatch(dir, config) as { insert: { name: string; config: Record<string, unknown> }[] }[];
-    const mcp = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-pack-mcp'));
-    expect(mcp).toBeTruthy();
-    // The upstream package starts every keyless preset by default; Swiftnest does not.
-    expect(mcp!.insert[0]!.config.defaults).toBe(false);
-  });
-
-  it("passes the owner's MCP presets and capability bundles to the packages", () => {
-    const { config, dir } = setup();
-    fixture(dir);
-    const withPresets = {
-      ...config,
-      mcp: { presets: { memory: { enabled: true } } },
-      capabilities: { packs: { workstation: 'device:current' } },
-    };
-    const rows = toolUltraPatch(dir, withPresets) as { insert: { name: string; config: Record<string, unknown> }[] }[];
-    const mcp = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-pack-mcp'));
-    expect(mcp!.insert[0]!.config.presets).toEqual({ memory: { enabled: true } });
-    const bridge = rows.find((row) => row.insert[0]!.name.includes('dsh-tool-ultra-capability-bridge'));
-    expect(bridge!.insert[0]!.config.packs).toEqual({ workstation: 'device:current' });
-  });
-
-  it('installs exactly the commit, uses npm ci and build, then becomes a no-op', async () => {
-    const { config, dir } = setup();
-    fakeCommands();
-    const log = vi.fn();
-    await installToolUltra(config, log);
-    expect(spawn.mock.calls.map(([command, args]) => [command, args])).toEqual([
-      ['git', ['init']],
-      ['git', ['fetch', '--depth', '1', TOOL_ULTRA_SOURCE.repository, TOOL_ULTRA_SOURCE.commit]],
-      ['git', ['checkout', '--detach', 'FETCH_HEAD']],
-      ['npm', ['ci']],
-      ['npm', ['run', 'build']],
-    ]);
-    expect(spawn.mock.calls[0]![2].env.DSH_APP).toContain('.swiftnest-host');
-    expect(spawn.mock.calls[0]![2].env).not.toHaveProperty('ONNXRUNTIME_NODE_INSTALL');
-    expect(log).toHaveBeenCalledWith('progress');
-    expect(log).toHaveBeenCalledWith('last line');
-    expect(isBuilt(dir)).toBe(true);
-    expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))).toMatchObject({
-      name: 'fixture',
-      private: true,
-      overrides: { mathjs: '15.2.0' },
-    });
-    expect(JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8')).lockfileVersion).toBe(3);
-    await installToolUltra(config, log);
-    expect(spawn).toHaveBeenCalledTimes(5);
-  });
-
-  it('pins an overridden package inside the workspace that declares it', async () => {
-    const { config } = setup();
-    // The real checkout already holds its workspaces when the host prepares
-    // the dependencies, so the fixture provides one there.
-    fakeCommands(undefined, false, (dir) => {
-      const workspace = join(dir, 'packages', 'dsh-tool-ultra-pack-essentials');
-      mkdirSync(workspace, { recursive: true });
-      writeFileSync(
-        join(workspace, 'package.json'),
-        JSON.stringify({ name: 'dsh-tool-ultra-pack-essentials', dependencies: { mathjs: '^14.0.0' } }, null, 2),
-      );
-    });
-    await installToolUltra(config, vi.fn());
-    // npm resolves a workspace's own range, so a root override alone would
-    // still install the version the advisories apply to.
-    const manifest = JSON.parse(
-      readFileSync(join(toolUltraDir(config), 'packages', 'dsh-tool-ultra-pack-essentials', 'package.json'), 'utf8'),
-    );
-    expect(manifest.dependencies.mathjs).toBe('15.2.0');
-  });
-
-  it.each(['git', 'npm'])('cleans a failed %s install and permits retry', async (command) => {
-    const { config, dir } = setup();
-    fakeCommands(command);
-    await expect(installToolUltra(config, () => {})).rejects.toThrow('failed');
-    expect(existsSync(dir)).toBe(false);
-    expect(existsSync(`${dir}.installing`)).toBe(false);
-    fakeCommands();
-    await installToolUltra(config, () => {});
-    expect(isBuilt(dir)).toBe(true);
-  });
-
-  it('does not mark a build successful when its outputs are missing', async () => {
-    const { config, dir } = setup();
-    fakeCommands(undefined, true);
-    await expect(installToolUltra(config, () => {})).rejects.toThrow();
-    expect(existsSync(dir)).toBe(false);
-  });
-
-  it("leaves another installer's checkout alone", async () => {
-    const { config, dir } = setup();
-    fixture(dir);
-    mkdirSync(`${dir}.installing`);
-    await expect(installToolUltra(config, () => {})).rejects.toThrow('already running');
-    expect(existsSync(join(dir, 'packages'))).toBe(true);
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it('adds built plugins to the generated patch and preserves the final operator patch', () => {
-    const { config, dir, home } = setup();
-    fixture(dir);
-    writeFileSync(join(dir, TOOL_ULTRA_MARKER), TOOL_ULTRA_SOURCE.commit);
-    const opts = { bundleDir: home, log: vi.fn() };
-    const { dir: profile } = writeProfile(config, opts);
-    const user = join(profile, 'user.patch.yml');
-    writeFileSync(user, '- id: core\n  config: { pinned: [mine] }\n');
-    writeProfile(config, opts);
-    expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).toContain(
-      join(dir, 'packages/dsh-tool-ultra-core/lib/index.js'),
-    );
-    expect(readFileSync(user, 'utf8')).toContain('pinned: [mine]');
-    expect(opts.log).not.toHaveBeenCalled();
     config.plugins['tool-ultra'] = false;
-    writeProfile(config, opts);
-    expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
+    expect(enabledNpmPlugins(config.plugins)).toEqual([]);
   });
 
-  it.each(['zh-CN', 'en'] as const)(
-    'starts without installing and prints a %s hint when the build is absent',
-    (lang) => {
-      const { config, home } = setup();
-      config.lang = lang;
-      const log = vi.fn();
-      const { dir: profile } = writeProfile(config, { bundleDir: home, log });
-      expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('swiftnest-server plugins install'));
-      expect(log.mock.calls[0]![0]).toContain(lang === 'en' ? 'not installed: tool-ultra' : '尚未安装：tool-ultra');
-      expect(spawn).not.toHaveBeenCalled();
-    },
-  );
+  it.each(['version', 'integrity', 'entry', 'module', 'patch'])('rejects an incomplete group with mismatching %s', (kind) => {
+    const { dir } = setup();
+    toolUltraPackages(dir);
+    const pkg = TOOL_ULTRA_PACKAGES[0]!;
+    if (kind === 'version')
+      writeFileSync(join(dir, 'node_modules', pkg.package, 'package.json'), '{"version":"0.0.1"}');
+    if (kind === 'integrity') writeFileSync(join(dir, 'pnpm-lock.yaml'), 'packages: {}');
+    if (kind === 'entry') rmSync(join(dir, 'node_modules', pkg.package, 'package.json'));
+    if (kind === 'module') rmSync(join(dir, 'node_modules', pkg.package, 'lib/index.js'));
+    if (kind === 'patch') rmSync(join(dir, 'node_modules', pkg.package, 'cordis.patch.yml'));
+    expect(isBuilt(dir)).toBe(false);
+  });
+
+  it('uses each published package patch without changing its defaults or source', () => {
+    const { dir } = setup();
+    toolUltraPackages(dir);
+    const rows = toolUltraPatch(dir) as { insert: { name: string; config: unknown }[] }[];
+    expect(rows).toHaveLength(12);
+    rows.forEach((row, i) => {
+      const pkg = TOOL_ULTRA_PACKAGES[i]!;
+      const file = join(dir, 'node_modules', pkg.package, 'cordis.patch.yml');
+      expect(row.insert[0]!.config).toEqual(parse(readFileSync(file, 'utf8'))[0].insert[0].config);
+      expect(row.insert[0]!.name).toBe(join(dir, 'node_modules', pkg.package, 'lib/index.js'));
+      expect(isAbsolute(row.insert[0]!.name)).toBe(true);
+    });
+  });
+
+  it('retains media isolation, default-off MCP, and owner capability configuration', () => {
+    const { config, dir, home } = setup();
+    toolUltraPackages(dir);
+    config.mcp = { presets: { memory: { enabled: true } } };
+    config.capabilities = { packs: { workstation: 'device:current' } };
+    const rows = toolUltraPatch(dir, config) as { insert: { name: string; config: Record<string, unknown> }[] }[];
+    const entries = rows.flatMap((row) => row.insert);
+    expect(entries.find((entry) => entry.name.includes('pack-mcp'))?.config).toMatchObject({
+      defaults: false,
+      presets: config.mcp.presets,
+    });
+    expect(entries.find((entry) => entry.name.includes('capability-bridge'))?.config.packs).toEqual(
+      config.capabilities.packs,
+    );
+    expect(entries.find((entry) => entry.name === '@swiftnest/server-bundle/media')?.config).toMatchObject({
+      sourceModule: join(dir, 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-media/lib/index.js'),
+      outputDir: join(home, 'files/media'),
+      geminiUploads: false,
+    });
+  });
+
+  it('loads one complete group, preserves user patches and never treats disabled members as market installs', () => {
+    const { config, dir, home } = setup();
+    toolUltraPackages(dir);
+    const opts = { bundleDir: home, log: vi.fn() };
+    writeProfile(config, opts);
+    const user = join(dir, 'user.patch.yml');
+    writeFileSync(user, '- id: core\n  config: { pinned: [mine] }\n');
+    const { plugins } = writeProfile(config, opts);
+    expect(plugins.loaded).toEqual(['tool-ultra']);
+    expect(Object.keys(plugins.dependencies)).toHaveLength(12);
+    expect(plugins.bundles).toEqual([]);
+    expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toContain('dsh-tool-ultra-core');
+    expect(readFileSync(user, 'utf8')).toContain('pinned: [mine]');
+    config.plugins['tool-ultra'] = false;
+    expect(writeProfile(config, opts).plugins).toMatchObject({ loaded: [], rows: [], unaudited: [] });
+    expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
+  });
 });

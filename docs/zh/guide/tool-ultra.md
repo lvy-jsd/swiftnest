@@ -1,10 +1,10 @@
 # Tool Ultra
 
-Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。产品完成前不发布到 npm；Swiftnest 固定从提交 `4855deda194b7614d22f6372d4da564d14120283` 构建。
+Tool Ultra 是 Swiftnest 所有者维护的 DSH 插件（[源码](https://github.com/lvy-jsd/dsh-tool-ultra)，Apache-2.0）。它让模型先浏览、查找，再加载需要的原生工具，减少每轮传入的工具定义。Swiftnest 安装已发布的十二个 `@lvy-jsd/dsh-tool-ultra-*` 包，统一精确固定为 `0.5.0`，仍用一个 Tool Ultra 开关管理。
 
 ## 安装与启用
 
-准备 Git、npm、Node 24 和网络，使用服务器的同一个配置与数据目录：
+准备 pnpm、Node 24.9 或更新版本以及网络，使用服务器的同一个配置与数据目录：
 
 ```sh
 swiftnest-server plugins install --config swiftnest.yaml
@@ -13,11 +13,11 @@ swiftnest-server start --config swiftnest.yaml
 
 源码安装可运行 `node server/dist/cli.js plugins install`。配置文件可省略；通过 `SWIFTNEST_HOME` 指定数据目录时，两个命令须设置相同的值。
 
-安装仅获取固定提交，在 `<home>/vendor/dsh-tool-ultra-4855deda194b` 中使用 Swiftnest 附带的依赖锁文件运行 `npm ci`、`npm run build`。仅在成功后写入构建标记，重复运行直接复用；失败会清理未完成目录，下次可重试。依赖链接指向 Server 自带的 DSH。安装不会使用或发布 npm 上的 Tool Ultra 包。
+安装复用 DSH 已有的 profile 包安装命令，目录为 `<home>/dsh/profiles/swiftnest`。每个直接依赖都在清单里固定精确版本与 SHA-512 包完整性；十二个成员全部匹配才加载，缺包或校验不符时整组不可用。不再克隆 Git、不再编译源码，也不维护第二套 workspace 锁文件或构建标记。旧 vendor 目录不自动删除，但不再读取；重新运行安装命令即可迁移。
 
 首次安装还需从 npm 下载图像和本地语音运行库，下载量因系统而异，与首次转写时下载的语音模型是两回事。网络超时后，可在连接恢复后重试同一个安装命令。
 
-Tool Ultra 默认启用，固定提交写在 [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json)。启动时若未安装，会给出安装提示并继续运行；启动不会自动获取源码。关闭方法：
+Tool Ultra 默认启用，精确 npm 版本与完整性写在 [`server/plugins.json`](https://github.com/lvy-jsd/swiftnest/blob/main/server/plugins.json)。启动时若未安装，会给出安装提示并继续运行；启动不会自动获取源码。关闭方法：
 
 ```yaml
 plugins:
@@ -26,7 +26,7 @@ plugins:
 
 或设置 `SWIFTNEST_PLUGINS=tool-ultra=false`，环境变量优先。安装后重启 Server 生效。其他插件见[插件](./plugins.md)。
 
-构建依赖使用 `mathjs 15.2.0` 安全覆盖，修复固定源码原有依赖的[表达式执行漏洞](https://github.com/josdejong/mathjs/security/advisories/GHSA-29qv-4j9f-fjw5)；源码提交和插件默认配置保持不变。
+已发布的 essentials 包本身要求修复后的 `mathjs ^15.2.0`，Swiftnest 不再重写上游依赖范围；间接依赖版本由 profile 锁文件记录。媒体目录、语音下载设置及 MCP 默认关闭仍由 Swiftnest 注入，上游源码和工具限制不变。
 
 Tool Ultra 自带的管理面板（`panel`）随其它包一起安装启用，提供工具目录、会话占用与审计记录。它挂在 DSH 的 Settings →「工具管理」里。
 

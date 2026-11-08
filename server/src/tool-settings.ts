@@ -8,7 +8,7 @@ import { ServerFailure } from './i18n.js';
 import { JsonFileWriter, readJsonFile } from './json-store.js';
 import type { KernelApply, KernelChange } from './kernel-apply.js';
 import type { Language } from './preferences.js';
-import { isBuilt, toolUltraDir } from './tool-ultra.js';
+import { isBuilt, toolUltraDir, toolUltraModule } from './tool-ultra.js';
 
 export interface ToolSettings {
   mcp?: { presets?: Record<string, { enabled: boolean }> };
@@ -45,7 +45,7 @@ export async function readMcpPresets(config: ServerConfig): Promise<Preset[]> {
   const dir = toolUltraDir(config);
   if (!isBuilt(dir)) return [];
   try {
-    const { PRESETS } = await import(pathToFileURL(join(dir, 'packages/dsh-tool-ultra-pack-mcp/lib/presets.js')).href);
+    const { PRESETS } = await import(pathToFileURL(toolUltraModule(dir, '@lvy-jsd/dsh-tool-ultra-pack-mcp')).href);
     return PRESETS.map((preset: Preset) => ({
       id: preset.id,
       title: preset.title,

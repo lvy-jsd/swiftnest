@@ -102,7 +102,7 @@ describe.skipIf(process.env.SWIFTNEST_MEDIA_E2E !== '1')('real media pack', () =
   }, 60_000);
   it('still makes playable music offline and explains the built-in synthesizer fallback', async () => {
     const { musicTool, resolveSettings } = await import(
-      pathToFileURL(join(h.dir, 'packages/dsh-tool-ultra-pack-media/lib/index.js')).href
+      pathToFileURL(join(h.dir, 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-media/lib/index.js')).href
     );
     const tool = musicTool(resolveSettings({ outputDir: h.outputDir }), {
       soundFont: async () => {

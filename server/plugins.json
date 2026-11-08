@@ -10,22 +10,69 @@
       "license": "Apache-2.0",
       "enabled": true,
       "source": {
-        "type": "git",
+        "type": "npm-group",
         "repository": "https://github.com/lvy-jsd/dsh-tool-ultra",
-        "commit": "4855deda194b7614d22f6372d4da564d14120283",
         "packages": [
-          "core",
-          "classifier-rules",
-          "classifier-llm",
-          "risk-gate",
-          "persist",
-          "pack-essentials",
-          "pack-web",
-          "pack-mcp",
-          "panel",
-          "capability-bridge",
-          "devices",
-          "pack-media"
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-core",
+            "version": "0.5.0",
+            "integrity": "sha512-2Ek2/VMbplatBWqrlFrc0bxKHHzVj8/gHL9cKJrLeal38u8Ar1RDRpWEDZcQHpcvBRYrEvksgRv+InRRlhUd8Q=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-classifier-rules",
+            "version": "0.5.0",
+            "integrity": "sha512-cnbD234smTMgcW3JY7Qf8hynHzEczd40ktfEkrPqKxpPlJwqsMy2niReyugrGyYIhl4aIGTH1dADs6O5Cwg/FA=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-classifier-llm",
+            "version": "0.5.0",
+            "integrity": "sha512-EVf+QHDV8NeRofTl8jhR0EjngKPdWJza+eY4wGggbnB9WjzZjFqItHWP4ygxezsN1w/JDMcgf3nGmZBiYGawwQ=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-risk-gate",
+            "version": "0.5.0",
+            "integrity": "sha512-vyQOYnU1jBeXi30Y21Fe/I1MXuuRv5rtopI4aExrOIjC70vlUFx9I8bnrv2Qnme4UehCUs3ttnwa6L1DAsJRWg=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-persist",
+            "version": "0.5.0",
+            "integrity": "sha512-LpNuFQph2PtYubKsg6Kn7JSs5Xhpuh+VCBeZfbQsLouQShr0H0z/EoPBrSPb22hqIm2v+xFJIqPoPRQREHZmog=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-pack-essentials",
+            "version": "0.5.0",
+            "integrity": "sha512-Cr4EPnntV17UXQQzMnA+8QmRJfB3SsqwAz31kciqx1hR5b+6I+NKER9DvJ/t8d7LuzKZpvcKdn8WQJdiy6v7Uw=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-pack-web",
+            "version": "0.5.0",
+            "integrity": "sha512-piI27a3l0tlihok9R15h0yqbWCOXRLi2i8eAIuidOPH62OXYiOcjJ//wrPbSiia2ZIQZLfudjl4YFJnbeJULJw=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-pack-mcp",
+            "version": "0.5.0",
+            "integrity": "sha512-bjq7zLKi0MJnlckJxTS/wsV4iHfPhB35NDApHpQQhfqvixqbDZraFBslfcpmjQRX7oCJVQrnlrkyc67biUQBOQ=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-panel",
+            "version": "0.5.0",
+            "integrity": "sha512-saBo9rKeQm+SsiC5HRo91KvrE0D+0J26GsFSBHd6Zi3bOmtSuvLCJvQHnbGJ5QWQjS7vpmCgNNcTwxhV3I3hjg=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-capability-bridge",
+            "version": "0.5.0",
+            "integrity": "sha512-ZUU7hK4mDwbOQ4Jx5rrmIKdz7+y1n0gPGeR4KXmog6VG9VKzJcXKVA8K2PyY2s/r0qFC4ePTspMC7qr3V5pKnw=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-devices",
+            "version": "0.5.0",
+            "integrity": "sha512-OcTyh3v2Kho5jQPkGQ+XU8457Omb7WHJbHbUO7pWOw847xqFVGOyZTtItYe8/NIk/1tWx18cxvC/bnX6Pyav8g=="
+          },
+          {
+            "package": "@lvy-jsd/dsh-tool-ultra-pack-media",
+            "version": "0.5.0",
+            "integrity": "sha512-GKg7EovzN381wGm6auCU4KxhFIYhVwFQRkgRTYUQZZYLgAfXKY/Z1yPcTOMaQr7yVLEKAwH5dXZQyA6e8FjOqQ=="
+          }
         ]
       }
     },
