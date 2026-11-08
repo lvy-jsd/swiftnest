@@ -85,10 +85,11 @@ describe('model apply', () => {
     }
   });
   it('returns to the page that asked for pairing again', () => {
-    expect(pairingReturn('#/pair?return=models', true)).toBe('/models');
-    expect(pairingReturn('#/pair?return=plugins', false)).toBe('/plugins');
-    expect(pairingReturn('#/pair', true)).toBe('/plugins');
-    expect(pairingReturn('#/pair', false)).toBe('/');
+    expect(pairingReturn('#/pair?return=models')).toBe('/models');
+    expect(pairingReturn('#/pair?return=plugins')).toBe('/plugins');
+    expect(pairingReturn('#/pair')).toBe('/');
+    expect(pairingReturn('#/pair?return=unknown')).toBe('/');
+    expect(pairingReturn('#/pair?url=https%3A%2F%2Fhost%2Fconnect%3Freturn%3Dplugins')).toBe('/');
   });
 });
 

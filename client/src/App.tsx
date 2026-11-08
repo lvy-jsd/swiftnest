@@ -59,17 +59,19 @@ function ConnectionStatus({ quiet = false }: { quiet?: boolean }) {
     </div>
   );
 }
-/** After pairing again, a settings page that restarted the assistant gets its owner back. */
-export function pairingReturn(hash: string, restarting: boolean): string {
-  if (hash.includes('return=models')) return '/models';
-  return hash.includes('return=plugins') || restarting ? '/plugins' : '/';
+/** Only an explicit settings return link overrides home; restore state is not navigation intent. */
+export function pairingReturn(hash: string): string {
+  const query = hash.indexOf('?');
+  const destination = new URLSearchParams(query < 0 ? '' : hash.slice(query + 1)).get('return');
+  if (destination === 'models') return '/models';
+  return destination === 'plugins' ? '/plugins' : '/';
 }
 function PairPage({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
   const { store, status, error, root } = useConnection();
   const [url, setUrl] = useState(pairingFromLocation);
   const opened = useRef(false);
-  const returnTo = useRef(pairingReturn(window.location.hash, !!store.getSnapshot().pluginRestart));
+  const returnTo = useRef(pairingReturn(window.location.hash));
   async function pair(value: string) {
     setUrl('');
     clearPairingLocation();
