@@ -7,7 +7,14 @@ type HubData = {
   devices: Device[];
   candidates: DevicePairingCandidate[];
 };
-type Hub = HubData & { error: boolean; busy: boolean; act: (action: () => Promise<unknown>) => Promise<boolean> };
+type Hub = HubData & {
+  error: boolean;
+  busy: boolean;
+  /** False until the first snapshot for the current client arrives, so an empty list is not mistaken for "no devices". */
+  loaded: boolean;
+  refresh: () => Promise<void>;
+  act: (action: () => Promise<unknown>) => Promise<boolean>;
+};
 const empty: HubData = { transfers: [], devices: [], candidates: [] };
 const Context = createContext<Hub | null>(null);
 
@@ -57,6 +64,7 @@ function useHubData() {
   const client = status === 'connected' ? store.client : undefined;
   const [data, setData] = useState(empty);
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const version = useRef(0);
   const fail = useCallback(() => setError(true), []);
   // biome-ignore lint/correctness/useExhaustiveDependencies: each client identity starts a new snapshot generation
@@ -65,6 +73,7 @@ function useHubData() {
     version.current++;
     setData(empty);
     setError(false);
+    setLoaded(false);
   }, [client]);
   const refresh = useCallback(async () => {
     if (!client) return;
@@ -79,13 +88,14 @@ function useHubData() {
     if (store.client !== client || current !== version.current) return;
     setData({ devices, candidates, transfers });
     setError(false);
+    setLoaded(true);
   }, [client, store]);
   useDeviceWatch(client, refresh, fail);
-  return { data, error, fail, refresh, client, store };
+  return { data, error, loaded, fail, refresh, client, store };
 }
 
 export function DeviceHubProvider({ children }: PropsWithChildren) {
-  const { data, error, fail, refresh, client, store } = useHubData();
+  const { data, error, loaded, fail, refresh, client, store } = useHubData();
   const [busy, setBusy] = useState(false);
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -100,7 +110,7 @@ export function DeviceHubProvider({ children }: PropsWithChildren) {
       setBusy(false);
     }
   };
-  return <Context value={{ ...data, error, busy, act }}>{children}</Context>;
+  return <Context value={{ ...data, error, busy, loaded, refresh, act }}>{children}</Context>;
 }
 export function useDevices() {
   const value = useContext(Context);

@@ -7,6 +7,7 @@ import { useI18n, type Locale } from './i18n';
 import { ChatSearchAdvanced } from './chatSearchSettings';
 import { RelaySettings } from './relaySettings';
 import { ApprovalSettingsFields } from './approvalSettings';
+import { DeviceSettings } from './settingsDevices';
 
 function LanguageSetting() {
   const { t, locale, setLocale } = useI18n();
@@ -93,6 +94,7 @@ export function Preferences({ open, onClose }: { open: boolean; onClose: () => v
       <div className="field-groups">
         <LanguageSetting />
         <PreferencesNavigation onClose={onClose} />
+        <DeviceSettings onClose={onClose} />
         <DisplaySettings />
         <ChatSearchAdvanced />
         <ApprovalSettingsFields />

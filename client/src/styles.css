@@ -2257,3 +2257,18 @@ details.plugin-card summary {
   min-height: var(--min-target);
   min-width: var(--min-target);
 }
+
+/* Preferences: the device list. Same rows as the devices page, minus the tiles. */
+.device-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.device-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
