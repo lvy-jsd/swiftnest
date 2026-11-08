@@ -225,8 +225,14 @@ async function revokeNative(page: Page, kernel: RunningKernel, native: Connectio
   await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Revoke device' });
   await dialog.waitFor();
-  const [session] = await native.client!.listSessions();
-  const stream = await native.client!.follow(session!.sessionId);
+  await native.refresh();
+  expect(native.getSnapshot().sessions).toHaveLength(1);
+  const sessionId = native.getSnapshot().sessions[0]!.sessionId;
+  // Populate the native App's real cache so clearing it cannot pass vacuously.
+  native.chats.follow(sessionId, native.client!, { event: () => {}, failed: () => undefined });
+  await expect.poll(() => native.chats.getSnapshot(sessionId).ready).toBe(true);
+  expect(native.chats.getSnapshot(sessionId).state.rows.length).toBeGreaterThan(0);
+  const stream = await native.client!.follow(sessionId);
   let streamClosedAt = 0;
   const closed = (async () => {
     for await (const _ of stream) {
@@ -244,7 +250,12 @@ async function revokeNative(page: Page, kernel: RunningKernel, native: Connectio
     await closed;
   }
   await expect.poll(() => native.getSnapshot().pluginRestart, { timeout: 2000 }).toBe('pair-required');
-  expect(native.getSnapshot().sessions).toHaveLength(1);
+  expect(native.getSnapshot().sessions).toEqual([]);
+  expect(native.chats.getSnapshot(sessionId)).toMatchObject({
+    state: { rows: [], waiting: false },
+    timeline: {},
+    ready: false,
+  });
   expect(native.client).toBeUndefined();
   expect((await resumeWith(kernel, credentials[1]!)).status).toBe(401);
   await kernel.restart();
