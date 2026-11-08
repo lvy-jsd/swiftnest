@@ -41,7 +41,12 @@ export class ChatSearchHarness {
         onLine: (line) => this.logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
       },
     );
-    await this.reconnect();
+    try {
+      await this.reconnect();
+    } catch (error) {
+      await this.close();
+      throw error;
+    }
   }
   async reconnect() {
     this.client.close();

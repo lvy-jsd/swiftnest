@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
-import { startKernel } from '../src/kernel.js';
+import { startKernel, type RunningKernel } from '../src/kernel.js';
 import { installPlugins } from '../src/plugin-install.js';
 import { enabledNpmPlugins, enabledPlugins, type DshSource } from '../src/plugins.js';
 import { BUNDLES, profileDir } from '../src/profile.js';
@@ -34,11 +34,12 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
     });
     const plugins = enabledNpmPlugins(config.plugins);
     const shipped = enabledPlugins<DshSource>(config.plugins, 'dsh').map((plugin) => plugin.source.package);
+    let kernel: RunningKernel | undefined;
     try {
       await installPlugins(config, (line) => log.push(line));
       // Successful registry retries are installation diagnostics, not kernel load failures.
       const startup = log.length;
-      const kernel = await startKernel(config, { readyTimeoutMs: 90_000, onLine: (line) => log.push(line) });
+      kernel = await startKernel(config, { readyTimeoutMs: 90_000, onLine: (line) => log.push(line) });
       // Plugins load after the ready line; give them time to fail loudly.
       await sleep(10_000);
       const alive = kernel.child.exitCode === null;
@@ -59,6 +60,7 @@ it.skipIf(process.env.SWIFTNEST_PLUGINS_E2E !== '1')(
         cause: error,
       });
     } finally {
+      await kernel?.stop();
       rmSync(home, { recursive: true, force: true });
     }
   },
