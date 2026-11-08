@@ -229,6 +229,7 @@
     "rejected",
     "resume",
     "retry",
+    "return",
     "return=plugins",
     "right",
     "root",
