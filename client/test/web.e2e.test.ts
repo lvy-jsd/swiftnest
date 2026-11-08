@@ -1,4 +1,4 @@
-import { openNavigation, openPreferences } from './navigation';
+import { openNavigation, openPreferences, openSettingsPage } from './navigation';
 import { testTls } from './fixtures/tls';
 /** Build first. Opt-in; no downloads and no external model credentials. */
 import { launchChromium } from './browser';
@@ -167,7 +167,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       // Device management and owner approvals through the real same-origin proxy, at phone width.
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole('button', { name: 'Go back' }).click();
-      await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
+      await openSettingsPage(page, 'devices');
       await page.getByRole('button', { name: 'Pair a device', exact: true }).click();
       const pairingCard = page.getByRole('article', { name: 'Pair a device' });
       await pairingCard.locator('output').waitFor();
@@ -210,7 +210,7 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
       await expect.poll(() => kernel!.devices.nest.tasks.get(denied.id)?.state).toBe('denied');
       expect(await readFile(args.path, 'utf8')).toBe(args.content);
       await page.getByRole('button', { name: 'Go back' }).click();
-      await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
+      await openSettingsPage(page, 'devices');
       await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
       const revoke = page.getByRole('dialog', { name: 'Revoke device' });
       await revoke.waitFor();

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, it } from 'vitest';
 import { ChatSearchHarness, OLD_CHAT_TEXT } from './fixtures/chatSearchHarness';
-import { openNavigation, openPreferences } from './navigation';
+import { openNavigation, openPreferences, openSettingsPage } from './navigation';
 import { launchChromium } from './browser';
 import { webAppUrl } from '../../server/src/pairing';
 import { translate, type Locale, type StringKey } from '../src/i18n';
@@ -75,7 +75,7 @@ async function searchSidebar(page: Page, id: string, locale: Locale) {
     .getByRole('main')
     .getByRole('button', { name: t('back') })
     .click();
-  await (await openNavigation(page, locale)).getByRole('link', { name: t('devices'), exact: true }).click();
+  await openSettingsPage(page, 'devices', locale);
   await sidebar.getByRole('searchbox', { name: t('search') }).fill('杭州');
   await expect.poll(() => results.locator('mark').first().textContent()).toBe('杭州');
   await results.getByRole('link').first().click();

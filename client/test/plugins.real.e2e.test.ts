@@ -221,7 +221,7 @@ async function rotateAndRestart(kernel: RunningKernel, native: ConnectionStore, 
 async function revokeNative(page: Page, kernel: RunningKernel, native: ConnectionStore, credentials: string[]) {
   const app = (await native.client!.listDevices()).find((d) => d.device.startsWith('app-'))!;
   expect(app).toMatchObject({ paired: true, capabilities: [] });
-  await (await openNavigation(page)).getByRole('link', { name: /^Devices/ }).click();
+  await openSettingsPage(page, 'devices');
   await page.getByRole('button', { name: 'Revoke device', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Revoke device' });
   await dialog.waitFor();
