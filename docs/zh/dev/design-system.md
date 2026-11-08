@@ -1,5 +1,7 @@
 # Swiftnest App 设计规范
 
+> 历史实现说明：下文保留现有 Tauri 及旧令牌规则作为源码背景。新增面板的目标规范见 [ui-kit](../ui-kit.md)，产品与平台目标见 [product](../product.md)；本次仅记录目标，不表示既有代码已完成迁移。
+
 [English](../../en/dev/design-system.md) | 中文
 
 这是 Swiftnest App（`client/`，Tauri 2 + React/TS）的界面规则。气质（克制、留白、层级清楚、内容做主角）借鉴 DSH Go 公开的设计说明，但不使用 DSH Go 的任何代码、素材和品牌，组件全部自己写。
