@@ -358,6 +358,8 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     ...process.env,
     ...opts.env,
   });
+  // The ledger mirrors the team's live work; the source re-reads the kernel each poll, so a restart is picked up.
+  devices.ledger.start(() => ({ url: kernel.url, token: kernel.token }));
   try {
     ready(kernel);
     activeKernels.add(kernel);

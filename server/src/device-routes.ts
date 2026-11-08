@@ -18,6 +18,8 @@ import { isLanguage, type Preferences } from './preferences.js';
 import type { Transfers } from './transfers.js';
 import type { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
 import { handleApprovalRoute, approvalActor } from './approval-routes.js';
+import { handleTaskRoute } from './task-ledger.js';
+import type { TaskLedger } from './task-ledger.js';
 import type { ApprovalInbox } from './approval-inbox.js';
 import { downloadFile } from './file-download.js';
 import { nativeDevices } from './native-pairings.js';
@@ -40,6 +42,7 @@ export interface DeviceHub {
   plugins: PluginManager;
   tools: ToolSettingsManager;
   models: ModelManager;
+  ledger: TaskLedger;
   streams: Set<ServerResponse>;
   lanPort: () => number;
   publish: (
@@ -329,6 +332,7 @@ const routes: Route[] = [
   route('*', '/swiftnest/(api/approvals(?:/.*)?|control/approvals/request)', ({ hub, req, res, url }) =>
     handleApprovalRoute(hub, req, res, url),
   ),
+  route('GET', '/swiftnest/api/tasks(?:/[^/]+)?', ({ hub, req, res, url }) => handleTaskRoute(hub, req, res, url)),
   route('GET', `${PREFIX}/preferences`, ({ hub }) => ({
     lang: hub.preferences.lang,
     assistantName: hub.config.assistantName,
