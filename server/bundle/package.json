@@ -46,6 +46,10 @@
     "./chat-search": {
       "types": "./dist/chat-search.d.ts",
       "default": "./dist/chat-search.js"
+    },
+    "./web-fetch": {
+      "types": "./dist/web-fetch.d.ts",
+      "default": "./dist/web-fetch.js"
     }
   },
   "files": [
@@ -63,13 +67,17 @@
     }
   },
   "dependencies": {
-    "ws": "^8.22.0",
-    "@swiftnest/protocol": "workspace:*",
-    "@swiftnest/core": "workspace:*",
     "@swiftnest/channel": "workspace:*",
+    "@swiftnest/core": "workspace:*",
+    "@swiftnest/protocol": "workspace:*",
+    "ipaddr.js": "2.5.0",
+    "undici": "^7.30.2",
+    "ws": "^8.22.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-web": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-web-fetch-http": "0.2.2-rc.1",
     "@types/ws": "^8.18.2"
   }
 }

@@ -40,7 +40,7 @@ describe('photo rules', () => {
 });
 
 it('keeps the photos of a sent message in the transcript, also without text', () => {
-  const images = [{ attachmentId: 'sha256:a', mediaType: 'image/jpeg', width: 10, height: 10 }];
+  const images = [{ attachmentId: 'sha256:a', mediaType: 'image/jpeg' as const, bytes: 1000, width: 10, height: 10 }];
   const state = chatReducer(emptyChat(), {
     type: 'user-message',
     sessionId: 's',

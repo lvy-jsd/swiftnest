@@ -142,6 +142,7 @@ function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, op
       SWIFTNEST_MEMORY: String(config.memory?.enabled ?? true),
       SWIFTNEST_MEMORY_AUTO: String(config.memory?.auto ?? true),
       SWIFTNEST_SEARCH_CONFIG: JSON.stringify(config.search ?? {}),
+      SWIFTNEST_WEB_FETCH_ORIGINS: JSON.stringify(config.webFetch?.allowOrigins ?? []),
       SWIFTNEST_SEARCH_LOCAL_MODEL: config.model.id,
       SWIFTNEST_SEARCH_LOCAL_KEY_ENV: config.model.apiKeyEnv,
       SWIFTNEST_VERSION: paths.swiftnestVersion,

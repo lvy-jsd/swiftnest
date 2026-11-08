@@ -32,7 +32,18 @@ it.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')(
         await expect.poll(() => page.getByRole('link', { name: zh ? '下载文件' : 'Download file' }).count()).toBe(5);
         const requests = await page.evaluate(() => (window as any).requests);
         expect(requests.filter((request: unknown) => request === 'media/chart.png')).toHaveLength(1);
-        expect(requests).toContainEqual({ sessionId: 'photos', attachmentId: 'stored' });
+        // DSH 0.2.2 verifies every field, so the App sends the whole reference.
+        expect(requests).toContainEqual({
+          sessionId: 'photos',
+          attachment: {
+            attachmentId: 'stored',
+            mediaType: 'image/png',
+            bytes: 68,
+            width: 1,
+            height: 1,
+            name: 'sent.png',
+          },
+        });
         await checkAttachmentTheme(page);
         await page.locator('.media-attachment').first().getByRole('button').click();
         const dialog = page.getByRole('dialog');

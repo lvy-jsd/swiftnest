@@ -649,15 +649,29 @@ export class SwiftnestClient {
 
   /** The bytes of an image stored with a message, as a `data:` URL the App can show. */
   async readImage(sessionId: string, image: MessageImage): Promise<string> {
+    // DSH 0.2.2 reads one complete stored reference: `{ sessionId, attachment }`.
+    // It re-verifies id, media type, byte length and geometry against the stored
+    // bytes, so every field the log carried is sent back unchanged.
+    const attachment = {
+      attachmentId: image.attachmentId,
+      mediaType: image.mediaType,
+      bytes: image.bytes,
+      width: image.width,
+      height: image.height,
+      ...(image.name === undefined ? {} : { name: image.name }),
+    };
     const value = await this.rpc<{ attachment: { mediaType: string }; data: string }>('session/attachment', {
-      request: { sessionId, attachmentId: image.attachmentId },
+      request: { sessionId, attachment },
     });
     return `data:${value.attachment.mediaType};base64,${value.data}`;
   }
   async listSessions(): Promise<SessionSummary[]> {
     const result = await this.rpc<SessionListValue>('session/list', { _request: {} });
     return result.items.map((s) => {
-      const title = s.projections?.values.title;
+      // Domain projection keys are optional module augmentations in DSH 0.2.2.
+      // Keep this boundary structural: the title plugin may not be composed.
+      const values = s.projections?.values;
+      const title = values && 'title' in values ? values.title : undefined;
       return {
         sessionId: s.sessionId,
         updatedAt: s.updatedAt,

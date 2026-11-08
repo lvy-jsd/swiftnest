@@ -126,3 +126,27 @@ it('replays media attachment metadata separately from model text and drops untru
   });
   expect(mapFrame('chat', { type: 'snapshot', records: [{ event }] } as any)[0]).toEqual(mapped);
 });
+
+it('keeps a stored photo only when its reference carries everything DSH 0.2.2 verifies', () => {
+  const reference = {
+    attachmentId: 'sha256:0123456789abcdef',
+    mediaType: 'image/png',
+    bytes: 4096,
+    width: 64,
+    height: 48,
+    name: 'grey.png',
+  };
+  const sent = (attachment: object) => ({
+    type: 'user/message' as const,
+    seq: 1,
+    time: 100,
+    data: { id: 'm', source: { kind: 'user' }, content: [{ type: 'image', attachment }] },
+  });
+  expect(mapEvent('chat', sent(reference))[0]).toMatchObject({ type: 'user-message', images: [reference] });
+  // Without the exact byte length and geometry the kernel rejects the read, so the
+  // App must not show a preview it can never load.
+  const { bytes: _bytes, ...withoutBytes } = reference;
+  expect(mapEvent('chat', sent(withoutBytes))[0]).not.toHaveProperty('images');
+  expect(mapEvent('chat', sent({ ...reference, mediaType: 'image/svg+xml' }))[0]).not.toHaveProperty('images');
+  expect(mapEvent('chat', sent({ ...reference, width: '64' }))[0]).not.toHaveProperty('images');
+});

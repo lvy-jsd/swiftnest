@@ -111,7 +111,7 @@ describe.skipIf(process.env.SWIFTNEST_E2E !== '1').each([
           return socket;
         },
       });
-      expect(await client.health()).toMatchObject({ ok: true, dsh: '0.2.1-rc.5', model: { reachable: true } });
+      expect(await client.health()).toMatchObject({ ok: true, dsh: '0.2.2-rc.1', model: { reachable: true } });
       const session = await client.createSession();
       expect((await client.listSessions()).some((s) => s.sessionId === session.sessionId)).toBe(true);
       const subscription = await client.follow(session.sessionId, { signal: AbortSignal.timeout(20_000) });

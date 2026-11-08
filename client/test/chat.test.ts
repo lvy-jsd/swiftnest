@@ -76,7 +76,9 @@ describe('chat transcript reducer', () => {
 });
 
 it('replays sent photos and generated media together without duplicating transcript rows', () => {
-  const images = [{ attachmentId: 'sha256:photo', mediaType: 'image/png', name: 'sent.png' }];
+  const images = [
+    { attachmentId: 'sha256:photo', mediaType: 'image/png', bytes: 68, width: 1, height: 1, name: 'sent.png' },
+  ];
   const attachments = [{ path: 'media/chart.png', name: 'chart.png' }];
   const records: { event: Parameters<typeof mapEvent>[1] }[] = [
     {

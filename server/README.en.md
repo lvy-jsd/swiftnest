@@ -14,7 +14,7 @@ See [Devices](../docs/en/guide/devices.md) for pairing, approvals and the typed 
 
 ## Run it
 
-Requirements: Node 24 **from nodejs.org** (DSH's native addon does not recognize distro or Nix builds of Node;
+Requirements: Node 24.9+ **from nodejs.org** (DSH's native addon does not recognize distro or Nix builds of Node;
 on NixOS use `nix develop` from the repo root) and an OpenAI-compatible model server such as Ollama.
 
 ```sh
@@ -51,7 +51,7 @@ swiftnest-server plugins install --config swiftnest.yaml
 swiftnest-server start --config swiftnest.yaml
 ```
 
-In a source checkout, substitute `node server/dist/cli.js` for `swiftnest-server`. Installation needs Git, npm, pnpm, Node 24 and network access. Use the same config or `SWIFTNEST_HOME` for installation and startup. Startup never downloads plugins: a missing one produces a hint and the server starts normally.
+In a source checkout, substitute `node server/dist/cli.js` for `swiftnest-server`. Installation needs Git, npm, pnpm, Node 24.9+ and network access. Use the same config or `SWIFTNEST_HOME` for installation and startup. Startup never downloads plugins: a missing one produces a hint and the server starts normally.
 
 Turn plugins on or off by id with YAML `plugins: { im: true, tool-ultra: false }` or `SWIFTNEST_PLUGINS=im=true,tool-ultra=false`. See the [plugins guide](../docs/en/guide/plugins.md) and the [Tool Ultra guide](../docs/en/guide/tool-ultra.md).
 
