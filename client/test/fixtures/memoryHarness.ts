@@ -54,7 +54,12 @@ export class MemoryHarness {
       }),
       { readyTimeoutMs: 90_000, onLine: (line) => this.logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')) },
     );
-    await this.client.connect(pairingUrl(this.kernel.url, this.kernel.token));
+    try {
+      await this.client.connect(pairingUrl(this.kernel.url, this.kernel.token));
+    } catch (error) {
+      await this.close();
+      throw error;
+    }
   }
   private async installReviewDelay(delay: number): Promise<void> {
     // The real module accepts a test injection; production config/env expose no delay setting.

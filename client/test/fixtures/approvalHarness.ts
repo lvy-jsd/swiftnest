@@ -98,11 +98,16 @@ export class ApprovalHarness {
       readyTimeoutMs: 45000,
       onLine: (line) => this.logs.push(line.replace(/token=[^&\s]+/g, 'token=REDACTED')),
     });
-    this.client = await connect(pairingUrl(this.kernel.url, this.kernel.token, this.kernel.channelPairing), {
-      createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
-    });
-    this.perch = await new Perch({ device: 'computer' }).use(files, { roots: [this.home] });
-    this.kernel.devices.nest.attach(memoryLink(this.perch));
+    try {
+      this.client = await connect(pairingUrl(this.kernel.url, this.kernel.token, this.kernel.channelPairing), {
+        createWebSocket: (url, { headers }) => new WebSocket(url, { headers }),
+      });
+      this.perch = await new Perch({ device: 'computer' }).use(files, { roots: [this.home] });
+      this.kernel.devices.nest.attach(memoryLink(this.perch));
+    } catch (error) {
+      await this.close();
+      throw error;
+    }
   }
   writeRequest() {
     return this.kernel!.devices.nest.call(

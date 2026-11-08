@@ -13,12 +13,27 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startDevices } from './devices.js';
 import type { ServerConfig } from './config.js';
 import { withLocalFacts } from './model-probe.js';
 import { PROFILE_NAME, dshHome, profileDir, writeProfile } from './profile.js';
 
 const require = createRequire(import.meta.url);
+
+const activeKernels = new Set<RunningKernel>();
+
+export function getActiveKernels(): ReadonlySet<RunningKernel> {
+  return activeKernels;
+}
+
+export async function stopAllKernels(): Promise<void> {
+  const owned = [...activeKernels];
+  activeKernels.clear();
+  const results = await Promise.allSettled(owned.map((kernel) => kernel.stop()));
+  const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []));
+  if (failures.length) throw new AggregateError(failures, 'Kernel cleanup failed');
+}
 
 export interface KernelPaths {
   dshBin: string;
@@ -105,17 +120,23 @@ interface DshProcess {
   token: string;
 }
 
-function stopChild(child: ChildProcess): Promise<void> {
+export function stopChild(child: ChildProcess, graceMs = 5000): Promise<void> {
   return new Promise<void>((resolveStop) => {
     if (!child.pid || child.exitCode !== null || child.signalCode !== null) return resolveStop();
-    child.once('exit', () => resolveStop());
+    const timer = setTimeout(() => child.kill('SIGKILL'), graceMs);
+    timer.unref();
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolveStop();
+    });
     child.kill('SIGTERM');
-    setTimeout(() => child.kill('SIGKILL'), 5000).unref();
   });
 }
 
 function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, opts: StartOptions): ChildProcess {
   const args = [
+    '--import',
+    fileURLToPath(new URL(`./kernel-parent-guard.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)),
     paths.dshBin,
     '--profile',
     PROFILE_NAME,
@@ -151,7 +172,8 @@ function spawnDsh(config: ServerConfig, paths: KernelPaths, devices: Devices, op
       SWIFTNEST_APP_DIST: config.appDist ?? opts.env?.SWIFTNEST_APP_DIST ?? paths.appDist ?? '',
       [config.model.apiKeyEnv]: opts.env?.[config.model.apiKeyEnv] ?? process.env[config.model.apiKeyEnv] ?? 'none',
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // A dedicated IPC descriptor closes even when the parent receives SIGKILL.
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
 }
 
@@ -203,14 +225,23 @@ async function launch(paths: KernelPaths, devices: Devices, opts: StartOptions):
   devices.plugins.loaded(plugins);
   devices.models.loaded(config.model);
   const ready = await waitReady(spawnDsh(config, paths, devices, opts), opts);
-  devices.tools.loaded();
-  return ready;
+  try {
+    devices.tools.loaded();
+    return ready;
+  } catch (error) {
+    await stopChild(ready.child);
+    throw error;
+  }
 }
 
 class Kernel implements RunningKernel {
   private exitListeners: ((code: number | null) => void)[] = [];
   /** Set while stop or restart ends the current child on purpose. */
   private ending = false;
+  private stopped = false;
+  private operations: Promise<void> = Promise.resolve();
+  private stopping?: Promise<void>;
+  private closing?: Promise<void>;
 
   constructor(
     private current: DshProcess,
@@ -262,27 +293,48 @@ class Kernel implements RunningKernel {
 
   /** DSH is gone and will not come back: close the hub and tell the listeners. */
   fail(code: number | null = 1): void {
-    void this.devices.close().then(() => {
+    if (this.stopped) return;
+    this.stopped = true;
+    activeKernels.delete(this);
+    void this.closeDevices().then(() => {
       for (const listener of this.exitListeners) listener(code);
     });
   }
 
-  async restart(): Promise<void> {
-    this.ending = true;
-    try {
-      await stopChild(this.current.child);
-      this.current = await this.relaunch();
-    } finally {
-      this.ending = false;
-    }
-    this.watch(this.current.child);
-    this.ready(this);
+  private closeDevices(): Promise<void> {
+    this.closing ??= this.devices.close();
+    return this.closing;
   }
 
-  async stop(): Promise<void> {
-    this.ending = true;
-    await stopChild(this.current.child);
-    await this.devices.close();
+  restart(): Promise<void> {
+    const operation = this.operations.then(async () => {
+      if (this.stopped) return;
+      this.ending = true;
+      try {
+        await stopChild(this.current.child);
+        this.current = await this.relaunch();
+        this.watch(this.current.child);
+        if (!this.stopped) this.ready(this);
+      } finally {
+        this.ending = false;
+      }
+    });
+    this.operations = operation.catch(() => {});
+    return operation;
+  }
+
+  stop(): Promise<void> {
+    this.stopped = true;
+    activeKernels.delete(this);
+    this.stopping ??= this.operations.then(async () => {
+      this.ending = true;
+      try {
+        await stopChild(this.current.child);
+      } finally {
+        await this.closeDevices();
+      }
+    });
+    return this.stopping;
   }
 }
 
@@ -306,6 +358,15 @@ export async function startKernel(config: ServerConfig, opts: StartOptions = {})
     ...process.env,
     ...opts.env,
   });
-  ready(kernel);
-  return kernel;
+  try {
+    ready(kernel);
+    activeKernels.add(kernel);
+    kernel.onExit(() => {
+      activeKernels.delete(kernel);
+    });
+    return kernel;
+  } catch (error) {
+    await kernel.stop();
+    throw error;
+  }
 }

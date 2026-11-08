@@ -10,6 +10,8 @@ export {
 export { writeProfile, modelPatch, profileDir, dshHome, PROFILE_NAME, BUNDLES, PROVIDER_ID } from './profile.js';
 export {
   startKernel,
+  stopAllKernels,
+  getActiveKernels,
   parseReadyLine,
   resolveKernel,
   resolveAppDist,
