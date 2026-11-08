@@ -107,7 +107,11 @@ describe('Tool Ultra published group', () => {
     expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toContain('dsh-tool-ultra-core');
     expect(readFileSync(user, 'utf8')).toContain('pinned: [mine]');
     config.plugins['tool-ultra'] = false;
-    expect(writeProfile(config, opts).plugins).toMatchObject({ loaded: [], rows: [], unaudited: [] });
+    config.plugins.market = true;
+    const disabled = writeProfile(config, opts).plugins;
+    expect(disabled.loaded).toEqual(['market']);
+    expect(disabled.unaudited).toEqual([]);
+    expect(disabled.dependencies).toEqual({});
     expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).not.toContain('dsh-tool-ultra');
   });
 });

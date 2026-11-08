@@ -64,7 +64,10 @@ function readProfileManifest(profile: string): ProfileManifest {
  */
 function keepMarketInstalls(config: ServerConfig, profile: string, plugins: ProfilePlugins): void {
   const previous = readProfileManifest(profile);
-  const extra = Object.entries(previous.dependencies ?? {}).filter(([name]) => !(name in plugins.dependencies));
+  const groupMembers = new Set(TOOL_ULTRA_SOURCE.packages.map((pkg) => pkg.package));
+  const extra = Object.entries(previous.dependencies ?? {}).filter(
+    ([name]) => !(name in plugins.dependencies) && !groupMembers.has(name),
+  );
   if (!extra.length) return;
   const names = extra.map(([name]) => name);
   if (!isEnabled(pluginById(MARKET_ID, 'dsh'), config.plugins)) {
