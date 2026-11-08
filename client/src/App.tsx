@@ -381,7 +381,8 @@ function shellPanels(page: string, chatId?: string): PanelDef[] {
           },
         ] satisfies PanelDef[])
       : []),
-    { id: 'left.sidebar', slot: 'left', titleKey: 'chats', minWidth: 240, component: SidebarPanel },
+    // 218 is the sidebar's content width at its narrowest (242 wide, 12+12 padding).
+    { id: 'left.sidebar', slot: 'left', titleKey: 'chats', minWidth: 216, component: SidebarPanel },
     ...mainPanels(page, chatId),
     { id: 'right.context', slot: 'right', titleKey: 'rail.context', minWidth: 200, component: ContextRail },
     {
