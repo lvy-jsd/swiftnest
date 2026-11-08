@@ -24,8 +24,10 @@ export function ContextRail() {
     ...updated.filter((session) => session.running === true),
     ...updated.filter((session) => !session.running).slice(0, 3),
   ];
+  // The right slot already paints the landmark and its label; a second `aside`
+  // with the same class made every query resolve to two rails.
   return (
-    <aside className="context-rail" aria-label={t('rail.context')}>
+    <>
       <section className="context-rail__card" aria-labelledby="rail-devices">
         <h2 id="rail-devices">{t('devices')}</h2>
         {devicesKnown ? (
@@ -76,6 +78,6 @@ export function ContextRail() {
           <p>{t('rail.noToday')}</p>
         )}
       </section>
-    </aside>
+    </>
   );
 }

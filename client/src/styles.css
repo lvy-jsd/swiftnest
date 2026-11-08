@@ -326,6 +326,7 @@ button.list-row:hover {
 }
 .main-content {
   display: flex;
+  grid-area: main;
   flex-direction: column;
   flex: 1;
   min-width: 0;
@@ -1316,7 +1317,8 @@ input[role="switch"]:disabled {
   :root {
     --page-gutter: var(--gutter-desktop);
   }
-  /* ui-kit: three columns from 1024, not 1200. The rail is a slot like the rest. */
+  /* The third column exists from 1024; whether the rail shows is decided below,
+     so this skeleton changes no pixels on its own. */
   .app-shell {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
@@ -1326,6 +1328,8 @@ input[role="switch"]:disabled {
   .sidebar {
     width: 288px;
   }
+}
+@media (min-width: 1200px) {
   .context-rail {
     display: flex;
     width: 226px;
@@ -1334,6 +1338,9 @@ input[role="switch"]:disabled {
     padding: var(--space-md);
     min-height: 0;
     overflow: auto;
+  }
+  .sidebar {
+    width: 242px;
   }
   .sidebar__brand {
     flex-wrap: wrap;
@@ -1354,11 +1361,6 @@ input[role="switch"]:disabled {
   .page-header[data-chat="true"] .page-header__titles {
     max-width: none;
     margin-right: 0;
-  }
-}
-@media (min-width: 1200px) {
-  .sidebar {
-    width: 242px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
