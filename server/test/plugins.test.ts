@@ -74,8 +74,11 @@ describe('plugin manifest', () => {
   it.each<[string, (manifest: PluginManifest) => void]>([
     ['a version range', (m) => Object.assign(npmPlugin(m).source, { version: '^2.7.2' })],
     ['missing integrity', (m) => Object.assign(npmPlugin(m).source, { integrity: '' })],
-    ['a short commit', (m) => Object.assign(m.plugins[0]!.source, { commit: '8ccfefa' })],
-    ['no packages to build', (m) => Object.assign(m.plugins[0]!.source, { packages: [] })],
+    [
+      'an unpinned group version',
+      (m) => Object.assign((m.plugins[0]!.source as any).packages[0], { version: '^0.5.0' }),
+    ],
+    ['no packages to install', (m) => Object.assign(m.plugins[0]!.source, { packages: [] })],
     ['a disallowed license', (m) => Object.assign(npmPlugin(m), { license: 'AGPL-3.0' })],
     ['a kernel bundle outside DSH', (m) => Object.assign(m.plugins[1]!.source, { package: 'evil-bundle' })],
     ['a duplicate id', (m) => m.plugins.push(structuredClone(m.plugins[0]!))],

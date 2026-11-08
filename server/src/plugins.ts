@@ -8,12 +8,11 @@ import { text } from '@swiftnest/core';
 import { readFileSync } from 'node:fs';
 import { ServerFailure } from './i18n.js';
 
-export interface GitSource {
-  type: 'git';
+/** One owner-facing switch, installed atomically as exact audited npm packages. */
+export interface NpmGroupSource {
+  type: 'npm-group';
   repository: string;
-  commit: string;
-  /** Workspace packages built and loaded from the checkout. */
-  packages: string[];
+  packages: Omit<NpmSource, 'type' | 'repository'>[];
 }
 
 export interface NpmSource {
@@ -31,7 +30,7 @@ export interface DshSource {
   package: string;
 }
 
-export type Source = GitSource | NpmSource | DshSource;
+export type Source = NpmGroupSource | NpmSource | DshSource;
 
 export interface Plugin<S extends Source = Source> {
   id: string;
@@ -51,7 +50,6 @@ export interface PluginManifest {
 }
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
-const COMMIT = /^[0-9a-f]{40}$/;
 const INTEGRITY = /^sha512-[A-Za-z0-9+/]{86}==$/;
 const ID = /^[a-z][a-z0-9-]*$/;
 
@@ -62,9 +60,15 @@ function checkSource(id: string, source: Source): void {
     if (!DSH_PACKAGE.test(source.package)) throw new ServerFailure(text('pluginSourceNotPinned', id));
     return;
   }
-  if (source.type === 'git') {
-    if (!COMMIT.test(source.commit) || source.packages.length === 0)
-      throw new ServerFailure(text('pluginSourceNotPinned', id));
+  if (source.type === 'npm-group') {
+    const names = new Set<string>();
+    if (!source.packages.length) throw new ServerFailure(text('pluginSourceNotPinned', id));
+    for (const pkg of source.packages) {
+      if (!/^@lvy-jsd\/dsh-tool-ultra-[a-z0-9-]+$/.test(pkg.package) || names.has(pkg.package))
+        throw new ServerFailure(text('pluginSourceNotPinned', id));
+      names.add(pkg.package);
+      checkSource(id, { ...pkg, type: 'npm', repository: source.repository });
+    }
     return;
   }
   if (!EXACT_VERSION.test(source.version) || !INTEGRITY.test(source.integrity))
@@ -106,7 +110,16 @@ export function enabledPlugins<S extends Source>(overrides: Record<string, boole
 }
 
 export function enabledNpmPlugins(overrides: Record<string, boolean>): Plugin<NpmSource>[] {
-  return enabledPlugins<NpmSource>(overrides, 'npm');
+  return PLUGIN_MANIFEST.plugins.flatMap((plugin): Plugin<NpmSource>[] => {
+    if (!isEnabled(plugin, overrides)) return [];
+    if (plugin.source.type === 'npm') return [plugin as Plugin<NpmSource>];
+    if (plugin.source.type !== 'npm-group') return [];
+    const repository = plugin.source.repository;
+    return plugin.source.packages.map((pkg) => ({
+      ...plugin,
+      source: { ...pkg, type: 'npm', repository },
+    }));
+  });
 }
 
 /** Check operator overrides against the manifest so a typo never silently does nothing. */

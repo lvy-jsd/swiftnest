@@ -15,21 +15,33 @@ it.each(['zh-CN', 'en'] as const)('enables media with Tool Ultra and forwards th
   const root = await mkdtemp(join(tmpdir(), 'swiftnest-media-config-'));
   roots.push(root);
   for (const pkg of TOOL_ULTRA_PACKAGES) {
-    const dir = join(root, 'packages', `dsh-tool-ultra-${pkg}`);
-    await mkdir(dir, { recursive: true });
+    const dir = join(root, 'node_modules', pkg.package);
+    await mkdir(join(dir, 'lib'), { recursive: true });
+    await writeFile(join(dir, 'lib/index.js'), 'export function apply() {}');
+    await writeFile(
+      join(dir, 'package.json'),
+      JSON.stringify({
+        name: pkg.package,
+        version: pkg.version,
+        exports: { '.': './lib/index.js', './package.json': './package.json' },
+      }),
+    );
     await writeFile(
       join(dir, 'cordis.patch.yml'),
       stringify([
         {
           insert: [
-            { name: pkg, config: { maxPixels: 16777216, disable: [], speechModel: 'sensevoice', speechThreads: 4 } },
+            {
+              name: pkg.package,
+              config: { maxPixels: 16777216, disable: [], speechModel: 'sensevoice', speechThreads: 4 },
+            },
           ],
         },
       ]),
     );
   }
   const config = loadConfig(undefined, { SWIFTNEST_HOME: root, SWIFTNEST_LANG: lang });
-  expect(isEnabled(pluginById('tool-ultra', 'git'), config.plugins)).toBe(true);
+  expect(isEnabled(pluginById('tool-ultra', 'npm-group'), config.plugins)).toBe(true);
   const rows = toolUltraPatch(root, config) as any[];
   const entry = rows.at(-1).insert[0];
   expect(entry.name).toBe('@swiftnest/server-bundle/media');
@@ -38,7 +50,7 @@ it.each(['zh-CN', 'en'] as const)('enables media with Tool Ultra and forwards th
     disable: [],
     speechModel: 'sensevoice',
     speechThreads: 4,
-    sourceModule: join(root, 'packages/dsh-tool-ultra-pack-media/lib/index.js'),
+    sourceModule: join(root, 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-media/lib/index.js'),
     outputDir: join(root, 'files/media'),
     inputDirs: [join(root, 'files')],
     modelCacheDir: join(root, 'models'),
@@ -47,9 +59,9 @@ it.each(['zh-CN', 'en'] as const)('enables media with Tool Ultra and forwards th
     geminiUploads: false,
     geminiKeyFile: join(root, 'media-gemini.key'),
   });
-  expect(await readFile(join(root, 'packages/dsh-tool-ultra-pack-media/cordis.patch.yml'), 'utf8')).not.toContain(
-    'outputDir',
-  );
+  expect(
+    await readFile(join(root, 'node_modules/@lvy-jsd/dsh-tool-ultra-pack-media/cordis.patch.yml'), 'utf8'),
+  ).not.toContain('outputDir');
   config.media = {
     modelMirror: 'https://models.example/releases/',
     soundfont: '/srv/instruments.sf3',

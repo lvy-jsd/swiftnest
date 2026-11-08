@@ -23,7 +23,7 @@ export {
   checkManifest,
   type Plugin,
   type PluginManifest,
-  type GitSource,
+  type NpmGroupSource,
   type NpmSource,
 } from './plugins.js';
 export { installPlugins, verifyIntegrity } from './plugin-install.js';

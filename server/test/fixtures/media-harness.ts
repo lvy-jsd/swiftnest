@@ -8,7 +8,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { apply } from '../../bundle/src/media.js';
 import { loadConfig } from '../../src/config.js';
-import { installToolUltra, toolUltraDir, TOOL_ULTRA_SOURCE } from '../../src/tool-ultra.js';
+import { installToolUltra, toolUltraDir, isBuilt, toolUltraModule } from '../../src/tool-ultra.js';
+import { PLUGIN_MANIFEST } from '../../src/plugins.js';
 
 export const execute = promisify(execFile);
 
@@ -32,21 +33,23 @@ export async function mediaHarness() {
   const config = loadConfig(undefined, {
     SWIFTNEST_HOME: home,
     SWIFTNEST_LANG: 'en',
-    SWIFTNEST_PLUGINS: 'market=false',
+    SWIFTNEST_PLUGINS: PLUGIN_MANIFEST.plugins
+      .filter(({ id }) => id !== 'tool-ultra')
+      .map(({ id }) => `${id}=false`)
+      .join(','),
   });
   const dir = toolUltraDir(config);
   if (process.env.SWIFTNEST_MEDIA_SOURCE) {
-    await mkdir(join(home, 'vendor'), { recursive: true });
+    await mkdir(join(home, 'dsh/profiles'), { recursive: true });
     await symlink(process.env.SWIFTNEST_MEDIA_SOURCE, dir, 'dir');
-    if ((await readFile(join(dir, '.swiftnest-built'), 'utf8')).trim() !== TOOL_ULTRA_SOURCE.commit)
-      throw new Error('Wrong test source pin');
+    if (!isBuilt(dir)) throw new Error('Wrong test package group pin');
   } else await installToolUltra(config, console.log);
   const outputDir = join(home, 'files/media');
   const inputDir = join(home, 'files');
   const tools = new Map<string, any>();
   const packs: any[] = [];
   await apply(mediaContext(tools, packs), {
-    sourceModule: join(dir, 'packages/dsh-tool-ultra-pack-media/lib/index.js'),
+    sourceModule: toolUltraModule(dir, '@lvy-jsd/dsh-tool-ultra-pack-media'),
     outputDir,
     inputDirs: [inputDir],
     lang: 'en',
