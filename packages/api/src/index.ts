@@ -77,6 +77,9 @@ export interface Preferences {
   assistantName?: string;
 }
 
+export interface LedgerEvent { seq: number; kind: string; at: number; payload: unknown }
+export interface TaskView { id: string; status: string; updatedAt: number; events: LedgerEvent[] }
+
 export class SwiftnestClient {
   private root?: URL;
   private cookie = '';
@@ -461,6 +464,14 @@ export class SwiftnestClient {
   listDevices(): Promise<Device[]> {
     return this.deviceRequest('');
   }
+
+  listTasks(): Promise<TaskView[]> {
+    return this.ownerRequest('tasks');
+  }
+  getTask(id: string): Promise<TaskView> {
+    return this.ownerRequest(`tasks/${encodeURIComponent(id)}`);
+  }
+
   async openLiveView(
     device: string,
     options: { maxDimension?: number; displayId?: string; signal?: AbortSignal } = {},
