@@ -31,6 +31,21 @@ the Playwright browsers are missing, install them once:
 pnpm exec playwright install chromium
 ```
 
+## In the gate
+
+The comparison also runs as part of the client browser suite
+(`client/test/visual.e2e.test.ts`), which spawns this Playwright runner and
+fails when the exit code is non-zero. It switches on with `SWIFTNEST_WEB_E2E=1`
+like the other browser tests, so the CI browser step runs it on every PR:
+
+```sh
+pnpm --filter @swiftnest/app build:web
+SWIFTNEST_WEB_E2E=1 pnpm vitest run client/test/visual.e2e.test.ts
+```
+
+The harness pins the page clock to 10:00 (greeting text and `Date` are the only
+things that depend on the wall clock), so the same run is green at any hour.
+
 ## Update baselines
 
 After an intentional design change:
