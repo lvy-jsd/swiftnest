@@ -33,7 +33,10 @@ export async function mediaHarness() {
   const config = loadConfig(undefined, {
     SWIFTNEST_HOME: home,
     SWIFTNEST_LANG: 'en',
-    SWIFTNEST_PLUGINS: PLUGIN_MANIFEST.plugins.filter(({ id }) => id !== 'tool-ultra').map(({ id }) => `${id}=false`).join(','),
+    SWIFTNEST_PLUGINS: PLUGIN_MANIFEST.plugins
+      .filter(({ id }) => id !== 'tool-ultra')
+      .map(({ id }) => `${id}=false`)
+      .join(','),
   });
   const dir = toolUltraDir(config);
   if (process.env.SWIFTNEST_MEDIA_SOURCE) {

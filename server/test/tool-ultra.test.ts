@@ -42,18 +42,21 @@ describe('Tool Ultra published group', () => {
     expect(enabledNpmPlugins(config.plugins)).toEqual([]);
   });
 
-  it.each(['version', 'integrity', 'entry', 'module', 'patch'])('rejects an incomplete group with mismatching %s', (kind) => {
-    const { dir } = setup();
-    toolUltraPackages(dir);
-    const pkg = TOOL_ULTRA_PACKAGES[0]!;
-    if (kind === 'version')
-      writeFileSync(join(dir, 'node_modules', pkg.package, 'package.json'), '{"version":"0.0.1"}');
-    if (kind === 'integrity') writeFileSync(join(dir, 'pnpm-lock.yaml'), 'packages: {}');
-    if (kind === 'entry') rmSync(join(dir, 'node_modules', pkg.package, 'package.json'));
-    if (kind === 'module') rmSync(join(dir, 'node_modules', pkg.package, 'lib/index.js'));
-    if (kind === 'patch') rmSync(join(dir, 'node_modules', pkg.package, 'cordis.patch.yml'));
-    expect(isBuilt(dir)).toBe(false);
-  });
+  it.each(['version', 'integrity', 'entry', 'module', 'patch'])(
+    'rejects an incomplete group with mismatching %s',
+    (kind) => {
+      const { dir } = setup();
+      toolUltraPackages(dir);
+      const pkg = TOOL_ULTRA_PACKAGES[0]!;
+      if (kind === 'version')
+        writeFileSync(join(dir, 'node_modules', pkg.package, 'package.json'), '{"version":"0.0.1"}');
+      if (kind === 'integrity') writeFileSync(join(dir, 'pnpm-lock.yaml'), 'packages: {}');
+      if (kind === 'entry') rmSync(join(dir, 'node_modules', pkg.package, 'package.json'));
+      if (kind === 'module') rmSync(join(dir, 'node_modules', pkg.package, 'lib/index.js'));
+      if (kind === 'patch') rmSync(join(dir, 'node_modules', pkg.package, 'cordis.patch.yml'));
+      expect(isBuilt(dir)).toBe(false);
+    },
+  );
 
   it('uses each published package patch without changing its defaults or source', () => {
     const { dir } = setup();
