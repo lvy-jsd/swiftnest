@@ -23,11 +23,16 @@ export async function openPreferences(page: Page, locale: Locale = 'en') {
   return page.getByRole('dialog', { name: translate(locale, 'preferences'), exact: true });
 }
 
-export async function openSettingsPage(page: Page, key: 'shell.models' | 'shell.plugins', locale: Locale = 'en') {
+export async function openSettingsPage(
+  page: Page,
+  key: 'devices' | 'shell.models' | 'shell.plugins',
+  locale: Locale = 'en',
+) {
   // Pairing replaces the phone header; use the settled shell's settings entry.
   await page.waitForURL((url) => !url.hash.startsWith('#/pair'));
   const preferences = await openPreferences(page, locale);
   await preferences.getByRole('button', { name: translate(locale, key), exact: true }).click();
-  await page.waitForURL((url) => url.hash === `#/${key.slice('shell.'.length)}`);
+  const route = key === 'devices' ? key : key.slice('shell.'.length);
+  await page.waitForURL((url) => url.hash === `#/${route}`);
   return preferences;
 }
