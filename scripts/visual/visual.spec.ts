@@ -109,6 +109,14 @@ test('chat list + chat detail at four breakpoints', async () => {
     });
     // The app defaults to zh-CN; pin English so the captured strings are stable.
     await page.addInitScript(() => localStorage.setItem('swiftnest.locale', 'en'));
+    // The greeting comes from the local hour, in two places: `.home-greeting h1` (masked
+    // below) and the mobile `.phone-header__title` (not masked — its width follows the
+    // text, so a mask would differ between runs). A suite run in the morning passed and
+    // the same run in the afternoon failed. Pin the page clock to 10:00 today: Date is
+    // fixed, timers keep running, and the captured greeting stays "Good morning".
+    const morning = new Date();
+    morning.setHours(10, 0, 0, 0);
+    await page.clock.setFixedTime(morning);
     await page.goto(new URL('app/chats/deep-link', kernel.url).href, {
       waitUntil: 'domcontentloaded',
       timeout: 30_000,
