@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dshHome } from './profile.js';
+import type { ServerConfig } from './config.js';
 
 export interface EmployeeProfile {
   id: string;
@@ -22,8 +23,8 @@ export interface EmployeeProfile {
 
 export class EmployeeStore {
   private path: string;
-  constructor(home: string = dshHome) {
-    this.path = join(home, 'employees.json');
+  constructor(config: ServerConfig) {
+    this.path = join(dshHome(config), 'employees.json');
   }
 
   load(): EmployeeProfile[] {
