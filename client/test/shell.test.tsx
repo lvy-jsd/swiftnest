@@ -111,12 +111,14 @@ it('offers four translated suggestions and settings ListRows', () => {
     <ThemeProvider>
       <English>
         <ConnectionProvider>
-          <PluginsProvider>
-            <ApprovalInboxProvider>
-              <Suggestions onChoose={() => {}} />
-              <Preferences open={true} onClose={() => {}} />
-            </ApprovalInboxProvider>
-          </PluginsProvider>
+          <DeviceHubProvider>
+            <PluginsProvider>
+              <ApprovalInboxProvider>
+                <Suggestions onChoose={() => {}} />
+                <Preferences open={true} onClose={() => {}} />
+              </ApprovalInboxProvider>
+            </PluginsProvider>
+          </DeviceHubProvider>
         </ConnectionProvider>
       </English>
     </ThemeProvider>,
