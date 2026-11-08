@@ -10,10 +10,10 @@ type RowContent = {
 };
 export type ListRowProps = RowContent &
   (
-    | (Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'title'> & {
+    | (Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'title' | 'value'> & {
         onClick: NonNullable<ButtonHTMLAttributes<HTMLButtonElement>['onClick']>;
       })
-    | (Omit<HTMLAttributes<HTMLDivElement>, 'title' | 'onClick'> & { onClick?: never })
+    | (Omit<HTMLAttributes<HTMLDivElement>, 'title' | 'onClick' | 'value'> & { onClick?: never })
   );
 
 export function ListRow({ icon, title, subtitle, value, chevron = false, className = '', ...props }: ListRowProps) {

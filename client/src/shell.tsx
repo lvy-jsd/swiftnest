@@ -90,6 +90,7 @@ function PrimaryNavigation({ onNavigate }: { onNavigate: () => void }) {
   const { t } = useI18n();
   const links = [
     { route: 'transfers', label: 'shell.sendFiles', Icon: icons.transfer },
+    { route: 'tasks', label: 'tasksTitle', Icon: icons.tasks },
     { route: 'memory', label: 'memory', Icon: icons.memory },
   ] as const;
   return (

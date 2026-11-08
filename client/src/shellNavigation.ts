@@ -15,7 +15,7 @@ export function chatFromHash(hash: string): string | undefined {
 }
 
 export function shellPageFromHash(hash: string) {
-  const pages = ['approvals', 'models', 'plugins', 'memory', 'transfers', 'devices', 'pair'] as const;
+  const pages = ['approvals', 'models', 'plugins', 'memory', 'transfers', 'tasks', 'devices', 'pair'] as const;
   const page = pages.find((page) => hash.startsWith(`#/${page}`));
   return page ?? (chatFromHash(hash) ? 'chat' : 'home');
 }

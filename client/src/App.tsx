@@ -14,6 +14,7 @@ import { ApprovalInboxProvider } from './inboxState';
 import { ApprovalBadge, ApprovalInboxPage } from './inbox';
 import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
+import { TasksPage } from './tasks';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -236,6 +237,7 @@ function AppRoutes({ navigation, hour }: { navigation: ShellNavigation; hour: nu
   if (page === 'plugins') return <PluginsPage onBack={goHome} />;
   if (page === 'memory') return <MemoryPage key={status} onBack={goHome} />;
   if (page === 'transfers') return <TransfersPage onBack={goHome} />;
+  if (page === 'tasks') return <TasksPage onBack={goHome} />;
   if (page === 'devices') return <DevicesPage onBack={goHome} />;
   if (page === 'pair') return <PairPage onBack={goHome} />;
   if (chatId) return <ChatDetail key={chatId} sessionId={chatId} onBack={goHome} onOptions={openPreferences} />;

@@ -546,6 +546,13 @@
     "markdown-code__header",
     "noopener noreferrer",
     "markdown-table",
-    "chat-markdown"
+    "chat-markdown",
+    "tasks",
+    "task-group",
+    "task-group-",
+    "task-payload",
+    "task-events",
+    "tasksTitle",
+    "/tasks"
   ]
 }

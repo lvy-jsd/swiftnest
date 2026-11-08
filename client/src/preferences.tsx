@@ -32,6 +32,7 @@ function PreferencesNavigation({ onClose }: { onClose: () => void }) {
       <ListRow title={t('devices')} chevron onClick={() => navigate('/devices')} />
       <ListRow title={t('shell.models')} chevron onClick={() => navigate('/models')} />
       <ListRow title={t('shell.plugins')} chevron onClick={() => navigate('/plugins')} />
+      <ListRow title={t('tasksTitle')} chevron onClick={() => navigate('/tasks')} />
     </div>
   );
 }

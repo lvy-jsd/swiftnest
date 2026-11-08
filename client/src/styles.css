@@ -2257,3 +2257,36 @@ details.plugin-card summary {
   min-height: var(--min-target);
   min-width: var(--min-target);
 }
+
+/* Tasks page: ledger groups and the step record inside the detail sheet. */
+.task-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+}
+.task-group h2 {
+  margin-top: var(--space-sm);
+  font-size: var(--type-footnote-size);
+  line-height: var(--type-footnote-line);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.task-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-payload {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm);
+  border-radius: var(--radius-control);
+  background: var(--color-surface2);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  overflow: auto;
+}

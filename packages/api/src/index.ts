@@ -77,8 +77,18 @@ export interface Preferences {
   assistantName?: string;
 }
 
-export interface LedgerEvent { seq: number; kind: string; at: number; payload: unknown }
-export interface TaskView { id: string; status: string; updatedAt: number; events: LedgerEvent[] }
+export interface LedgerEvent {
+  seq: number;
+  kind: string;
+  at: number;
+  payload: unknown;
+}
+export interface TaskView {
+  id: string;
+  status: string;
+  updatedAt: number;
+  events: LedgerEvent[];
+}
 
 export class SwiftnestClient {
   private root?: URL;

@@ -6,19 +6,9 @@
  * live here so the page cannot invent an order of its own, and so the rules can be
  * tested without a server.
  */
-export interface LedgerEvent {
-  seq: number;
-  kind: string;
-  at: number;
-  payload: unknown;
-}
+import type { LedgerEvent, TaskView } from '@swiftnest/api';
 
-export interface TaskView {
-  id: string;
-  status: string;
-  updatedAt: number | string;
-  events: readonly LedgerEvent[];
-}
+export type { LedgerEvent, TaskView };
 
 export interface TaskGroup {
   status: string;
@@ -37,8 +27,8 @@ function statusRank(status: string): number {
 }
 
 /** Milliseconds since the epoch. Accepts an ISO string too, so a shape change cannot print 1970. */
-export function updatedAtMs(value: number | string): number {
-  const parsed = typeof value === 'number' ? value : Date.parse(value);
+export function updatedAtMs(value: number | string | undefined): number {
+  const parsed = typeof value === 'number' ? value : value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
