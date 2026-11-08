@@ -29,6 +29,7 @@ import { ModelSettingsStore } from './model-settings.js';
 import { PluginManager, type PluginManagerDeps } from './plugin-manager.js';
 import { Preferences } from './preferences.js';
 import { ApprovalInbox } from './approval-inbox.js';
+import { TaskLedger } from './task-ledger.js';
 import { Transfers } from './transfers.js';
 import { NativePairings } from '@swiftnest/server-bundle/native-pairings-store';
 import { handleNativePairing } from './native-pairings.js';
@@ -111,6 +112,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     () => publish('approvals-changed'),
   );
   const transfers = await Transfers.open(nest, config.home, quota, () => publish('transfers-changed'));
+  const ledger = new TaskLedger(join(config.home, 'task-ledger.json'));
 
   const refresh = () => {
     for (const record of nativePairings.list()) {
@@ -165,6 +167,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
     plugins,
     tools,
     models,
+    ledger,
     streams,
     publish,
     lanPort: () => lan!.port,
@@ -199,6 +202,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
       await plugins.flush();
       await tools.flush();
       await models.flush();
+      await ledger.flush();
     })());
 
   try {
@@ -218,6 +222,7 @@ export async function startDevices(config: ServerConfig, options: StartDevicesOp
       plugins,
       tools,
       models,
+      ledger,
       /** The config used to generate the profile: the owner's plugins, tool settings and models applied. */
       config: () => models.config(tools.config(plugins.config())),
       mcpUrl: mcp.url,
