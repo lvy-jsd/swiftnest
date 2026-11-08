@@ -18,6 +18,7 @@ export {
   type RunningKernel,
   type StartOptions,
 } from './kernel.js';
+export { type EmployeeProfile, EmployeeStore } from './employees.js';
 export { pairingUrl, webAppUrl } from './pairing.js';
 
 export {
