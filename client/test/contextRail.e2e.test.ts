@@ -368,6 +368,15 @@ describe.skipIf(process.env.SWIFTNEST_WEB_E2E !== '1')('context rail layout matr
             });
             await page.locator('.suggestion').first().waitFor();
             expect(await page.locator('[data-composer]').inputValue()).toBe('Persistent home draft');
+            // Narrow layouts use the compact status; wide layouts have the device rail.
+            if (width !== 1440) {
+              await page.locator('.online-summary').filter({ visible: true }).first().click();
+              await page.waitForURL((url) => url.hash === '#/devices');
+              await page
+                .getByRole('main')
+                .getByRole('heading', { name: translate(locale, 'devices'), exact: true })
+                .waitFor();
+            }
             await page.evaluate(() => {
               location.hash = '/pair';
             });

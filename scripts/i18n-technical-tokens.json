@@ -27,6 +27,7 @@
     "./connection",
     "/chats/",
     "/connect",
+    "/devices",
     "/pair",
     "/plugins",
     "/swiftnest",

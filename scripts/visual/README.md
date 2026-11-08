@@ -4,12 +4,12 @@ Screenshot-based UI regression for the web client. A real DSH kernel with a
 fake model boots in-process, a chat is created, and the chat list and chat
 detail pages are captured at four breakpoints:
 
-| name     | width | height |
-| -------- | ----- | ------ |
-| mobile   | 390   | 844    |
-| tablet   | 768   | 1024   |
-| desktop  | 1280  | 800    |
-| wide     | 1600  | 900    |
+| name    | width | height |
+| ------- | ----- | ------ |
+| mobile  | 390   | 844    |
+| tablet  | 768   | 1024   |
+| desktop | 1280  | 800    |
+| wide    | 1600  | 900    |
 
 Baselines live in `screenshots/web/` (one PNG per page per breakpoint).
 Desktop (Electron) and Android (device) get their own configs and baseline
