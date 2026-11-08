@@ -357,6 +357,7 @@ export const en = {
   liveControlHelp:
     'Take over to tap or type on the screen. Hand back when you are ready for the assistant to continue.',
   'shell.navigation': 'Navigation',
+  'slot.morePanels': 'More panels',
   'shell.openNavigation': 'Open navigation',
   'shell.sendFiles': 'Send files',
   'shell.today': 'Today',
@@ -776,6 +777,7 @@ export const zhCN: Record<StringKey, string> = {
   liveTakeOver: '我来接管',
   liveControlHelp: '接管后，可以直接在屏幕上点按或输入。操作完成后点「交还控制」，助手就可以继续了。',
   'shell.navigation': '导航',
+  'slot.morePanels': '更多面板',
   'shell.openNavigation': '打开侧边栏',
   'shell.sendFiles': '传文件',
   'shell.today': '今天',

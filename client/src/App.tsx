@@ -1,6 +1,8 @@
-import { useShellNavigation, useChatSwipe, goHome, type ShellNavigation } from './shellNavigation';
+import { useShellNavigation, useChatSwipe, goHome } from './shellNavigation';
 import { useChatSwipeStyle, useRouteTransition } from './shellNavigation';
-import { PageNavigationProvider } from './components/PageNavigation';
+import { PageNavigationProvider, useShell } from './components/PageNavigation';
+import { Slot, SlotRegistryProvider } from './components/Slot';
+import { createSlotRegistry, type PanelDef } from './components/slots';
 import { Preferences } from './preferences';
 import { Sidebar, OnlineSummary } from './shell';
 import { Home } from './home';
@@ -16,7 +18,16 @@ import { LanguageSync } from './languageSync';
 import { TransfersPage, TransferCards } from './transfers';
 import { LiveDeviceButton } from './liveView';
 import { DeviceHubProvider, DeviceApprovals, DevicesPage } from './devices';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { IconButton } from './components/IconButton';
 import { Sheet } from './components/Sheet';
 import { DetailPage, FormPage } from './components/pages';
@@ -27,6 +38,10 @@ import { useConnection } from './connection';
 import { EmptyChat, TranscriptRow } from './chatTranscript';
 
 export { chatFromHash } from './shellNavigation';
+
+/** The greeting hour. The top bar and the home page both read it without prop drilling. */
+const HourContext = createContext(0);
+const useHour = () => useContext(HourContext);
 
 export function pairingFromLocation(): string {
   if (typeof window === 'undefined') return '';
@@ -215,63 +230,25 @@ function ChatDetail({
     </DetailPage>
   );
 }
-export function App() {
-  return (
-    <DeviceHubProvider>
-      <ApprovalInboxProvider>
-        <PluginsProvider>
-          <ComposerProvider>
-            <AppContent />
-          </ComposerProvider>
-        </PluginsProvider>
-      </ApprovalInboxProvider>
-    </DeviceHubProvider>
-  );
-}
-function AppRoutes({ navigation, hour }: { navigation: ShellNavigation; hour: number }) {
-  const { page, chatId, openPreferences } = navigation;
+
+/*
+ * Panels of the five-slot shell.
+ *
+ * Each panel is a zero-prop component that reads the shell from context, so the
+ * definition list stays a pure function of the route: a panel never has to be
+ * re-created to see fresh state, and the slot never remounts one by accident.
+ */
+
+function PhoneHeaderPanel() {
+  const { t } = useI18n();
+  const navigation = useShell();
+  const hour = useHour();
   const { status } = useConnection();
-  if (page === 'approvals') return <ApprovalInboxPage onBack={goHome} />;
-  if (page === 'models') return <ModelsPage onBack={goHome} />;
-  if (page === 'plugins') return <PluginsPage onBack={goHome} />;
-  if (page === 'memory') return <MemoryPage key={status} onBack={goHome} />;
-  if (page === 'transfers') return <TransfersPage onBack={goHome} />;
-  if (page === 'devices') return <DevicesPage onBack={goHome} />;
-  if (page === 'pair') return <PairPage onBack={goHome} />;
-  if (chatId) return <ChatDetail key={chatId} sessionId={chatId} onBack={goHome} onOptions={openPreferences} />;
-  return (
-    <>
-      <ConnectionStatus quiet />
-      <Home hour={hour} />
-    </>
-  );
-}
-
-function ShellSidebar({ navigation }: { navigation: ShellNavigation }) {
-  const { t } = useI18n();
-  const { chatId, newChat, closeDrawer, openPreferences, drawer } = navigation;
-  const content = (
-    <Sidebar chatId={chatId} onNewChat={newChat} onNavigate={closeDrawer} onPreferences={openPreferences} />
-  );
-  return (
-    <>
-      <aside className="sidebar card">{content}</aside>
-      <Sheet open={drawer} onClose={closeDrawer} title={t('shell.navigation')} presentation="drawer">
-        {content}
-      </Sheet>
-    </>
-  );
-}
-
-function PhoneHeader({ navigation, hour }: { navigation: ShellNavigation; hour: number }) {
-  const { t } = useI18n();
   const Menu = icons.menu;
   const Settings = icons.settings;
   const Write = icons.write;
-  const { status } = useConnection();
-  if (navigation.page !== 'home') return null;
   return (
-    <header className="phone-header">
+    <>
       <IconButton
         aria-label={t('shell.openNavigation')}
         aria-expanded={navigation.drawer}
@@ -292,7 +269,143 @@ function PhoneHeader({ navigation, hour }: { navigation: ShellNavigation; hour: 
         </IconButton>
       </div>
       <ApprovalBadge />
-    </header>
+    </>
+  );
+}
+
+function SidebarPanel() {
+  const navigation = useShell();
+  return (
+    <Sidebar
+      chatId={navigation.chatId}
+      onNewChat={navigation.newChat}
+      onNavigate={navigation.closeDrawer}
+      onPreferences={navigation.openPreferences}
+    />
+  );
+}
+
+function NavigationDrawerPanel() {
+  const { t } = useI18n();
+  const navigation = useShell();
+  return (
+    <Sheet
+      open={navigation.drawer}
+      onClose={navigation.closeDrawer}
+      title={t('shell.navigation')}
+      presentation="drawer"
+    >
+      <SidebarPanel />
+    </Sheet>
+  );
+}
+
+function PreferencesPanel() {
+  const navigation = useShell();
+  return <Preferences open={navigation.preferences} onClose={navigation.closePreferences} />;
+}
+
+function HomePanel() {
+  const hour = useHour();
+  return (
+    <>
+      <ConnectionStatus quiet />
+      <Home hour={hour} />
+    </>
+  );
+}
+
+function ChatPanel() {
+  const navigation = useShell();
+  if (!navigation.chatId) return null;
+  return <ChatDetail sessionId={navigation.chatId} onBack={goHome} onOptions={navigation.openPreferences} />;
+}
+
+function MemoryPanel() {
+  const { status } = useConnection();
+  return <MemoryPage key={status} onBack={goHome} />;
+}
+
+function ApprovalsPanel() {
+  return <ApprovalInboxPage onBack={goHome} />;
+}
+function ModelsPanel() {
+  return <ModelsPage onBack={goHome} />;
+}
+function PluginsPanel() {
+  return <PluginsPage onBack={goHome} />;
+}
+function TransfersPanel() {
+  return <TransfersPage onBack={goHome} />;
+}
+function DevicesPanel() {
+  return <DevicesPage onBack={goHome} />;
+}
+function PairPanel() {
+  return <PairPage onBack={goHome} />;
+}
+
+/** The main area shows exactly one page; the route picks it, the page never moves. */
+const MAIN_PAGES = {
+  approvals: { id: 'main.approvals', titleKey: 'inboxTitle', component: ApprovalsPanel },
+  models: { id: 'main.models', titleKey: 'modelsTitle', component: ModelsPanel },
+  plugins: { id: 'main.plugins', titleKey: 'pluginsTitle', component: PluginsPanel },
+  memory: { id: 'main.memory', titleKey: 'memory', component: MemoryPanel },
+  transfers: { id: 'main.transfers', titleKey: 'transfers', component: TransfersPanel },
+  devices: { id: 'main.devices', titleKey: 'devices', component: DevicesPanel },
+  pair: { id: 'main.pair', titleKey: 'pair', component: PairPanel },
+} as const;
+
+function mainPanels(page: string, chatId?: string): PanelDef[] {
+  if (page === 'chat' && chatId)
+    return [{ id: 'main.chat', slot: 'main', titleKey: 'messages', minWidth: 0, key: chatId, component: ChatPanel }];
+  const route = MAIN_PAGES[page as keyof typeof MAIN_PAGES];
+  if (route) return [{ ...route, slot: 'main', minWidth: 0 }];
+  return [{ id: 'main.home', slot: 'main', titleKey: 'chats', minWidth: 0, component: HomePanel }];
+}
+
+/**
+ * The whole shell as data: five slots, one panel list. Adding a page or a rail means
+ * adding an entry here (or registering one at runtime), never editing the layout.
+ */
+function shellPanels(page: string, chatId?: string): PanelDef[] {
+  return [
+    ...(page === 'home'
+      ? ([
+          {
+            id: 'topbar.phone',
+            slot: 'topbar',
+            titleKey: 'shell.navigation',
+            minWidth: 320,
+            component: PhoneHeaderPanel,
+          },
+        ] satisfies PanelDef[])
+      : []),
+    { id: 'left.sidebar', slot: 'left', titleKey: 'chats', minWidth: 240, component: SidebarPanel },
+    ...mainPanels(page, chatId),
+    { id: 'right.context', slot: 'right', titleKey: 'rail.context', minWidth: 200, component: ContextRail },
+    {
+      id: 'overlay.navigation',
+      slot: 'overlay',
+      titleKey: 'shell.navigation',
+      minWidth: 0,
+      component: NavigationDrawerPanel,
+    },
+    { id: 'overlay.preferences', slot: 'overlay', titleKey: 'preferences', minWidth: 0, component: PreferencesPanel },
+  ];
+}
+
+export function App() {
+  return (
+    <DeviceHubProvider>
+      <ApprovalInboxProvider>
+        <PluginsProvider>
+          <ComposerProvider>
+            <AppContent />
+          </ComposerProvider>
+        </PluginsProvider>
+      </ApprovalInboxProvider>
+    </DeviceHubProvider>
   );
 }
 
@@ -345,22 +458,30 @@ function AppContent() {
   const { offset, ...swipeHandlers } = useChatSwipe(navigation.chatId, navigation.hash);
   const style = useChatSwipeStyle(offset);
   const routeView = useRouteTransition(navigation.routeKey);
+  const { t } = useI18n();
+  // Pure data, so the registry (and every panel identity inside it) is stable per route.
+  const panels = useMemo(() => shellPanels(navigation.page, navigation.chatId), [navigation.page, navigation.chatId]);
+  const registry = useMemo(() => createSlotRegistry(panels), [panels]);
   return (
     <div className="app-shell">
       <LanguageSync />
       <SkipLink />
       <RouteAnnouncement hash={navigation.hash} />
-      <ShellSidebar navigation={navigation} />
-      <PageNavigationProvider value={navigation}>
-        <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
-          <PhoneHeader navigation={navigation} hour={hour} />
-          <div ref={routeView} className="route-view" style={style}>
-            <AppRoutes navigation={navigation} hour={hour} />
-          </div>
-        </main>
-      </PageNavigationProvider>
-      <ContextRail />
-      <Preferences open={navigation.preferences} onClose={navigation.closePreferences} />
+      <HourContext value={hour}>
+        <PageNavigationProvider value={navigation}>
+          <SlotRegistryProvider registry={registry}>
+            <Slot id="topbar" as="header" className="phone-header" measure={false} />
+            <Slot id="left" as="aside" className="sidebar card" label={t('chats')} />
+            <main id="main-content" className="main-content" tabIndex={-1} {...swipeHandlers}>
+              <div ref={routeView} className="route-view" style={style}>
+                <Slot id="main" measure={false} />
+              </div>
+            </main>
+            <Slot id="right" as="aside" className="context-rail" label={t('rail.context')} gap={12} />
+            <Slot id="overlay" measure={false} />
+          </SlotRegistryProvider>
+        </PageNavigationProvider>
+      </HourContext>
     </div>
   );
 }

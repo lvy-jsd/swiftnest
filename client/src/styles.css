@@ -285,12 +285,44 @@ button.list-row:hover {
 .preferences-group .list-row {
   padding: 0 0 var(--space-md);
 }
+/* The five-slot shell (product.md §5): slot placement is declared here once, so a
+   panel never positions itself. Row gap stays 0 because the top-bar row is empty
+   wherever the phone header is hidden. */
 .app-shell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "topbar"
+    "main";
   height: 100dvh;
   overflow: hidden;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
     env(safe-area-inset-left, 0px);
+}
+.slot {
+  min-width: 0;
+}
+/* A slot with no panel for this route must not reserve the grid track it lives in. */
+.slot:empty {
+  display: none;
+}
+.slot[data-slot="topbar"] {
+  grid-area: topbar;
+}
+.slot[data-slot="left"] {
+  grid-area: left;
+}
+.slot[data-slot="right"] {
+  grid-area: right;
+}
+/* These two wrap panels that own their box: a wrapper would break the page layout. */
+.slot[data-slot="main"],
+.slot[data-slot="overlay"] {
+  display: contents;
+}
+.slot__overflow {
+  align-self: start;
 }
 .main-content {
   display: flex;
@@ -1253,13 +1285,17 @@ input[role="switch"]:disabled {
     --page-gutter: var(--gutter-tablet);
   }
   .app-shell {
-    gap: var(--space-md);
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "topbar topbar"
+      "left main";
+    column-gap: var(--space-md);
     padding: max(var(--space-md), env(safe-area-inset-top, 0px)) max(var(--space-md), env(safe-area-inset-right, 0px))
       max(var(--space-md), env(safe-area-inset-bottom, 0px)) max(var(--space-md), env(safe-area-inset-left, 0px));
   }
   .sidebar {
     display: flex;
-    flex: 0 0 260px;
+    width: 260px;
     padding: var(--space-md);
     min-height: 0;
   }
@@ -1280,22 +1316,24 @@ input[role="switch"]:disabled {
   :root {
     --page-gutter: var(--gutter-desktop);
   }
-  .sidebar {
-    flex-basis: 288px;
+  /* ui-kit: three columns from 1024, not 1200. The rail is a slot like the rest. */
+  .app-shell {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "topbar topbar topbar"
+      "left main right";
   }
-}
-@media (min-width: 1200px) {
+  .sidebar {
+    width: 288px;
+  }
   .context-rail {
     display: flex;
-    flex: 0 0 226px;
+    width: 226px;
     flex-direction: column;
     gap: var(--space-md);
     padding: var(--space-md);
     min-height: 0;
     overflow: auto;
-  }
-  .sidebar {
-    flex-basis: 242px;
   }
   .sidebar__brand {
     flex-wrap: wrap;
@@ -1316,6 +1354,11 @@ input[role="switch"]:disabled {
   .page-header[data-chat="true"] .page-header__titles {
     max-width: none;
     margin-right: 0;
+  }
+}
+@media (min-width: 1200px) {
+  .sidebar {
+    width: 242px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
