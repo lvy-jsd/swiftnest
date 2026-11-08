@@ -332,9 +332,7 @@ const routes: Route[] = [
   route('*', '/swiftnest/(api/approvals(?:/.*)?|control/approvals/request)', ({ hub, req, res, url }) =>
     handleApprovalRoute(hub, req, res, url),
   ),
-  route('GET', '/swiftnest/api/tasks(?:/[^/]+)?', ({ hub, req, res, url }) =>
-    handleTaskRoute(hub, req, res, url),
-  ),
+  route('GET', '/swiftnest/api/tasks(?:/[^/]+)?', ({ hub, req, res, url }) => handleTaskRoute(hub, req, res, url)),
   route('GET', `${PREFIX}/preferences`, ({ hub }) => ({
     lang: hub.preferences.lang,
     assistantName: hub.config.assistantName,

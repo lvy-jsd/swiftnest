@@ -59,6 +59,11 @@ function statusOf(id: string, latest: TaskEvent): string {
   return 'completed';
 }
 
+/** Whether a work unit is live in a snapshot: running a turn, in a room, or waiting for a hand-back. */
+function presentIn(id: string, work: LiveWork): boolean {
+  return id in work.bots || id in work.rooms || id in work.waiting;
+}
+
 /**
  * The append-only ledger. `append` is idempotent on `liveKey`; `list` and `get` read the
  * latest snapshot; `start` polls DS Bot and feeds changes in. Nothing here writes to the team.
@@ -102,9 +107,15 @@ export class TaskLedger {
     return [...ids].map((id) => this.get(id)!);
   }
 
-  /** One work unit's history, or undefined when it was never seen. */
+  /** One work unit's history, or undefined when it was never seen. The leaving event counts as its. */
   get(id: string): TaskView | undefined {
-    const events = this.events.filter((e) => id in e.work.bots || id in e.work.rooms);
+    const events: TaskEvent[] = [];
+    for (let i = 0; i < this.events.length; i++) {
+      const e = this.events[i]!;
+      const prev = i > 0 ? this.events[i - 1]! : undefined;
+      const present = presentIn(id, e.work);
+      if (present || (prev !== undefined && presentIn(id, prev.work) && !present)) events.push(e);
+    }
     const latest = events.at(-1);
     if (!latest) return undefined;
     return { id, status: statusOf(id, this.events.at(-1)!), updatedAt: latest.at, events };
@@ -163,7 +174,7 @@ async function sessionCookie(url: string, token: string): Promise<string> {
 export async function handleTaskRoute(
   hub: DeviceHub,
   req: IncomingMessage,
-  res: ServerResponse,
+  _res: ServerResponse,
   url: URL,
 ): Promise<unknown> {
   const path = url.pathname;
