@@ -60,7 +60,13 @@ export default defineConfig({
               { text: 'Write your first plugin', link: '/en/guide/write-a-plugin' },
             ],
           },
-          { text: 'Design', items: [{ text: 'Design document', link: '/en/design' }] },
+          {
+            text: 'Design',
+            items: [
+              { text: 'Design document', link: '/en/design' },
+              { text: 'DSH Coupling & Boundary (L2)', link: '/en/dev/dsh-coupling-boundary' },
+            ],
+          },
         ],
       },
     },
@@ -115,6 +121,7 @@ export default defineConfig({
               { text: '设置字段归属', link: '/zh/settings-ownership' },
               { text: '现有页面体检', link: '/zh/ui-audit' },
               { text: '历史设计方案', link: '/zh/design' },
+              { text: 'DSH 耦合清单与边界 (L2)', link: '/zh/dev/dsh-coupling-boundary' },
             ],
           },
         ],
