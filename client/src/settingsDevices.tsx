@@ -86,7 +86,9 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
         <p role="status">{t('devicesLoading')}</p>
       ) : devices.length === 0 ? (
         <>
-          <p>{t('noDevices')}</p>
+          {/* Distinct from the devices page copy: a closed Sheet stays in the
+              DOM, and two identical strings broke exact-text lookups. */}
+          <p>{t('devicesNoneHere')}</p>
           <Button onClick={openDevices}>{t('pairDevice')}</Button>
         </>
       ) : (
